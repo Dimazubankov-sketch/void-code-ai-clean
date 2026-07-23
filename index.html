@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
+    <meta name="theme-color" content="#f8f9fc">
+    <title>Void Code AI</title>
+
+    <!-- ТЕМА ДО ПЕРВОЙ ОТРИСОВКИ: читаем сохранённую сессию и ставим класс .dark
+         на <html> раньше, чем браузер что-либо нарисует. Это убирает «вспышку»
+         светлой темы при загрузке в тёмном режиме. -->
+    <script>
+        (function () {
+            try {
+                var s = JSON.parse(localStorage.getItem('voidcode_session_v1') || 'null');
+                if (s && s.isDarkMode) {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.style.colorScheme = 'dark';
+                    var m = document.querySelector('meta[name="theme-color"]');
+                    if (m) m.setAttribute('content', '#0f0f13');
+                }
+            } catch (e) { /* повреждённый localStorage не должен ломать загрузку */ }
+        })();
+    </script>
+
+    <!-- Реальная высота вьюпорта (--vh): работает до загрузки React,
+         сглаживает появление клавиатуры на мобильных. -->
+    <script>
+        (function () {
+            var rafId = null;
+            function applyHeight() {
+                rafId = null;
+                var h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+                document.documentElement.style.setProperty('--vh', (h * 0.01) + 'px');
+                if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+            }
+            function setAppHeight() {
+                if (rafId !== null) return;
+                rafId = requestAnimationFrame(applyHeight);
+            }
+            applyHeight();
+            window.addEventListener('resize', setAppHeight);
+            window.addEventListener('orientationchange', setAppHeight);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', setAppHeight);
+                window.visualViewport.addEventListener('scroll', setAppHeight);
+            }
+        })();
+    </script>
+  <script type="module" crossorigin src="/void-code-ai-clean/assets/index-BSHopl4p.js"></script>
+  <link rel="stylesheet" crossorigin href="/void-code-ai-clean/assets/index-CEOm82tU.css">
+</head>
+<body class="bg-[#f8f9fc] dark:bg-darkBg text-gray-900 dark:text-gray-100 overflow-hidden select-none font-sans">
+    <div id="root"></div>
+</body>
+</html>

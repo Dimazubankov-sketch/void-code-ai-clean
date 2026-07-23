@@ -1,0 +1,222 @@
+@import './splash-theme.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Базовые стили приложения (перенесены из монолитного index.html) ===== */
+    <style>
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.fade-in { animation: fadeIn 0.3s ease-in-out forwards; }
+.slide-in-right { animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes voidShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+@keyframes voidSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes voidSpinReverse { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+@keyframes voidPulseScale { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.08); opacity: 1; } }
+@keyframes voidImageIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+.void-img-shimmer {
+    background: linear-gradient(110deg, #e3ddfa 8%, #f4f1ff 18%, #e3ddfa 33%);
+    background-size: 200% 100%;
+    animation: voidShimmer 1.4s linear infinite;
+}
+.dark .void-img-shimmer {
+    background: linear-gradient(110deg, #2a2140 8%, #3a2d5c 18%, #2a2140 33%);
+    background-size: 200% 100%;
+}
+.void-img-ring-outer { animation: voidSpin 2.4s linear infinite; }
+.void-img-ring-inner { animation: voidSpinReverse 1.6s linear infinite; }
+.void-img-pulse { animation: voidPulseScale 1.6s ease-in-out infinite; }
+.void-img-fadein { animation: voidImageIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+@keyframes voidWaveHand {
+    0%, 100% { transform: rotate(0deg); }
+    10% { transform: rotate(16deg); }
+    20% { transform: rotate(-8deg); }
+    30% { transform: rotate(16deg); }
+    40% { transform: rotate(-4deg); }
+    50% { transform: rotate(10deg); }
+    60% { transform: rotate(0deg); }
+}
+.void-wave-hand { animation: voidWaveHand 0.9s ease-in-out; }
+
+/* Градиент для слова «VOID» в надписи — точно как на логотипе
+   (linearGradient voidLogoGrad: #312a6b → #3f4dab → #a52fe0). */
+.void-grad-text {
+    background-image: linear-gradient(135deg, #312a6b 0%, #3f4dab 42%, #a52fe0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}
+
+pre::-webkit-scrollbar-track { background: #1e1e2e; }
+pre::-webkit-scrollbar-thumb { background: #4b4b5e; border-radius: 4px; }
+html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; position: fixed; inset: 0; width: 100%; }
+/* Высота "экрана", которая корректно учитывает адресную строку браузера
+   и появление виртуальной клавиатуры на телефоне. 100vh на мобильных
+   браузерах не учитывает эти вещи, из-за чего нижняя панель ввода
+   могла уезжать за пределы экрана или под клавиатуру. html/body зафиксированы
+   (position: fixed), поэтому браузер не может сам "подскроллить" страницу при
+   фокусе на поле ввода — единственный источник движения — наш плавный расчёт ниже. */
+.h-app-screen {
+    height: 100vh;
+    height: 100dvh;
+    height: calc(var(--vh, 1vh) * 100);
+    /* Плавно сглаживаем скачки высоты при появлении/скрытии клавиатуры на
+       телефоне, чтобы нижняя панель ввода не "прыгала" резко, а плавно
+       подъезжала к клавиатуре (совпадает по времени с анимацией клавиатуры). */
+    transition: height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Логотип на главном экране: короткая приветственная анимация (не длиннее
+   1.5 секунды), которая проигрывается один раз при появлении экрана —
+   после обновления страницы и при переходе на главный экран из других
+   вкладок. Никак не реагирует на клик или наведение курсора. */
+@keyframes voidLogoIntroPulse {
+    0% { transform: scale(0.85) rotate(-6deg); opacity: 0; }
+    45% { transform: scale(1.08) rotate(3deg); opacity: 1; }
+    70% { transform: scale(0.97) rotate(-1deg); }
+    100% { transform: scale(1) rotate(0deg); }
+}
+.void-home-logo { transform-origin: 50% 50%; animation: voidLogoIntroPulse 1.4s cubic-bezier(0.4, 0, 0.2, 1) 1 both; }
+/* Клик по логотипу на хабе — отдельная анимация «всплытия»: логотип
+   подпрыгивает вверх с лёгким увеличением и мягко возвращается. Не дольше
+   1.2с и заведомо отличается от intro-пульсации при заходе. */
+.void-home-logo-pop { transform-origin: 50% 50%; animation: voidLogoPopUp 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) 1 both; }
+@keyframes voidLogoPopUp {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(0.94); }
+    70%  { transform: scale(1.03); }
+    100% { transform: scale(1); }
+}
+/* Всплытие заголовка и подзаголовка на главном экране — тоже проигрывается
+   один раз при появлении экрана, с небольшой задержкой у подзаголовка. */
+@keyframes voidTextRiseUp {
+    0% { opacity: 0; transform: translateY(16px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+.void-title-rise { animation: voidTextRiseUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) 1 both; }
+.void-subtitle-rise { animation: voidTextRiseUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.15s 1 both; }
+/* Карточки тарифов «подпрыгивают» при переключении месяц/год, чтобы было
+   заметно, что цифры внутри сменились (карточки стоят на месте). */
+.void-plan-card { animation: voidPlanPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 1 both; }
+@keyframes voidPlanPop {
+    0%   { transform: scale(0.96) translateY(6px); opacity: 0.4; }
+    60%  { transform: scale(1.03) translateY(-2px); opacity: 1; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+/* Появление иконок карточек на главном экране — короткое и с небольшим
+   волнообразным сдвигом между карточками (задаётся через animation-delay
+   инлайн-стилем), проигрывается при появлении экрана. */
+@keyframes voidIconPopIn {
+    0% { opacity: 0; transform: scale(0.6) translateY(6px); }
+    60% { opacity: 1; transform: scale(1.08) translateY(0); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.void-icon-pop { animation: voidIconPopIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+/* Поле ввода на главном экране: лёгкое всплытие при появлении экрана,
+   следом за заголовком, плюс мигающий курсор для эффекта печати плейсхолдера. */
+.void-input-rise { animation: voidTextRiseUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.3s 1 both; }
+@keyframes voidTypeCursorBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.void-type-cursor { display: inline-block; animation: voidTypeCursorBlink 0.9s step-end infinite; }
+/* Увеличенная зона нажатия для иконок-кнопок на телефоне (рекомендация Apple/Google — от 44px) */
+@media (max-width: 767px) {
+    .void-tap-target { min-width: 44px; min-height: 44px; }
+}
+/* Отступ снизу под "чёлку"/индикатор жестов на iPhone, чтобы кнопка отправки
+   не упиралась в край экрана. calc() всегда даёт минимум базовый отступ,
+   даже если env(safe-area-inset-bottom) не поддерживается браузером. */
+.pb-safe { padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 640px) { .pb-safe { padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); } }
+
+/* Скрытый скроллбар для горизонтальных лент приборной панели «кабины» */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Лёгкая анимация входа в раздел (Cockpit, Помощь, Конструктор агентов):
+   контент мягко поднимается и проявляется. */
+.void-view-enter { animation: voidViewEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes voidViewEnter {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Генерация изображения — плавная, аккуратная анимация */
+.void-imggen-canvas {
+    background: linear-gradient(135deg, #f3edff 0%, #e9e0fb 100%);
+}
+.dark .void-imggen-canvas {
+    background: linear-gradient(135deg, #241d3a 0%, #1a1530 100%);
+}
+.void-imggen-logo { animation: voidImggenLogo 2s ease-in-out infinite; }
+@keyframes voidImggenLogo {
+    0%, 100% { transform: scale(0.92); opacity: 0.7; }
+    50%      { transform: scale(1.06); opacity: 1; }
+}
+.void-imggen-sweep {
+    background: linear-gradient(100deg, transparent 30%, rgba(150,110,240,0.28) 50%, transparent 70%);
+    background-size: 200% 100%;
+    animation: voidImggenSweep 1.8s ease-in-out infinite;
+}
+@keyframes voidImggenSweep {
+    0%   { background-position: 150% 0; }
+    100% { background-position: -150% 0; }
+}
+.void-imggen-dot { animation: voidImggenDot 1.2s ease-in-out infinite; }
+@keyframes voidImggenDot {
+    0%, 100% { opacity: 0.3; transform: translateY(0); }
+    50%      { opacity: 1; transform: translateY(-3px); }
+}
+
+/* Пульсация кнопки голосового ввода во время записи */
+@keyframes voicePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+    50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+.voice-pulse { animation: voicePulse 1.2s ease-in-out infinite; }
+
+/* Всплывашка «Скопировано» под кнопкой копирования */
+@keyframes copiedPop {
+    0% { opacity: 0; transform: translateY(4px) scale(0.9); }
+    15% { opacity: 1; transform: translateY(0) scale(1); }
+    80% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-2px) scale(0.95); }
+}
+.void-copied-pop { animation: copiedPop 1.6s ease-in-out forwards; }
+
+/* «Живые» столбики при записи голоса — реагируют на речь */
+@keyframes voiceBar {
+    0%, 100% { height: 4px; }
+    50% { height: 16px; }
+}
+.voice-bar { height: 4px; animation: voiceBar 0.7s ease-in-out infinite; }
+
+/* Фиолетовая пульсация микрофона (в цвет Void Code) */
+@keyframes voicePulsePurple {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(91, 50, 212, 0.5); }
+    50% { box-shadow: 0 0 0 6px rgba(91, 50, 212, 0); }
+}
+.voice-pulse-purple { animation: voicePulsePurple 1.2s ease-in-out infinite; }
+
+/* Плавное всплытие карточек при заходе (магазин агентов, Cockpit) */
+@keyframes voidPopUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.void-pop-up { animation: voidPopUp 0.45s cubic-bezier(0.34, 1.3, 0.64, 1) both; }
+
+/* Разрешаем ручное выделение и копирование текста в сообщениях, в т.ч. на
+   телефоне (по долгому нажатию появляются маркеры выделения). */
+.void-selectable, .void-selectable * {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+    cursor: text;
+}
+
+/* Боковое меню почты: выезжает слева и уходит обратно влево */
+@keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes slideOutLeft { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+.slide-in-left { animation: slideInLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.slide-out-left { animation: slideOutLeft 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards; }

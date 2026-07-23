@@ -1,0 +1,184 @@
+// ==========================================
+// VOID CODE AI — схема базы данных (PostgreSQL)
+// ==========================================
+// Принципы:
+// • Деньги храним в КОПЕЙКАХ (Int) — никакого float для денег, никогда.
+// • Тариф и баланс живут ТОЛЬКО здесь, а не в localStorage браузера:
+//   клиент больше не может «нарисовать» себе Ultra через DevTools.
+// • Конфигурация агентов и макеты сайтов — Json: структура гибкая,
+//   пока конструкторы активно развиваются.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PLUS
+  PRO
+  ULTRA
+}
+
+enum BillingCycle {
+  MONTH
+  YEAR
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  EXPIRED
+}
+
+enum TransactionType {
+  TOPUP        // пополнение кошелька
+  WITHDRAW     // вывод средств
+  SUBSCRIPTION // оплата тарифа
+  TOKEN_CHARGE // списание токенов за работу агента
+  AGENT_FEE    // разовая сборка агента
+  SITE_FEE     // оплата сайта из конструктора
+  REFUND
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String   // bcrypt, сырой пароль не хранится НИКОГДА
+  name          String?
+  plan          Plan     @default(FREE)
+  walletKopecks Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  subscriptions Subscription[]
+  transactions  WalletTransaction[]
+  chats         ChatSession[]
+  agents        Agent[]
+  sites         Site[]
+  usage         UsageCounter[]
+  providerKeys  ProviderKey[]
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan              Plan
+  cycle             BillingCycle
+  priceKopecks      Int
+  status            SubscriptionStatus @default(ACTIVE)
+  startsAt          DateTime           @default(now())
+  endsAt            DateTime
+  externalPaymentId String?            // id платежа у провайдера (ЮKassa и т.п.)
+
+  @@index([userId, status])
+}
+
+model WalletTransaction {
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          TransactionType
+  amountKopecks Int             // отрицательное значение = списание
+  description   String
+  meta          Json?
+  createdAt     DateTime        @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// Дневные/недельные лимиты запросов — источник истины на сервере
+model UsageCounter {
+  id         String @id @default(cuid())
+  userId     String
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayKey     String // 'YYYY-MM-DD'
+  weekKey    String // 'YYYY-Www'
+  dailyUsed  Int    @default(0)
+  weeklyUsed Int    @default(0)
+
+  @@unique([userId, dayKey])
+  @@index([userId, weekKey])
+}
+
+model ChatSession {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String    @default("Новый чат")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  chatId    String
+  chat      ChatSession @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role      MessageRole
+  content   String
+  imageUrl  String?
+  model     String?     // какая модель отвечала
+  createdAt DateTime    @default(now())
+
+  @@index([chatId, createdAt])
+}
+
+// AI-агент из конструктора: системный промт + граф узлов + инструменты
+model Agent {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  systemPrompt    String   @default("")
+  model           String   @default("gemini-2.5-flash")
+  graph           Json     // nodes + edges из канваса Agent Builder
+  tools           Json     @default("[]") // подключённые инструменты
+  fileIds         String[] @default([])   // доступ к файлам проекта (RAG)
+  dailyCostTokens Int      @default(0)
+  isActive        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Site {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  layout       Json     // блоки макета (ПК + мобильный)
+  priceKopecks Int      @default(0)
+  paid         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Ключи внешних LLM-провайдеров пользователя — шифруются на сервере (AES-256),
+// в открытом виде не хранятся и на клиент не возвращаются.
+model ProviderKey {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String   // 'gemini' | 'openrouter' | 'anthropic' | ...
+  encryptedKey String
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, provider])
+}
