@@ -1,0 +1,32 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ main ] # Срабатывает при каждом пуше в ветку main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/void-code-ai-clean
+            git pull origin main
+
+            # Бэкенд: ставим зависимости, прогоняем миграции БД, собираем, перезапускаем
+            cd apps/api
+            npm install
+            npx prisma migrate deploy
+            npm run build
+            pm2 restart void-code-api || pm2 start ecosystem.config.js
+
+            # Фронтенд: собираем статику, перезапускаем nginx
+            cd ../web
+            npm install
+            npm run build
+            systemctl restart nginx

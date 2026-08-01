@@ -1,0 +1,154 @@
+/* ==========================================================
+   СМЕНА ТЕМЫ — атомарное переключение без мерцания
+   ========================================================== */
+/* Пока идёт смена класса .dark, все переходы и анимации глушатся:
+   страница перекрашивается за один кадр, «полуокрашенных» элементов нет. */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+    transition: none !important;
+    animation-play-state: paused !important;
+}
+
+/* Плавный кроссфейд всей страницы в браузерах с View Transitions API:
+   один GPU-слой вместо тысяч независимых transition. */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 300ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) { animation: none; }
+}
+
+/* ==========================================================
+   ЗАСТАВКА (vc-splash) — только transform/opacity/filter (GPU)
+   ========================================================== */
+.vc-splash {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 1;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity, transform;
+    cursor: pointer;
+}
+.vc-splash--light { background: #fafbff; }
+.vc-splash--dark  { background: #0b0b12; }
+
+/* Мягкий брендовый ореол позади логотипа — статичный радиальный градиент,
+   «дышит» только opacity (дёшево для GPU) */
+.vc-splash__halo {
+    position: absolute; width: 340px; height: 340px; border-radius: 50%;
+    background: radial-gradient(circle,
+        rgba(91, 50, 212, 0.22) 0%,
+        rgba(91, 50, 212, 0.08) 45%,
+        transparent 70%);
+    animation: vcHaloBreath 2.4s ease-in-out infinite;
+    pointer-events: none;
+}
+.vc-splash--light .vc-splash__halo {
+    background: radial-gradient(circle,
+        rgba(91, 50, 212, 0.14) 0%,
+        rgba(91, 50, 212, 0.05) 45%,
+        transparent 70%);
+}
+@keyframes vcHaloBreath {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.06); }
+}
+
+.vc-splash__stage {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    width: 260px;
+}
+
+/* Такт 1 — логотип проявляется из лёгкого блюра и подрастает до 1:1 */
+.vc-splash__logo {
+    width: 132px; height: 132px;
+    opacity: 0;
+    animation: vcLogoIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.05s forwards;
+    filter: drop-shadow(0 10px 30px rgba(101, 60, 222, 0.35));
+    will-change: transform, opacity, filter;
+}
+@keyframes vcLogoIn {
+    0%   { opacity: 0; transform: scale(0.88) translateY(6px); filter: blur(10px) drop-shadow(0 10px 30px rgba(101,60,222,0)); }
+    60%  { opacity: 1; filter: blur(0) drop-shadow(0 10px 30px rgba(101,60,222,0.35)); }
+    100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0) drop-shadow(0 10px 30px rgba(101,60,222,0.35)); }
+}
+
+/* Такт 2 — название поднимается словами, каскадом слева направо */
+.vc-splash__brand {
+    margin-top: 22px;
+    display: flex; gap: 0.32em;
+    font-weight: 800; font-size: 28px; letter-spacing: -0.02em;
+    white-space: nowrap;
+}
+.vc-splash--dark  .vc-splash__brand { color: #ffffff; }
+.vc-splash--light .vc-splash__brand { color: #1a1a2e; }
+.vc-splash__word {
+    display: inline-block;
+    opacity: 0;
+    animation: vcWordRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: 0.55s;
+    will-change: transform, opacity;
+}
+.vc-splash__word--2 { animation-delay: 0.65s; }
+.vc-splash__word--3 { animation-delay: 0.75s; }
+@keyframes vcWordRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Такт 3 — тонкая линия прогресса: заполняется через transform (не width!) */
+.vc-splash__progress {
+    margin-top: 26px;
+    width: 128px; height: 2px; border-radius: 999px;
+    overflow: hidden;
+    background: rgba(120, 90, 220, 0.18);
+}
+.vc-splash__progress span {
+    display: block; height: 100%; border-radius: inherit;
+    background: linear-gradient(90deg, #7a5cff, #5b32d4);
+    transform-origin: left center;
+    transform: scaleX(0);
+    animation: vcProgressFill 1.75s cubic-bezier(0.65, 0, 0.35, 1) 0.45s forwards;
+    will-change: transform;
+}
+@keyframes vcProgressFill {
+    0%   { transform: scaleX(0); }
+    70%  { transform: scaleX(0.82); }
+    100% { transform: scaleX(1); }
+}
+
+.vc-splash__skip {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+    opacity: 0;
+    animation: vcWordRise 0.5s ease 1.1s forwards;
+}
+.vc-splash--dark  .vc-splash__skip { color: rgba(255, 255, 255, 0.4); }
+.vc-splash--light .vc-splash__skip { color: rgba(40, 25, 80, 0.4); }
+
+/* Уход со сцены: растворение с едва заметным приближением */
+.vc-splash--leave {
+    opacity: 0;
+    transform: scale(1.025);
+    pointer-events: none;
+}
+
+/* Доступность: пользователям с reduced-motion — простой фейд без хореографии */
+@media (prefers-reduced-motion: reduce) {
+    .vc-splash__logo,
+    .vc-splash__word,
+    .vc-splash__skip {
+        animation: vcSimpleFade 0.4s ease forwards;
+    }
+    .vc-splash__halo,
+    .vc-splash__progress span { animation: none; }
+    .vc-splash__progress { visibility: hidden; }
+    @keyframes vcSimpleFade { from { opacity: 0; } to { opacity: 1; } }
+}

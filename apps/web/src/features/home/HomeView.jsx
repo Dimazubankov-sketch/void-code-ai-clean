@@ -1,0 +1,242 @@
+import { useState, useEffect, useRef } from 'react';
+import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
+import { t } from '@/shared/lib/i18n';
+import { Icons } from '@/shared/ui/Icons';
+
+
+// ==========================================
+// ЭКРАНЫ ПРИЛОЖЕНИЯ
+// ==========================================
+export function HomeView({ state, updateState, handleSendMessage, handleGenerateImage, chatFileInputRef }) {
+    const lang = state.lang || 'ru';
+    // Клик по карточке-ярлыку (Смарт-чат / Код / Изображение) всегда
+    // начинает НОВЫЙ чат, а не открывает что попало.
+    const startNewChat = (extra = {}) => {
+        const nid = Date.now();
+        updateState({
+            chatSessions: [{ id: nid, title: t(lang, 'menu.newChat'), messages: [] }, ...state.chatSessions],
+            activeChatId: nid,
+            currentView: 'chat',
+            ...extra,
+        });
+    };
+
+    // Голосовой ввод (новый UX): клик по микрофону запускает запись с
+    // анимацией на всём поле, «+» становится «×», микрофон — квадратом.
+    // После остановки — фаза «Преобразование в текст», затем распознанный
+    // текст ДОБАВЛЯЕТСЯ к тексту, уже находящемуся в поле ввода.
+    const voice = useVoiceRecorder((text) => {
+        updateState({ inputValue: ((state.inputValue || '') + (state.inputValue ? ' ' : '') + text).trim() });
+    }, state.voiceLang || 'ru-RU');
+    // Ключ пересоздаёт логотип при клике — самый надёжный способ
+    // перезапустить CSS-анимацию по требованию, а не только один раз
+    // при первом появлении экрана.
+    const [logoPlayKey, setLogoPlayKey] = useState(0);
+    // false — при первом заходе играет intro-анимация; после клика по логотипу
+    // включается отдельная анимация «всплытия».
+    const [logoPopped, setLogoPopped] = useState(false);
+    // Плейсхолдер поля ввода вместо статичного текста "печатается" сам по себе.
+    const placeholderFull = t(lang, 'home.inputPlaceholder');
+    const [typedPlaceholder, setTypedPlaceholder] = useState('');
+    const typeTimerRef = useRef(null);
+
+    // Анимация печати плейсхолдера идёт периодически сама по себе (не по
+    // наведению): печатает текст → замирает на ~17с → стирает → повторяет.
+    useEffect(() => {
+        let cancelled = false;
+        const type = (cb) => {
+            let i = 0;
+            typeTimerRef.current = setInterval(() => {
+                if (cancelled) return;
+                i++;
+                setTypedPlaceholder(placeholderFull.slice(0, i));
+                if (i >= placeholderFull.length) { clearInterval(typeTimerRef.current); cb && cb(); }
+            }, 55);
+        };
+        const erase = (cb) => {
+            let i = placeholderFull.length;
+            typeTimerRef.current = setInterval(() => {
+                if (cancelled) return;
+                i--;
+                setTypedPlaceholder(placeholderFull.slice(0, i));
+                if (i <= 0) { clearInterval(typeTimerRef.current); cb && cb(); }
+            }, 35);
+        };
+        const cycle = () => {
+            if (cancelled) return;
+            // Если пользователь печатает — не мешаем, ждём и пробуем снова
+            if (state.inputValue) { setTimeout(cycle, 3000); return; }
+            type(() => {
+                setTimeout(() => {
+                    if (cancelled) return;
+                    erase(() => { setTimeout(cycle, 600); });
+                }, 17000); // застывает на 17 секунд
+            });
+        };
+        const startDelay = setTimeout(cycle, 1200);
+        return () => { cancelled = true; clearTimeout(startDelay); clearInterval(typeTimerRef.current); };
+    }, [state.inputValue, placeholderFull]);
+    const [waveKey, setWaveKey] = useState(0);
+    useEffect(() => {
+        const tmr = setTimeout(() => setWaveKey(k => k + 1), 200);
+        return () => clearTimeout(tmr);
+    }, []);
+
+    return (
+        <div className="flex-1 overflow-y-auto pb-12 h-full bg-[#f8f9fc] dark:bg-darkBg fade-in relative">
+            <div className="fixed top-5 right-4 sm:top-6 sm:right-6 z-30">
+                {state.user ? (
+                    <div className="flex items-center gap-2">
+                        {/* Колокольчик — центр уведомлений (почта) */}
+                        <button onClick={() => updateState({showNotifications: true})} className="void-tap-target relative flex-shrink-0 p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder">
+                            <Icons.Bell className="w-6 h-6" />
+                            {(Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
+                              || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
+                              || (state.inbox?.personal || []).some(m => !(state.readPersonalIds || []).includes(m.id))) && (
+                                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white dark:border-darkCard" />
+                            )}
+                        </button>
+                        <button onClick={() => updateState({isRightMenuOpen: true})} className="void-tap-target flex-shrink-0 p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder">
+                            <Icons.TwoLines className="w-6 h-6" />
+                        </button>
+                    </div>
+                ) : (
+                    <button onClick={() => updateState({showAuthModal: true})} className="void-tap-target flex-shrink-0 px-5 py-2.5 bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold rounded-xl transition-colors shadow-md text-sm whitespace-nowrap">
+                        {t(lang, 'common.login')}
+                    </button>
+                )}
+            </div>
+
+            <div className="px-6 pt-16 sm:pt-20 max-w-4xl mx-auto">
+                <div className="flex items-center gap-3 sm:gap-4 mb-8 sm:mb-10">
+                    <Icons.VoidLogo key={logoPlayKey} onClick={() => { setLogoPopped(true); setLogoPlayKey(k => k + 1); }} title="Нажмите, чтобы повторить анимацию" className={`${logoPopped ? 'void-home-logo-pop' : 'void-home-logo'} w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 flex-shrink-0 mt-1.5 sm:mt-2 cursor-pointer`} />
+                    <div className="leading-none">
+                        <div className="void-title-rise font-extrabold tracking-tight text-2xl sm:text-3xl md:text-4xl">
+                            <span className="void-grad-text">VOID</span> <span className="text-[#1a1a2e] dark:text-white">CODE AI</span>
+                        </div>
+                        <div className="void-subtitle-rise mt-1.5 sm:mt-2 text-xs sm:text-sm md:text-base font-semibold tracking-wide text-gray-400 dark:text-gray-500">{t(lang, 'home.subtitle')}</div>
+                    </div>
+                </div>
+
+                <div className="void-input-rise relative max-w-4xl mx-auto pointer-events-auto mb-10">
+                    {state.selectedImage && (
+                        <div className="absolute -top-16 left-4 bg-white dark:bg-darkCard p-1 rounded-xl shadow-lg border border-gray-200 dark:border-darkBorder fade-in group z-10">
+                            <img src={state.selectedImage} className="h-14 w-14 object-cover rounded-lg" />
+                            <button onClick={() => updateState({selectedImage: null})} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Icons.X /></button>
+                        </div>
+                    )}
+                    <div className="flex items-end bg-white dark:bg-darkCard rounded-3xl border border-gray-200 dark:border-darkBorder shadow-md focus-within:ring-4 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4] transition-all relative">
+                        <input type="file" ref={chatFileInputRef} onChange={(e) => {
+                            if(e.target.files[0]) {
+                                const r = new FileReader();
+                                r.onloadend = () => updateState({selectedImage: r.result});
+                                r.readAsDataURL(e.target.files[0]);
+                            }
+                        }} accept="image/*" className="hidden" />
+                        {/* «+» слева: при записи переворачивается в «×» (отмена записи) */}
+                        <button
+                            onClick={() => voice.recording ? voice.cancel() : chatFileInputRef.current?.click()}
+                            title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
+                            className={`void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800`}
+                        >
+                            <Icons.Plus className={`w-6 h-6 void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
+                        </button>
+
+                        {/* Анимация записи — на всё поле ввода */}
+                        {voice.recording && (
+                            <div className="absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center pl-16 pr-32 pointer-events-none fade-in">
+                                <span className="flex items-end gap-[3px] w-full h-6 overflow-hidden">
+                                    {Array.from({ length: 42 }).map((_, i) => (
+                                        <span key={i} className="void-rec-bar bg-[#5b32d4] dark:bg-purple-300" style={{ animationDelay: `${(i % 7) * 110}ms` }} />
+                                    ))}
+                                </span>
+                            </div>
+                        )}
+                        {/* Плейсхолдер фазы «Преобразование в текст» */}
+                        {voice.transcribing && !state.inputValue && (
+                            <div className="void-transcribe-hint absolute left-14 right-32 top-0 py-5 pointer-events-none text-[#5b32d4] dark:text-purple-300 text-[16px] font-semibold truncate z-10">
+                                {t(lang, 'chat.transcribing')}…
+                            </div>
+                        )}
+                        {!state.inputValue && !voice.busy && (
+                            <div className="absolute left-14 right-16 top-0 py-5 pointer-events-none text-gray-400 text-[16px] truncate">
+                                {typedPlaceholder}
+                                {typedPlaceholder && typedPlaceholder.length < placeholderFull.length && <span className="void-type-cursor">|</span>}
+                            </div>
+                        )}
+                        <textarea 
+                            className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none max-h-32 min-h-[64px] text-[16px] ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
+                            placeholder=""
+                            value={state.inputValue}
+                            readOnly={voice.busy}
+                            onChange={(e) => { 
+                                updateState({inputValue: e.target.value}); 
+                                e.target.style.height = 'auto'; 
+                                e.target.style.height = (e.target.scrollHeight < 128 ? e.target.scrollHeight : 128) + 'px'; 
+                            }}
+                            onKeyDown={(e) => { 
+                                if (e.key === 'Enter' && !e.shiftKey) { 
+                                    e.preventDefault(); 
+                                    handleSendMessage(); 
+                                    e.target.style.height = 'auto'; 
+                                } 
+                            }}
+                            rows={1}
+                        />
+                        {/* Микрофон: покой → запись (квадрат-стоп) → индикатор загрузки */}
+                        {voice.supported && (
+                            <button
+                                onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
+                                title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
+                                disabled={voice.transcribing}
+                                className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center transition-all z-20 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                            >
+                                {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
+                            </button>
+                        )}
+                        <button onClick={() => handleSendMessage()} disabled={(!state.inputValue.trim() && !state.selectedImage) || state.isGenerating || voice.busy} className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-2xl flex items-center justify-center transition-all shadow-md z-20">
+                            <Icons.ArrowUp />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3.5 sm:gap-5 md:gap-6 mb-10 sm:mb-14">
+                    <div onClick={() => startNewChat({ selectedModelId: 'flash_ext' })} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-[#5b32d4]/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">
+                        <div style={{animationDelay: '0ms'}} className="void-icon-pop w-11 h-11 sm:w-14 sm:h-14 md:w-14 md:h-14 bg-purple-50 dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-400 rounded-2xl md:rounded-[1.25rem] flex items-center justify-center mb-3.5 sm:mb-5 md:mb-3.5 group-hover:scale-105 transition-transform"><Icons.MessageSquare className="w-5 h-5 sm:w-7 sm:h-7" /></div>
+                        <h3 className="font-semibold text-[15px] sm:text-lg md:text-lg mb-1 sm:mb-1.5 dark:text-white">{t(lang, 'home.smartChat')}</h3>
+                        <p className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 leading-snug">{t(lang, 'home.smartChatDesc')}</p>
+                    </div>
+                    <div onClick={() => startNewChat({ selectedModelId: 'pro' })} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-blue-500/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">
+                        <div style={{animationDelay: '60ms'}} className="void-icon-pop w-11 h-11 sm:w-14 sm:h-14 md:w-14 md:h-14 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-2xl md:rounded-[1.25rem] flex items-center justify-center mb-3.5 sm:mb-5 md:mb-3.5 group-hover:scale-105 transition-transform"><Icons.Code className="w-5 h-5 sm:w-7 sm:h-7" /></div>
+                        <h3 className="font-semibold text-[15px] sm:text-lg md:text-lg mb-1 sm:mb-1.5 dark:text-white">{t(lang, 'home.codeGen')}</h3>
+                        <p className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 leading-snug">{t(lang, 'home.codeGenDesc')}</p>
+                    </div>
+                    <div onClick={() => startNewChat({ imageGenMode: true })} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-pink-500/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">
+                        <div style={{animationDelay: '120ms'}} className="void-icon-pop w-11 h-11 sm:w-14 sm:h-14 md:w-14 md:h-14 bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 rounded-2xl md:rounded-[1.25rem] flex items-center justify-center mb-3.5 sm:mb-5 md:mb-3.5 group-hover:scale-105 transition-transform"><Icons.Image className="w-5 h-5 sm:w-7 sm:h-7" /></div>
+                        <h3 className="font-semibold text-[15px] sm:text-lg md:text-lg mb-1 sm:mb-1.5 dark:text-white">{t(lang, 'home.createImage')}</h3>
+                        <p className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 leading-snug">{t(lang, 'home.createImageDesc')}</p>
+                    </div>
+                    {/* Единая вкладка «Агенты»: Cockpit + магазин в одном приложении */}
+                    <div onClick={() => updateState({currentView: 'agent-store'})} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-indigo-500/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">
+                        <div style={{animationDelay: '180ms'}} className="void-icon-pop w-11 h-11 sm:w-14 sm:h-14 md:w-14 md:h-14 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-2xl md:rounded-[1.25rem] flex items-center justify-center mb-3.5 sm:mb-5 md:mb-3.5 group-hover:scale-105 transition-transform"><Icons.Robot className="w-5 h-5 sm:w-7 sm:h-7" /></div>
+                        <h3 className="font-semibold text-[15px] sm:text-lg md:text-lg mb-1 sm:mb-1.5 dark:text-white">{t(lang, 'home.agents')}</h3>
+                        <p className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 leading-snug">{t(lang, 'home.agentsDesc')}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Компактная кнопка помощи — только стикер, угол экрана. */}
+            {state.user && (
+                <button
+                    onClick={() => updateState({ currentView: 'guide' })}
+                    title={t(lang, 'home.help')}
+                    aria-label={t(lang, 'home.help')}
+                    className="group fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-30 flex items-center gap-2 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg text-amber-600 dark:text-amber-400 rounded-full shadow-lg border border-gray-200 dark:border-darkBorder hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all p-3"
+                >
+                    <Icons.Help className="w-5 h-5" />
+                    <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-bold group-hover:max-w-[80px] group-hover:pr-1 transition-all duration-300">{t(lang, 'home.help')}</span>
+                </button>
+            )}
+        </div>
+    );
+}

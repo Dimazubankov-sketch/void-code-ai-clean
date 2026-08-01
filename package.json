@@ -1,0 +1,11 @@
+{
+  "name": "void-code-ai",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @void-code-ai/web",
+    "build:web": "npm run build --workspace @void-code-ai/web",
+    "dev:api": "npm run start:dev --workspace @void-code-ai/api"
+  }
+}
