@@ -25,11 +25,11 @@ export function OrchestratorChatView({ state, updateState }) {
     const [nameDraft, setNameDraft] = useState('');
     const endRef = useRef(null);
 
-    const { thread, reports, subordinates, sendTask, respond } = useOrchestratorThread(state, updateState, orchestrator);
+    const { thread, reports, subordinates, sendTask, respond, thinking } = useOrchestratorThread(state, updateState, orchestrator);
 
     useEffect(() => {
         endRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [thread.length]);
+    }, [thread.length, thinking]);
 
     const close = () => {
         const hist = state.viewHistory || [];
@@ -133,6 +133,8 @@ export function OrchestratorChatView({ state, updateState }) {
                         thread={thread}
                         reports={reports}
                         onRespond={respond}
+                        thinking={thinking}
+                        lang={state.lang || 'ru'}
                         emptyHint={<>Поставьте задачу — оркестратор разложит её<br />на подзадачи и предложит план.{subordinates.length === 0 && (
                             <><br /><button onClick={() => setShowLinkMenu(true)} className="text-xs text-[#5b32d4] font-bold mt-3 underline underline-offset-2">Привязать агентов →</button></>
                         )}</>}

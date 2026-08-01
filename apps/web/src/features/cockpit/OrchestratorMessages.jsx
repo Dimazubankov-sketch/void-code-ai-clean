@@ -1,13 +1,18 @@
 import { Icons } from '@/shared/ui/Icons';
+import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
+import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
 
 // ==========================================
 // OrchestratorMessages — общая лента сообщений оркестратора
 // ==========================================
 // Один и тот же рендер для «кабины» (OrchestratorChatView) и «Оповещений
 // агентов» (NotificationCenter) — часть единой системы одного чата.
+// Пока оркестратор «продумывает план» (thinking), внизу показывается тот
+// же индикатор размышления, что и в основном чате; свежий план печатается
+// с анимацией (isAnimated).
 
-export function OrchestratorMessages({ thread, reports, onRespond, emptyHint }) {
-    if (thread.length === 0) {
+export function OrchestratorMessages({ thread, reports, onRespond, emptyHint, thinking = false, lang = 'ru' }) {
+    if (thread.length === 0 && !thinking) {
         return (
             <div className="text-center text-gray-400 py-12 px-6">
                 <Icons.Robot className="w-12 h-12 mx-auto mb-3 text-gray-300" />
@@ -33,7 +38,9 @@ export function OrchestratorMessages({ thread, reports, onRespond, emptyHint }) 
                 return (
                     <div key={m.id} className="flex justify-start">
                         <div className="max-w-[85%] bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl rounded-bl-md px-4 py-3 text-sm dark:text-gray-200">
-                            <p className="whitespace-pre-wrap leading-relaxed">{m.text}</p>
+                            {m.isAnimated
+                                ? <div className="leading-relaxed"><TypewriterMessage content={m.text} /></div>
+                                : <p className="whitespace-pre-wrap leading-relaxed">{m.text}</p>}
                             {status === 'pending' && (
                                 <div className="flex gap-2 mt-3">
                                     <button onClick={() => onRespond(m.reportId, 'approved')} className="flex-1 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-xs font-bold transition-colors">Разрешить</button>
@@ -48,6 +55,7 @@ export function OrchestratorMessages({ thread, reports, onRespond, emptyHint }) 
                     </div>
                 );
             })}
+            {thinking && <ThinkingIndicator lang={lang} level="high" />}
         </div>
     );
 }

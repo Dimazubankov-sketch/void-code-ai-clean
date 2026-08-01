@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { AudioPlayer } from '@/features/chat/AudioPlayer';
 import { ChatInputBar } from '@/features/chat/ChatInputBar';
+import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
+import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
 import { Icons } from '@/shared/ui/Icons';
 
@@ -15,6 +17,7 @@ export function AgentChatView({ state, updateState }) {
     const agent = (state.aiAgents || []).find((a) => a.id === state.activeAgentId && a.kind !== 'orchestrator');
     const [input, setInput] = useState('');
     const [image, setImage] = useState(null);
+    const [thinking, setThinking] = useState(false);
     const endRef = useRef(null);
 
     // Возврат в Cockpit без засорения истории: снимаем со стека запись
@@ -29,7 +32,7 @@ export function AgentChatView({ state, updateState }) {
     const threads = state.agentThreads || {};
     const thread = agent ? (threads[agent.id] || []) : [];
 
-    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread.length]);
+    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread.length, thinking]);
 
     // Озвучка ответов агента
     const tts = useTextToSpeech();
@@ -54,18 +57,29 @@ export function AgentChatView({ state, updateState }) {
         const text = input.trim();
         if (!text && !image) return;
         const now = Date.now();
-        const reply = buildAgentReply(agent, text);
-        const next = {
+        // Сначала показываем сообщение пользователя, включаем индикатор
+        // размышления, и только после короткой «паузы на подумать» выдаём
+        // ответ агента с анимацией печати — как в основном чате.
+        const withUser = {
             ...threads,
-            [agent.id]: [
-                ...thread,
-                { id: `u_${now}`, role: 'user', text, image, at: now },
-                { id: `a_${now}`, role: 'agent', text: reply, at: now + 1 },
-            ],
+            [agent.id]: [...thread, { id: `u_${now}`, role: 'user', text, image, at: now }],
         };
-        updateState({ agentThreads: next });
+        updateState({ agentThreads: withUser });
         setInput('');
         setImage(null);
+        setThinking(true);
+
+        const reply = buildAgentReply(agent, text);
+        const userThread = withUser[agent.id];
+        setTimeout(() => {
+            setThinking(false);
+            updateState({
+                agentThreads: {
+                    ...withUser,
+                    [agent.id]: [...userThread, { id: `a_${now}`, role: 'agent', text: reply, at: now + 1, isAnimated: true }],
+                },
+            });
+        }, 1600);
     };
 
     return (
@@ -95,7 +109,9 @@ export function AgentChatView({ state, updateState }) {
                         <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                             <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm ${m.role === 'user' ? 'bg-[#5b32d4] text-white rounded-tr-sm' : 'bg-gray-100 dark:bg-gray-800 dark:text-gray-100 rounded-tl-sm'}`}>
                                 {m.image && <img src={m.image} alt="" className="max-w-full rounded-xl mb-2" />}
-                                {m.text}
+                                {m.role === 'agent' && m.isAnimated
+                                    ? <TypewriterMessage content={m.text} onProgress={() => endRef.current?.scrollIntoView({ behavior: 'auto' })} />
+                                    : m.text}
                             </div>
                             {m.role === 'agent' && tts.supported && (
                                 <>
@@ -105,6 +121,7 @@ export function AgentChatView({ state, updateState }) {
                             )}
                         </div>
                     ))}
+                    {thinking && <ThinkingIndicator lang={state.lang || 'ru'} level="medium" />}
                     <div ref={endRef} />
                 </div>
 

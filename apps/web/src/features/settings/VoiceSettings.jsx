@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
+import { VoiceOrb } from '@/features/settings/VoiceOrb';
 
 // ==========================================
 // VoiceSettings — раздел «Голос» в настройках
@@ -167,7 +168,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
                         <div className="flex items-center justify-center gap-4">
                             <button onClick={() => applyPreset(presetIdx - 1)} className="p-2 rounded-full text-gray-300 hover:text-[#5b32d4] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"><Icons.ChevronLeft className="w-6 h-6" /></button>
                             <div className="flex flex-col items-center gap-3">
-                                <div className="w-32 h-32 rounded-full shadow-lg transition-[background] duration-300" style={{ background: `radial-gradient(circle at 30% 30%, ${preset.colorFrom}, ${preset.colorTo} 65%, #2a1f5e)` }} />
+                                <VoiceOrb colorFrom={preset.colorFrom} colorTo={preset.colorTo} active={testing} size={128} />
                                 <div className="text-center">
                                     <p className="font-extrabold text-lg dark:text-white">{preset.name}</p>
                                     <p className="text-xs text-gray-400">{preset.desc}</p>

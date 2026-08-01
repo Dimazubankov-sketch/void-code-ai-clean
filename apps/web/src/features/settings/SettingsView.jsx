@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AccountsPanel } from '@/features/auth/AccountsPanel';
 import { LanguagePicker, APP_LANGUAGES } from '@/features/settings/LanguagePicker';
 import { VoiceSettings } from '@/features/settings/VoiceSettings';
+import { LimitsView } from '@/features/settings/LimitsView';
 import { logoutAccount } from '@/shared/lib/accounts';
 import { formatMoney } from '@/shared/lib/format';
 import { goBack } from '@/shared/lib/navigation';
@@ -15,6 +16,7 @@ export function SettingsView({ state, updateState }) {
     const lang = state.lang || 'ru';
     const [showAccounts, setShowAccounts] = useState(false);
     const [showVoice, setShowVoice] = useState(false);
+    const [showLimits, setShowLimits] = useState(false);
     const [showLang, setShowLang] = useState(false);
     const langLabel = (APP_LANGUAGES.find(l => l.id === (state.lang || 'ru')) || APP_LANGUAGES[0]).native;
 
@@ -41,7 +43,7 @@ export function SettingsView({ state, updateState }) {
                     <div className="bg-white dark:bg-darkCard rounded-[2rem] p-2 shadow-sm border border-gray-100 dark:border-darkBorder overflow-hidden">
                         <ListItem icon={Icons.User} label={t(lang, 'settings.personal')} onClick={() => setShowAccounts(true)} />
                         <ListItem icon={Icons.Volume2} label={t(lang, 'settings.voice')} extra={<span className="text-xs text-gray-400">{state.voiceLang === 'ru-RU' ? 'Русский' : (state.voiceLang || 'ru-RU')}</span>} onClick={() => setShowVoice(true)} />
-                        <ListItem icon={Icons.BarChart} label={t(lang, 'settings.limits')} onClick={() => updateState({currentView: 'limits'})} />
+                        <ListItem icon={Icons.BarChart} label={t(lang, 'settings.limits')} onClick={() => setShowLimits(true)} />
                         <ListItem icon={Icons.Star} label={t(lang, 'settings.subscription')} extra={<span className="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-3 py-1 rounded-lg border border-green-100 dark:border-green-900/50">{state.userPlan === 'free' ? 'Free' : state.userPlan === 'plus' ? 'Plus' : state.userPlan === 'pro_plus' ? 'Ultra' : 'Pro'}</span>} onClick={() => updateState({currentView: 'pricing'})} />
                         <ListItem icon={Icons.Wallet} label={t(lang, 'settings.wallet')} extra={<span className="text-xs font-bold text-[#5b32d4] dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-3 py-1 rounded-lg border border-purple-100 dark:border-purple-900/50">{formatMoney(state.walletBalance || 0)} ₽</span>} onClick={() => updateState({currentView: 'wallet'})} />
                     </div>
@@ -74,6 +76,7 @@ export function SettingsView({ state, updateState }) {
             </div>
             {showAccounts && <AccountsPanel state={state} updateState={updateState} onClose={() => setShowAccounts(false)} />}
             {showVoice && <VoiceSettings state={state} updateState={updateState} onClose={() => setShowVoice(false)} />}
+            {showLimits && <LimitsView state={state} updateState={updateState} onClose={() => setShowLimits(false)} />}
             {showLang && <LanguagePicker state={state} updateState={updateState} onClose={() => setShowLang(false)} />}
         </div>
     );

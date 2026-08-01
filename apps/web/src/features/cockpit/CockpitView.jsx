@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { SubordinateLinkMenu } from '@/features/cockpit/SubordinateLinkMenu';
 import { MAIL_PROVIDERS, MESSENGERS } from '@/shared/config/agents';
 import { canUseOrchestrators } from '@/shared/config/orchestrator';
@@ -44,17 +46,31 @@ function ConnectedService({ agent }) {
 // с этого момента отображается в общем списке как обычный агент — больше
 // это окошко никогда не появится.
 function GiftAgentModal({ agent, onClaim }) {
+    const scope = useRef(null);
+    useGSAP(() => {
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce) return;
+        const tl = gsap.timeline();
+        tl.from('.gift-card', { autoAlpha: 0, scale: 0.9, y: 20, duration: 0.5, ease: 'back.out(1.7)' })
+          .from('.gift-icon', { scale: 0, rotation: -30, duration: 0.5, ease: 'back.out(2)' }, '-=0.25')
+          .from('.gift-text > *', { autoAlpha: 0, y: 12, duration: 0.35, stagger: 0.08, ease: 'power2.out' }, '-=0.15');
+        // Лёгкое покачивание подарка, пока окно открыто
+        gsap.to('.gift-icon', { rotation: 6, duration: 1.4, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.9 });
+    }, { scope });
+
     return (
-        <div className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 fade-in">
-            <div className="bg-white dark:bg-darkCard rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl void-pop-up">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#5b32d4] to-[#a52fe0] flex items-center justify-center text-3xl">🎁</div>
-                <h2 className="text-xl font-extrabold dark:text-white mb-2">Подарок для вас!</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
-                    Мы дарим вам агента «{agent.name}» — он готов приступить к задачам сразу после того, как вы его заберёте.
-                </p>
-                <button onClick={onClaim} className="w-full py-3.5 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold text-sm transition-colors">
-                    Забрать
-                </button>
+        <div ref={scope} className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+            <div className="gift-card bg-white dark:bg-darkCard rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
+                <div className="gift-icon w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#5b32d4] to-[#a52fe0] flex items-center justify-center text-3xl">🎁</div>
+                <div className="gift-text">
+                    <h2 className="text-xl font-extrabold dark:text-white mb-2">Подарок для вас!</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+                        Мы дарим вам агента «{agent.name}» — он готов приступить к задачам сразу после того, как вы его заберёте.
+                    </p>
+                    <button onClick={onClaim} className="w-full py-3.5 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold text-sm transition-colors">
+                        Забрать
+                    </button>
+                </div>
             </div>
         </div>
     );
