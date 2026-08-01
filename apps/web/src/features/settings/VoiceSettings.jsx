@@ -146,7 +146,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
     };
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/40 flex justify-end sm:items-center sm:justify-center fade-in" onClick={onClose}>
+        <div data-modal-overlay className="fixed inset-0 z-[100] bg-black/40 flex justify-end sm:items-center sm:justify-center fade-in" onClick={onClose}>
             <div className="w-full sm:w-[420px] h-full sm:h-auto sm:max-h-[85vh] bg-white dark:bg-darkCard shadow-2xl slide-in-right sm:rounded-3xl flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 dark:border-darkBorder shrink-0">
                     <button onClick={onClose} className="p-1.5 -ml-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.ChevronLeft /></button>

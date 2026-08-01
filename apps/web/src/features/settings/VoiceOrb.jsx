@@ -37,13 +37,18 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128 }) {
             { scale: 1.45, autoAlpha: 0.1, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.8 });
     }, { scope });
 
-    // Плавно переливаем цвета при смене голоса (contextSafe не нужен —
-    // зависимость передаётся в useGSAP, revertOnUpdate перезапустит эффект).
+    // Плавно переливаем цвета при смене голоса. Градиент строится только на
+    // оттенках самого голоса (от светлого к более насыщенному) — БЕЗ тёмного,
+    // почти чёрного края, чтобы круг не выглядел «потухшим». Даже в самой
+    // тёмной точке остаётся приглушённый цвет, а не чернота.
+    const buildGradient = (from, to) =>
+        `radial-gradient(circle at 32% 28%, ${from}, ${to} 70%, ${to})`;
+
     useGSAP(() => {
         const core = coreRef.current;
         if (!core) return;
         gsap.to(core, {
-            background: `radial-gradient(circle at 30% 30%, ${colorFrom}, ${colorTo} 65%, #2a1f5e)`,
+            background: buildGradient(colorFrom, colorTo),
             duration: 0.6,
             ease: 'power2.out',
         });
@@ -64,7 +69,7 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128 }) {
             <div
                 ref={coreRef}
                 className="orb-core rounded-full shadow-lg will-change-transform"
-                style={{ width: px, height: px, background: `radial-gradient(circle at 30% 30%, ${colorFrom}, ${colorTo} 65%, #2a1f5e)` }}
+                style={{ width: px, height: px, background: `radial-gradient(circle at 32% 28%, ${colorFrom}, ${colorTo} 70%, ${colorTo})` }}
             />
         </div>
     );

@@ -23,6 +23,7 @@ import { createBackendChat, sendBackendMessage } from '@/shared/api/chat';
 import { ApiError } from '@/shared/api/client';
 import { AI_MODELS, getPlanLimits, defaultReasoningFor } from '@/shared/config/models';
 import { buildReasoningScript, levelDelayMs } from '@/shared/config/reasoningScript';
+import { buildAgentSystemPrompt } from '@/shared/lib/agentPrompt';
 import { splitMessageContent } from '@/shared/lib/documents';
 import { generateArtImage } from '@/shared/lib/imagegen';
 import { goBack } from '@/shared/lib/navigation';
@@ -81,11 +82,11 @@ export function App() {
             selectedImage: null,
             authTab: 'login',
             imageGenMode: false,
+            activeAgentId: null,
             isGeneratingImage: false,
             generatedImages: [],
             generatedDocuments: [],
             aiAgents: [],
-            activeAgentId: null,
             walletBalance: 0,
             walletTransactions: [],
             // Проекты: объединяют чаты в единый общий контекст для ИИ
@@ -175,6 +176,7 @@ export function App() {
             ...accountHistory,
             userPlan: isGuest ? 'free' : (saved.userPlan || 'free'),
             imageGenMode: false,
+            activeAgentId: null,
             isGeneratingImage: false,
             showAuthModal: false,
             savedAccounts: saved.savedAccounts || [],
@@ -434,6 +436,18 @@ export function App() {
             systemPrompt = `${activeModel.sysPrompt}\n\nЭтот диалог входит в проект «${project.name}».`;
         }
 
+        // Режим агента: если в поле ввода выбран агент, ИИ отвечает как
+        // агент-исполнитель — кратко, по делу, с упором на действия и
+        // подключение инструментов (коннекторов). Он не «болтает», а ведёт
+        // задачу: перечисляет шаги, при нехватке доступа просит подключить
+        // нужный коннектор и (если требуется) API-токен с точным списком
+        // прав, объясняет проделанную работу по шагам. Код пишет уровня
+        // Void Plus/Pro в зависимости от сложности.
+        const activeAgent = state.activeAgentId ? (state.aiAgents || []).find(a => a.id === state.activeAgentId) : null;
+        if (activeAgent) {
+            systemPrompt = buildAgentSystemPrompt(activeAgent, state.connectedPlugins || []);
+        }
+
         let responseText = '';
         try {
             // У каждой локальной сессии чата — своя сессия на бэкенде
@@ -449,7 +463,10 @@ export function App() {
                     ),
                 }));
             }
-            responseText = await sendBackendMessage(backendChatId, textToSend, state.selectedModelId, systemPrompt);
+            // В режиме агента используем pro-модель (код уровня Plus/Pro),
+            // иначе — выбранную пользователем модель.
+            const modelForRequest = activeAgent ? 'pro' : state.selectedModelId;
+            responseText = await sendBackendMessage(backendChatId, textToSend, modelForRequest, systemPrompt);
             // На более тяжёлых уровнях рассуждений даём ИИ «подумать» чуть
             // дольше перед выдачей ответа — пользователь тем временем видит
             // расширенный индикатор размышления (см. ThinkingIndicator).

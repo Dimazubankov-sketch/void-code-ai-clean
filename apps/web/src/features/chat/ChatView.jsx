@@ -6,6 +6,7 @@ import { FeedbackModal } from '@/features/chat/FeedbackModal';
 import { MessageRenderer } from '@/features/chat/MessageRenderer';
 import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
 import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
+import { ChatPlusMenu } from '@/features/chat/ChatPlusMenu';
 import { TopHeader } from '@/features/home/TopHeader';
 import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
@@ -21,6 +22,8 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     const messages = activeChat?.messages || [];
     const [activeCodeBlock, setActiveCodeBlock] = useState(null);
     const [expandedTraceIdx, setExpandedTraceIdx] = useState(null);
+    const [showPlusMenu, setShowPlusMenu] = useState(false);
+    const cameraInputRef = useRef(null);
     const currentReasoningLevel = (state.reasoningByModel || {})[state.selectedModelId] || defaultReasoningFor(state.selectedModelId);
 
     // Голосовой ввод (новый UX): запись с анимацией на всём поле,
@@ -130,6 +133,22 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     // Новое сообщение — снова начинаем следить за низом переписки
     useEffect(() => { autoScrollRef.current = true; followScroll(); setShowScrollDown(false); }, [messages.length]);
 
+    // Динамический нижний отступ контейнера сообщений = фактическая высота
+    // плавающего инпут-бара + запас. Фиксированный pb-44 не спасал: реальная
+    // высота бара меняется (превью картинки, многострочный ввод, режимы), и
+    // низ длинного ответа мог прятаться под ним — отсюда баг «не долистать».
+    const inputWrapRef = useRef(null);
+    const [bottomPad, setBottomPad] = useState(120);
+    useEffect(() => {
+        const el = inputWrapRef.current;
+        if (!el) return;
+        const measure = () => setBottomPad(el.offsetHeight + 32);
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
     // Переход из поиска по истории — прокручиваем к конкретному сообщению
     // и на секунду подсвечиваем его, затем сбрасываем метку перехода.
     const [highlightMsgIdx, setHighlightMsgIdx] = useState(null);
@@ -153,7 +172,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         <div className="flex flex-col h-full bg-white dark:bg-darkBg relative w-full max-w-full fade-in">
             <TopHeader state={state} updateState={updateState} />
             
-            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 pb-44 scroll-smooth">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth" style={{ paddingBottom: bottomPad }}>
                 <div className="max-w-4xl mx-auto space-y-6">
                     {messages.length === 0 && (
                         <div className="text-center mt-20 fade-in">
@@ -276,16 +295,30 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 </button>
             )}
 
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white dark:from-darkBg via-white dark:via-darkBg to-transparent pt-14 px-3 sm:px-4 md:px-8 z-20 pointer-events-none pb-safe">
+            <div ref={inputWrapRef} className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white dark:from-darkBg via-white dark:via-darkBg to-transparent pt-14 px-3 sm:px-4 md:px-8 z-20 pointer-events-none pb-safe">
                 <div className="relative max-w-4xl mx-auto pointer-events-auto">
-                    <div className="flex gap-2 mb-2.5">
-                        <button onMouseDown={(e) => e.preventDefault()} onTouchStart={(e) => e.preventDefault()} onClick={() => updateState({imageGenMode: false})} className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${!state.imageGenMode ? 'bg-[#5b32d4] text-white shadow-sm' : 'bg-white dark:bg-darkCard text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-darkBorder hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                            <Icons.MessageSquare className="w-3.5 h-3.5" /> {t(lang, 'chat.text')}
-                        </button>
-                        <button onMouseDown={(e) => e.preventDefault()} onTouchStart={(e) => e.preventDefault()} onClick={() => updateState({imageGenMode: true})} className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${state.imageGenMode ? 'bg-[#5b32d4] text-white shadow-sm' : 'bg-white dark:bg-darkCard text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-darkBorder hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                            <Icons.Image className="w-3.5 h-3.5" /> {t(lang, 'chat.image')}
-                        </button>
-                    </div>
+                    {/* Активный режим: генерация изображения или работа через агента.
+                        Показываем иконку + подпись + крестик для отключения. */}
+                    {(state.imageGenMode || state.activeAgentId) && (
+                        <div className="flex items-center gap-2 mb-2.5 fade-in">
+                            {state.imageGenMode && (
+                                <span className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 text-xs font-bold">
+                                    <Icons.Image className="w-3.5 h-3.5" /> Режим изображения
+                                    <button onClick={() => updateState({ imageGenMode: false })} className="ml-0.5 w-4 h-4 rounded-full bg-white/60 dark:bg-black/20 hover:bg-white flex items-center justify-center"><Icons.X className="w-2.5 h-2.5" /></button>
+                                </span>
+                            )}
+                            {state.activeAgentId && (() => {
+                                const ag = (state.aiAgents || []).find(a => a.id === state.activeAgentId);
+                                if (!ag) return null;
+                                return (
+                                    <span className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-bold" style={{ background: (ag.color || '#5b32d4') + '22', color: ag.color || '#5b32d4' }}>
+                                        <Icons.Robot className="w-3.5 h-3.5" /> {ag.name}
+                                        <button onClick={() => updateState({ activeAgentId: null })} className="ml-0.5 w-4 h-4 rounded-full bg-white/60 dark:bg-black/20 hover:bg-white flex items-center justify-center"><Icons.X className="w-2.5 h-2.5" /></button>
+                                    </span>
+                                );
+                            })()}
+                        </div>
+                    )}
                     {state.selectedImage && (
                         <div className="absolute -top-16 left-4 bg-white dark:bg-darkCard p-1 rounded-xl shadow-lg border border-gray-200 dark:border-darkBorder fade-in group z-10">
                             <img src={state.selectedImage} className="h-14 w-14 object-cover rounded-lg" />
@@ -300,9 +333,17 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 r.readAsDataURL(e.target.files[0]);
                             }
                         }} accept="image/*" className="hidden" />
-                        {/* «+» слева: при записи переворачивается в «×» (отмена записи) */}
+                        <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => {
+                            if(e.target.files[0]) {
+                                const r = new FileReader();
+                                r.onloadend = () => updateState({selectedImage: r.result});
+                                r.readAsDataURL(e.target.files[0]);
+                            }
+                        }} />
+                        {/* «+» слева: при записи переворачивается в «×» (отмена записи),
+                            иначе открывает меню действий (проект/изображение/агенты/…) */}
                         <button
-                            onClick={() => voice.recording ? voice.cancel() : chatFileInputRef.current?.click()}
+                            onClick={() => voice.recording ? voice.cancel() : setShowPlusMenu(true)}
                             title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
                             className={`void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800`}
                         >
@@ -368,6 +409,18 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             </div>
 
             {activeCodeBlock && <CodeViewerModal block={activeCodeBlock.block} siblings={activeCodeBlock.siblings} onClose={() => setActiveCodeBlock(null)} />}
+            {showPlusMenu && (
+                <ChatPlusMenu
+                    state={state}
+                    updateState={updateState}
+                    onClose={() => setShowPlusMenu(false)}
+                    onPickCamera={() => cameraInputRef.current?.click()}
+                    onPickPhoto={() => chatFileInputRef.current?.click()}
+                    onPickFile={() => chatFileInputRef.current?.click()}
+                    onEnableImage={() => updateState({ imageGenMode: true, activeAgentId: null })}
+                    onPickAgent={(agent) => updateState({ activeAgentId: agent.id, imageGenMode: false })}
+                />
+            )}
             {feedback && (
                 <FeedbackModal type={feedback.type} onSubmit={submitFeedback} onClose={() => setFeedback(null)} />
             )}

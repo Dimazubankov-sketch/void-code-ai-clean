@@ -17,6 +17,11 @@
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 .fade-in { animation: fadeIn 0.3s ease-in-out forwards; }
 .slide-in-right { animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.slide-in-up { animation: slideInUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+@keyframes slideInUp {
+    from { transform: translateY(24px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes voidShimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }

@@ -4,6 +4,8 @@ import { ChatInputBar } from '@/features/chat/ChatInputBar';
 import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
 import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
+import { createBackendChat, sendBackendMessage } from '@/shared/api/chat';
+import { buildAgentSystemPrompt } from '@/shared/lib/agentPrompt';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -58,8 +60,8 @@ export function AgentChatView({ state, updateState }) {
         if (!text && !image) return;
         const now = Date.now();
         // Сначала показываем сообщение пользователя, включаем индикатор
-        // размышления, и только после короткой «паузы на подумать» выдаём
-        // ответ агента с анимацией печати — как в основном чате.
+        // размышления, затем запрашиваем ответ у ИИ с агентским системным
+        // промптом (краткий исполнитель, действия, коннекторы, токены).
         const withUser = {
             ...threads,
             [agent.id]: [...thread, { id: `u_${now}`, role: 'user', text, image, at: now }],
@@ -69,17 +71,35 @@ export function AgentChatView({ state, updateState }) {
         setImage(null);
         setThinking(true);
 
-        const reply = buildAgentReply(agent, text);
         const userThread = withUser[agent.id];
-        setTimeout(() => {
+        const finish = (replyText) => {
             setThinking(false);
             updateState({
                 agentThreads: {
                     ...withUser,
-                    [agent.id]: [...userThread, { id: `a_${now}`, role: 'agent', text: reply, at: now + 1, isAnimated: true }],
+                    [agent.id]: [...userThread, { id: `a_${now}`, role: 'agent', text: replyText, at: now + 1, isAnimated: true }],
                 },
             });
-        }, 900);
+        };
+
+        (async () => {
+            try {
+                // Отдельная backend-сессия на каждого агента (лениво).
+                let backendChatId = agent.backendChatId;
+                if (!backendChatId) {
+                    backendChatId = await createBackendChat();
+                    updateState({
+                        aiAgents: (state.aiAgents || []).map(a => a.id === agent.id ? { ...a, backendChatId } : a),
+                    });
+                }
+                const sysPrompt = buildAgentSystemPrompt(agent, state.connectedPlugins || []);
+                // Агенты пишут код уровня Plus/Pro — используем pro-модель.
+                const reply = await sendBackendMessage(backendChatId, text, 'pro', sysPrompt);
+                finish(reply || 'Готово.');
+            } catch (e) {
+                finish('Не удалось связаться с ИИ. Проверьте подключение и попробуйте ещё раз.');
+            }
+        })();
     };
 
     return (
@@ -142,9 +162,4 @@ export function AgentChatView({ state, updateState }) {
             </div>
         </div>
     );
-}
-
-// Простой мок-ответ агента: работает строго по промту, без «профессий»
-function buildAgentReply(agent, text) {
-    return `Принял задачу: «${text}». Работаю по этому промту в чате — как только будет подключена реальная модель, здесь появится настоящий результат. Отчёт пришлю по готовности.`;
 }
