@@ -1,11 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
-import { BANKS } from '@/shared/config/banks';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
+import { BANKS, getBanks, getCurrency, formatCurrency, convertPrice } from '@/shared/config/banks';
 import { formatMoney, formatPrice } from '@/shared/lib/format';
 import { goBack } from '@/shared/lib/navigation';
 import { Icons } from '@/shared/ui/Icons';
 
 
 export function PricingView({ state, updateState }) {
+    const lang = state.lang || 'ru';
+    const currency = getCurrency(lang);
+    const banks = getBanks(lang);
+    // Цена в валюте выбранного языка (для отображения).
+    const money = (rub) => formatCurrency(rub, lang);
+    // GSAP: карточки тарифов и переключатель всплывают (fade-in + slide-up)
+    // при заходе на вкладку и при смене периода/языка. Уважаем reduced-motion.
+    const plansScope = useRef(null);
+    useGSAP(() => {
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce || !plansScope.current) return;
+        gsap.fromTo('.void-plan-card',
+            { autoAlpha: 0, y: 28 },
+            { autoAlpha: 1, y: 0, duration: 0.5, ease: 'power3.out', stagger: 0.08 });
+    }, { scope: plansScope, dependencies: [state.billingCycle, lang] });
     // Локальные поля формы оплаты. Пока пользователь не заполнит их
     // корректно, кнопка "Оплатить" не пускает его дальше — тариф
     // не активируется и currentView не переключается.
@@ -108,7 +125,7 @@ export function PricingView({ state, updateState }) {
         if (state.selectedMethod === 'wallet') {
             const balance = state.walletBalance || 0;
             if (balance < price) {
-                alert(`Недостаточно средств на балансе. Не хватает ${formatMoney(price - balance)} ₽ — пополните кошелёк и попробуйте снова.`);
+                alert(`Недостаточно средств на балансе. Не хватает ${money(price - balance)} — пополните кошелёк и попробуйте снова.`);
                 return;
             }
             const now = Date.now();
@@ -164,7 +181,7 @@ export function PricingView({ state, updateState }) {
                             <div className="flex justify-between items-center mb-8 border-b border-gray-100 dark:border-gray-800 pb-4">
                                 <div>
                                     <p className="text-sm font-bold text-gray-500">Сумма к оплате</p>
-                                    <p className="text-3xl font-extrabold text-[#5b32d4] dark:text-purple-400 mt-1">{formatPrice(price)}₽ <span className="text-sm text-gray-500 font-medium">/ {period.replace('в ', '')}</span></p>
+                                    <p className="text-3xl font-extrabold text-[#5b32d4] dark:text-purple-400 mt-1">{money(price)} <span className="text-sm text-gray-500 font-medium">/ {period.replace('в ', '')}</span></p>
                                 </div>
                                 <button
                                     type="button"
@@ -211,7 +228,7 @@ export function PricingView({ state, updateState }) {
                                 <div className="fade-in space-y-4">
                                     <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Выберите банк для оплаты</label>
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                        {BANKS.map(b => (
+                                        {banks.map(b => (
                                             <div key={b.id} onClick={() => updateState({selectedBank: b.id})} className={`p-3 border-2 rounded-xl cursor-pointer flex flex-col items-center justify-center gap-2 transition-all ${state.selectedBank === b.id ? 'border-[#5b32d4] bg-purple-50 dark:bg-purple-900/20' : 'border-gray-100 dark:border-gray-800 hover:border-gray-200'}`}>
                                                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{backgroundColor: b.bg, color: b.text}}>{b.initial}</div>
                                                 <span className="text-xs font-bold dark:text-white text-center">{b.name}</span>
@@ -249,21 +266,21 @@ export function PricingView({ state, updateState }) {
                                 <div className="fade-in space-y-4">
                                     <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl">
                                         <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">Баланс кошелька</span>
-                                        <span className={`font-extrabold ${(state.walletBalance || 0) >= price ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{formatMoney(state.walletBalance || 0)} ₽</span>
+                                        <span className={`font-extrabold ${(state.walletBalance || 0) >= price ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{money(state.walletBalance || 0)}</span>
                                     </div>
                                     {(state.walletBalance || 0) < price ? (
                                         <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-900/40 flex gap-3 items-start">
                                             <Icons.Alert className="w-5 h-5 shrink-0 text-amber-500 mt-0.5" style={{width:'20px',height:'20px',minWidth:'20px'}} />
-                                            <p className="text-sm text-amber-700 dark:text-amber-400 font-semibold leading-relaxed flex-1 min-w-0">Не хватает {formatMoney(price - (state.walletBalance || 0))} ₽. Пополните баланс в разделе «Кошелёк» и вернитесь для оплаты.</p>
+                                            <p className="text-sm text-amber-700 dark:text-amber-400 font-semibold leading-relaxed flex-1 min-w-0">Не хватает {money(price - (state.walletBalance || 0))}. Пополните баланс в разделе «Кошелёк» и вернитесь для оплаты.</p>
                                         </div>
                                     ) : (
-                                        <p className="text-sm text-gray-400">С баланса спишется {formatMoney(price)} ₽, подписка активируется сразу.</p>
+                                        <p className="text-sm text-gray-400">С баланса спишется {money(price)}, подписка активируется сразу.</p>
                                     )}
                                 </div>
                             )}
 
                             <button onClick={handleConfirmPayment} className="w-full mt-8 py-4 bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold rounded-2xl shadow-lg transition-colors text-lg">
-                                {state.selectedMethod === 'sbp' ? 'Оплатить через приложение банка' : state.selectedMethod === 'crypto' ? 'Я перевёл средства' : state.selectedMethod === 'wallet' ? `Оплатить с баланса ${formatPrice(price)}₽` : `Оплатить ${formatPrice(price)}₽`}
+                                {state.selectedMethod === 'sbp' ? 'Оплатить через приложение банка' : state.selectedMethod === 'crypto' ? 'Я перевёл средства' : state.selectedMethod === 'wallet' ? `Оплатить с баланса ${money(price)}` : `Оплатить ${money(price)}`}
                             </button>
                         </div>
                     </div>
@@ -325,7 +342,7 @@ export function PricingView({ state, updateState }) {
                             </div>
                         </div>
                         <div className="text-right">
-                            <p className="text-2xl font-extrabold dark:text-white">{formatPrice(price)}₽</p>
+                            <p className="text-2xl font-extrabold dark:text-white">{money(price)}</p>
                             <p className="text-xs text-gray-500">{period}</p>
                         </div>
                     </div>
@@ -349,7 +366,7 @@ export function PricingView({ state, updateState }) {
                         </div>
                         <div onClick={() => updateState({selectedMethod: 'wallet'})} className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${state.selectedMethod === 'wallet' ? 'border-[#5b32d4] bg-[#efecf9]/50 dark:bg-purple-900/10' : 'border-gray-100 dark:border-darkBorder hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                             <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-darkCard text-[#5b32d4] dark:text-purple-400"><Icons.Wallet /></div>
-                            <div className="flex-1"><div className="font-bold text-[15px] dark:text-white">Баланс кошелька</div><div className={`text-xs ${(state.walletBalance || 0) >= price ? 'text-gray-500' : 'text-red-500 font-semibold'}`}>Доступно: {formatMoney(state.walletBalance || 0)} ₽{(state.walletBalance || 0) < price ? ' — не хватает средств' : ''}</div></div>
+                            <div className="flex-1"><div className="font-bold text-[15px] dark:text-white">Баланс кошелька</div><div className={`text-xs ${(state.walletBalance || 0) >= price ? 'text-gray-500' : 'text-red-500 font-semibold'}`}>Доступно: {money(state.walletBalance || 0)}{(state.walletBalance || 0) < price ? ' — не хватает средств' : ''}</div></div>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${state.selectedMethod === 'wallet' ? 'border-[#5b32d4] bg-[#5b32d4]' : 'border-gray-300 dark:border-gray-600'}`}>{state.selectedMethod === 'wallet' && <Icons.Check className="w-3 h-3 text-white" />}</div>
                         </div>
                     </div>
@@ -373,7 +390,7 @@ export function PricingView({ state, updateState }) {
                         <button onClick={() => updateState({billingCycle: 'year'})} className={`relative z-10 flex-1 py-2.5 text-sm font-bold transition-colors ${state.billingCycle === 'year' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>В год (-20%)</button>
                     </div>
                 </div>
-                <div className="grid md:grid-cols-2 gap-6" key={state.billingCycle}>
+                <div ref={plansScope} className="grid md:grid-cols-2 gap-6" key={state.billingCycle}>
                     {PRICING_PLANS.map(p => {
                         // Порядок тарифов по «весу». Тарифы дешевле текущего
                         // становятся недоступными — понизиться нельзя.
@@ -388,9 +405,9 @@ export function PricingView({ state, updateState }) {
                             <h2 className="text-2xl font-bold dark:text-white">{p.title}</h2>
                             <p className="text-sm text-gray-500 mt-1 mb-4">{p.subtitle}</p>
                             <div className="flex items-baseline gap-2.5 mb-6">
-                                <span className="text-4xl font-extrabold dark:text-white">{formatPrice(state.billingCycle === 'month' ? p.priceMonth : p.priceYear)}₽</span>
+                                <span className="text-4xl font-extrabold dark:text-white">{money(state.billingCycle === 'month' ? p.priceMonth : p.priceYear)}</span>
                                 {state.billingCycle === 'month' && p.oldPriceMonth && (
-                                    <span className="text-xl font-bold text-gray-400 line-through">{formatPrice(p.oldPriceMonth)}₽</span>
+                                    <span className="text-xl font-bold text-gray-400 line-through">{money(p.oldPriceMonth)}</span>
                                 )}
                             </div>
                             <div className="mb-8">

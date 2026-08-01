@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useStaggerIn } from '@/shared/lib/useEnterAnimation';
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { PLUGIN_TOOLS } from '@/features/plugins/PluginsView';
+import { SKILLS } from '@/features/skills/SkillsView';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -32,14 +33,15 @@ export function ChatPlusMenu({
     if (sub === 'project') return <ProjectPickerSheet state={state} updateState={updateState} onBack={() => setSub(null)} onClose={onClose} />;
     if (sub === 'agents') return <AgentPickerSheet state={state} updateState={updateState} onBack={() => setSub(null)} onClose={onClose} onPickAgent={onPickAgent} />;
     if (sub === 'connectors') return <ConnectorPickerSheet state={state} updateState={updateState} onBack={() => setSub(null)} onClose={onClose} />;
+    if (sub === 'skills') return <SkillsSheet state={state} updateState={updateState} onBack={() => setSub(null)} onClose={onClose} />;
 
     return (
         <Sheet title="Добавить в чат" onClose={onClose}>
-            {/* Три большие кнопки */}
+            {/* Три большие кнопки. Фото/Файлы сразу вызывают системный диалог. */}
             <div className="grid grid-cols-3 gap-2.5 mb-4">
                 <BigButton icon="Camera" label="Камера" onClick={() => { onPickCamera?.(); onClose(); }} />
                 <BigButton icon="Image" label="Фото" onClick={() => { onPickPhoto?.(); onClose(); }} />
-                <BigButton icon="Paperclip" label="Файлы" onClick={() => { onPickFile?.(); onClose(); }} />
+                <BigButton icon="PaperclipThin" label="Файлы" onClick={() => { onPickFile?.(); onClose(); }} />
             </div>
 
             {/* Блок: добавить в проект */}
@@ -47,9 +49,9 @@ export function ChatPlusMenu({
                 <RowButton icon="Folder" label="Добавить в проект" chevron onClick={() => setSub('project')} />
             </div>
 
-            {/* Блок: создать изображение */}
+            {/* Блок: скиллы (заменил «Создать изображение») */}
             <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl overflow-hidden mb-3">
-                <RowButton icon="Image" label="Создать изображение" onClick={() => { onEnableImage?.(); onClose(); }} />
+                <RowButton icon="Skills" label="Скиллы" chevron onClick={() => setSub('skills')} />
             </div>
 
             {/* Блок: агенты и коннекторы */}
@@ -186,18 +188,43 @@ function AgentPickerSheet({ state, updateState, onBack, onClose, onPickAgent }) 
     );
 }
 
-// --- Вложенное окно: коннекторы ---
+// --- Вложенное окно: коннекторы (с поиском и фуллскрин-режимом) ---
 function ConnectorPickerSheet({ state, updateState, onBack, onClose }) {
     const connected = state.connectedPlugins || [];
-    const scope = useStaggerIn('.cpm-conn', []);
+    const [query, setQuery] = useState('');
+    const [fullscreen, setFullscreen] = useState(false);
+    const scope = useStaggerIn('.cpm-conn', [query]);
     const connect = (tool) => {
         if (connected.includes(tool.id)) return;
         updateState({ connectedPlugins: [...connected, tool.id] });
     };
+    const visible = PLUGIN_TOOLS.filter(tt => query.trim() === '' || tt.name.toLowerCase().includes(query.trim().toLowerCase()));
+
     return (
-        <SheetWithBack title="Коннекторы" onBack={onBack} onClose={onClose}>
+        <SheetWithBack
+            title="Коннекторы"
+            onBack={onBack}
+            onClose={onClose}
+            fullscreen={fullscreen}
+            headerRight={
+                <button onClick={() => setFullscreen(f => !f)} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" title={fullscreen ? 'Свернуть' : 'Развернуть'}>
+                    {fullscreen ? <Icons.Minimize className="w-4 h-4" /> : <Icons.Maximize className="w-4 h-4" />}
+                </button>
+            }
+        >
+            {/* Поиск по названию коннектора */}
+            <div className="relative mb-3">
+                <Icons.Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    placeholder="Поиск коннектора…"
+                    className="w-full pl-10 pr-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-darkBorder rounded-xl text-sm dark:text-white outline-none focus:border-[#5b32d4] transition-colors"
+                />
+            </div>
             <div ref={scope} className="space-y-2">
-                {PLUGIN_TOOLS.map(tool => {
+                {visible.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Ничего не найдено</p>}
+                {visible.map(tool => {
                     const Icon = Icons[tool.icon] || Icons.Plug;
                     const on = connected.includes(tool.id);
                     return (
@@ -218,17 +245,51 @@ function ConnectorPickerSheet({ state, updateState, onBack, onClose }) {
     );
 }
 
-// «Шторка» с кнопкой назад
-function SheetWithBack({ title, onBack, onClose, children }) {
+// --- Вложенное окно: скиллы ---
+function SkillsSheet({ state, updateState, onBack, onClose }) {
+    const active = state.activeSkills || [];
+    const toggle = (id) => {
+        updateState({ activeSkills: active.includes(id) ? active.filter(s => s !== id) : [...active, id] });
+    };
     return (
-        <div data-modal-overlay className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in" onClick={onClose}>
-            <div className="w-full sm:max-w-md bg-white dark:bg-darkCard rounded-t-3xl sm:rounded-3xl shadow-2xl slide-in-up max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <SheetWithBack title="Скиллы" onBack={onBack} onClose={onClose}>
+            <div className="space-y-2">
+                {SKILLS.map(skill => {
+                    const Icon = Icons[skill.icon] || Icons.Sparkles;
+                    const on = active.includes(skill.id);
+                    return (
+                        <button key={skill.id} onClick={() => toggle(skill.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-colors ${on ? 'bg-[#efecf9] dark:bg-purple-900/20' : 'bg-gray-50 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${on ? 'bg-[#5b32d4] text-white' : 'bg-white dark:bg-gray-800 text-[#5b32d4] dark:text-purple-400'}`}><Icon className="w-5 h-5" /></div>
+                            <div className="flex-1 min-w-0 text-left">
+                                <p className="font-bold text-sm dark:text-white truncate">{skill.name}</p>
+                                <p className="text-xs text-gray-400 truncate">{skill.desc}</p>
+                            </div>
+                            <div className={`w-10 h-6 rounded-full p-0.5 transition-colors flex items-center shrink-0 ${on ? 'bg-[#5b32d4]' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                                <div className={`w-5 h-5 bg-white rounded-full transition-transform ${on ? 'translate-x-4' : 'translate-x-0'}`} />
+                            </div>
+                        </button>
+                    );
+                })}
+            </div>
+        </SheetWithBack>
+    );
+}
+
+// «Шторка» с кнопкой назад. fullscreen — окно на весь экран (для коннекторов).
+function SheetWithBack({ title, onBack, onClose, children, fullscreen = false, headerRight = null }) {
+    const panelClass = fullscreen
+        ? 'w-full h-full sm:rounded-none'
+        : 'w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl max-h-[85vh]';
+    return (
+        <div data-modal-overlay className={`fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center ${fullscreen ? 'p-0' : 'p-0 sm:p-4'} fade-in`} onClick={onClose}>
+            <div className={`bg-white dark:bg-darkCard shadow-2xl slide-in-up flex flex-col ${panelClass}`} onClick={e => e.stopPropagation()}>
                 <div className="flex items-center gap-2 px-4 py-4 shrink-0">
                     <button onClick={onBack} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"><Icons.ChevronLeft className="w-4 h-4" /></button>
                     <h3 className="flex-1 font-extrabold text-base dark:text-white">{title}</h3>
+                    {headerRight}
                     <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"><Icons.X className="w-4 h-4" /></button>
                 </div>
-                <div className="px-4 pb-6 overflow-y-auto">{children}</div>
+                <div className="px-4 pb-6 overflow-y-auto flex-1">{children}</div>
             </div>
         </div>
     );

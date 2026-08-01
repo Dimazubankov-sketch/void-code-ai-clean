@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
 
-
 // Ищет по всем чатам сообщения, содержащие ключевое слово, и возвращает
 // короткий фрагмент текста вокруг найденного места (как в поиске Ctrl+F).
 const buildSnippet = (text, query) => {
@@ -18,6 +17,10 @@ const searchChatHistory = (chatSessions, query) => {
     const q = query.trim().toLowerCase();
     const results = [];
     chatSessions.forEach(chat => {
+        // Заголовок чата тоже участвует в поиске
+        if (chat.title && chat.title.toLowerCase().includes(q)) {
+            results.push({ chatId: chat.id, chatTitle: chat.title, msgIdx: 0, snippet: chat.title });
+        }
         (chat.messages || []).forEach((msg, idx) => {
             if (msg.content && msg.content.toLowerCase().includes(q)) {
                 results.push({
@@ -29,7 +32,15 @@ const searchChatHistory = (chatSessions, query) => {
             }
         });
     });
-    return results.slice(0, 30); // не даём списку разрастись бесконечно
+    return results.slice(0, 40);
+};
+
+// Сортировка списка чатов: закреплённые сверху (свежезакреплённые выше —
+// по убыванию pinnedAt), затем остальные в исходном порядке.
+const sortChats = (chats) => {
+    const pinned = chats.filter(c => c.pinnedAt).sort((a, b) => b.pinnedAt - a.pinnedAt);
+    const rest = chats.filter(c => !c.pinnedAt);
+    return { pinned, rest };
 };
 
 // ==========================================
@@ -37,6 +48,7 @@ const searchChatHistory = (chatSessions, query) => {
 // ==========================================
 export function RightMenu({ state, updateState }) {
     const lang = state.lang || 'ru';
+    const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     if (!state.user) return null;
 
@@ -51,99 +63,152 @@ export function RightMenu({ state, updateState }) {
             scrollToMessageChatId: result.chatId,
         });
         setSearchQuery('');
+        setSearchOpen(false);
     };
+
+    const togglePin = (chat) => {
+        updateState({
+            chatSessions: state.chatSessions.map(c =>
+                c.id === chat.id ? { ...c, pinnedAt: c.pinnedAt ? null : Date.now() } : c),
+        });
+    };
+
+    const deleteChat = (chat) => {
+        if (!window.confirm(t(lang, 'menu.deleteChatConfirm', { title: chat.title }))) return;
+        const remaining = state.chatSessions.filter(c => c.id !== chat.id);
+        if (remaining.length === 0) {
+            const nid = Date.now();
+            updateState({ chatSessions: [{ id: nid, title: t(lang, 'menu.newChat'), messages: [] }], activeChatId: nid });
+        } else if (state.activeChatId === chat.id) {
+            updateState({ chatSessions: remaining, activeChatId: remaining[0].id });
+        } else {
+            updateState({ chatSessions: remaining });
+        }
+    };
+
+    const { pinned, rest } = sortChats(state.chatSessions);
+
+    // Строка чата в списке (используется и для закреплённых, и для недавних)
+    const ChatRow = ({ chat }) => (
+        <div className={`group w-full flex items-center gap-2 px-1 py-0.5 rounded-xl transition-colors ${state.activeChatId === chat.id ? 'bg-[#efecf9] dark:bg-purple-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+            <button onClick={() => updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false })} className={`flex-1 min-w-0 flex items-center gap-3 p-2 rounded-lg text-left ${state.activeChatId === chat.id ? 'text-[#5b32d4] dark:text-purple-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                {chat.pinnedAt ? <Icons.PinFilled className="w-4 h-4 flex-shrink-0 text-[#5b32d4]" /> : <Icons.MessageSquare className="w-5 h-5 flex-shrink-0" />}
+                <span className="font-semibold text-[15px] truncate">{chat.title}</span>
+            </button>
+            <button onClick={() => togglePin(chat)} className="void-tap-target flex-shrink-0 p-2 text-gray-400 hover:text-[#5b32d4] hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title={chat.pinnedAt ? t(lang, 'menu.unpin') : t(lang, 'menu.pin')}>
+                <Icons.Pin className="w-4 h-4" />
+            </button>
+            <button onClick={() => deleteChat(chat)} className="void-tap-target flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title={t(lang, 'menu.deleteChat')}>
+                <Icons.Trash className="w-4 h-4" />
+            </button>
+        </div>
+    );
+
+    // Кнопка навигации меню: белый фон, без постоянной обводки; серая обводка
+    // появляется при наведении/нажатии. Отступы плотные.
+    const NavButton = ({ icon: Icon, label, onClick, primary = false }) => (
+        <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold transition-colors border ${primary
+            ? 'bg-[#5b32d4] hover:bg-[#4a26b0] text-white border-transparent shadow-md'
+            : 'bg-white dark:bg-darkCard text-gray-800 dark:text-gray-200 border-transparent hover:border-gray-200 dark:hover:border-gray-700 active:border-gray-300'}`}>
+            <Icon className="w-5 h-5 flex-shrink-0" /> {label}
+        </button>
+    );
 
     return (
         <>
-            <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity duration-300 ${state.isRightMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => updateState({isRightMenuOpen: false})} />
+            <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity duration-300 ${state.isRightMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => updateState({ isRightMenuOpen: false })} />
             <div className={`fixed top-0 right-0 h-full w-[85vw] md:w-96 bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-transform duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden">
-                    <button onClick={() => updateState({isRightMenuOpen: false})} className="void-tap-target absolute top-4 right-4 p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors flex items-center justify-center z-10"><Icons.X /></button>
-
-                    <div className="flex items-center gap-3 mb-6 mt-2 shrink-0">
-                        <span className="font-extrabold text-xl dark:text-white">{t(lang, 'menu.title')}</span>
+                    {/* Шапка: слева лупа, «Меню» по центру, справа крестик */}
+                    <div className="flex items-center mb-6 mt-2 shrink-0 relative h-8">
+                        <button onClick={() => setSearchOpen(true)} className="void-tap-target absolute left-0 p-2 -ml-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors" title={t(lang, 'menu.search')}>
+                            <Icons.Search className="w-5 h-5" />
+                        </button>
+                        <span className="font-extrabold text-xl dark:text-white mx-auto">{t(lang, 'menu.title')}</span>
+                        <button onClick={() => updateState({ isRightMenuOpen: false })} className="void-tap-target absolute right-0 p-2 -mr-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                            <Icons.X />
+                        </button>
                     </div>
 
-                    {/* Единый прокручиваемый блок: навигация + поиск + история —
-                        всё меню листается целиком, а не только история чатов. */}
                     <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-24 -mx-1 px-1">
-                        <div className="space-y-3 mb-6">
-                            <button onClick={() => { 
-                                const nid = Date.now(); 
-                                updateState({chatSessions: [{id:nid,title:t(lang, 'menu.newChat'),messages:[]}, ...state.chatSessions], activeChatId: nid, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false}); 
-                            }} className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold transition-colors shadow-md">
-                                <Icons.Plus /> {t(lang, 'menu.createChat')}
-                            </button>
-                            <button onClick={() => {
+                        <div className="space-y-1 mb-4">
+                            <NavButton primary icon={Icons.Plus} label={t(lang, 'menu.createChat')} onClick={() => {
                                 const nid = Date.now();
-                                updateState({chatSessions: [{id:nid,title:t(lang, 'menu.newImage'),messages:[]}, ...state.chatSessions], activeChatId: nid, currentView: 'chat', isRightMenuOpen: false, imageGenMode: true});
-                            }} className="w-full flex items-center gap-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold transition-colors border border-gray-100 dark:border-darkBorder">
-                                <Icons.Image /> {t(lang, 'menu.createImage')}
-                            </button>
-                            <button onClick={() => updateState({currentView: 'projects', isRightMenuOpen: false})} className="w-full flex items-center gap-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold transition-colors border border-gray-100 dark:border-darkBorder">
-                                <Icons.Folder /> {t(lang, 'menu.projects')}
-                            </button>
-                            <button onClick={() => updateState({currentView: 'plugins', isRightMenuOpen: false})} className="w-full flex items-center gap-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold transition-colors border border-gray-100 dark:border-darkBorder">
-                                <Icons.Plug /> {t(lang, 'menu.plugins')}
-                            </button>
-                            <button onClick={() => updateState({currentView: 'library', isRightMenuOpen: false})} className="w-full flex items-center gap-3 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold transition-colors border border-gray-100 dark:border-darkBorder">
-                                <Icons.Library /> {t(lang, 'menu.library')}
-                            </button>
+                                updateState({ chatSessions: [{ id: nid, title: t(lang, 'menu.newChat'), messages: [] }, ...state.chatSessions], activeChatId: nid, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false });
+                            }} />
+                            <NavButton icon={Icons.Folder} label={t(lang, 'menu.projects')} onClick={() => updateState({ currentView: 'projects', isRightMenuOpen: false })} />
+                            <NavButton icon={Icons.Skills} label={t(lang, 'menu.skills')} onClick={() => updateState({ currentView: 'skills', isRightMenuOpen: false })} />
+                            <NavButton icon={Icons.Plug} label={t(lang, 'menu.plugins')} onClick={() => updateState({ currentView: 'plugins', isRightMenuOpen: false })} />
+                            <NavButton icon={Icons.Library} label={t(lang, 'menu.library')} onClick={() => updateState({ currentView: 'library', isRightMenuOpen: false })} />
                         </div>
 
-                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 ml-1">{t(lang, 'menu.chatHistory')}</h3>
-                        <div className="relative mb-3">
-                            <Icons.Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Поиск по истории чатов…"
-                                className="w-full pl-10 pr-3 py-2.5 bg-gray-50 dark:bg-[#23232f] border border-gray-100 dark:border-gray-800 rounded-xl text-sm dark:text-white outline-none focus:border-[#5b32d4] transition-all"
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            {searchQuery.trim() ? (
-                                searchResults.length > 0 ? searchResults.map((result, i) => (
-                                    <button key={i} onClick={() => openSearchResult(result)} className="w-full text-left p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                                        <p className="font-semibold text-sm dark:text-white truncate">{result.chatTitle}</p>
-                                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{result.snippet}</p>
-                                    </button>
-                                )) : (
-                                    <p className="text-sm text-gray-400 text-center py-6">Ничего не найдено</p>
-                                )
-                            ) : state.chatSessions.map(chat => (
-                                <div key={chat.id} className={`group w-full flex items-center gap-2 p-1 rounded-xl transition-colors ${state.activeChatId === chat.id ? 'bg-[#efecf9] dark:bg-purple-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                                    <button onClick={() => updateState({activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false})} className={`flex-1 min-w-0 flex items-center gap-3 p-2 rounded-lg text-left ${state.activeChatId === chat.id ? 'text-[#5b32d4] dark:text-purple-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                                        <Icons.MessageSquare className="w-5 h-5 flex-shrink-0" /><span className="font-semibold text-[15px] truncate">{chat.title}</span>
-                                    </button>
-                                    <button onClick={() => {
-                                        if (!window.confirm(t(lang, 'menu.deleteChatConfirm', { title: chat.title }))) return;
-                                        const remaining = state.chatSessions.filter(c => c.id !== chat.id);
-                                        if (remaining.length === 0) {
-                                            const nid = Date.now();
-                                            updateState({ chatSessions: [{ id: nid, title: t(lang, 'menu.newChat'), messages: [] }], activeChatId: nid });
-                                        } else if (state.activeChatId === chat.id) {
-                                            updateState({ chatSessions: remaining, activeChatId: remaining[0].id });
-                                        } else {
-                                            updateState({ chatSessions: remaining });
-                                        }
-                                    }} className="void-tap-target flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title={t(lang, 'menu.deleteChat')}>
-                                        <Icons.Trash className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ))}
+                        {/* Серый разделитель «Недавние» между кнопками меню и чатами */}
+                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2 mt-2">{t(lang, 'menu.recents')}</h3>
+
+                        <div className="space-y-0.5">
+                            {pinned.map(chat => <ChatRow key={chat.id} chat={chat} />)}
+                            {pinned.length > 0 && rest.length > 0 && <div className="h-px bg-gray-100 dark:bg-gray-800 my-2 mx-2" />}
+                            {rest.map(chat => <ChatRow key={chat.id} chat={chat} />)}
                         </div>
                     </div>
 
                     {/* Кнопка настроек — зафиксирована снизу поверх прокрутки */}
                     <div className="absolute bottom-6 left-6">
-                        <button onClick={() => updateState({currentView: 'settings', isRightMenuOpen: false})} className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm text-gray-700 dark:text-gray-300">
+                        <button onClick={() => updateState({ currentView: 'settings', isRightMenuOpen: false })} className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm text-gray-700 dark:text-gray-300">
                             <Icons.Settings className="w-6 h-6" />
                         </button>
                     </div>
                 </div>
             </div>
+
+            {/* Поиск: на мобильном — полноэкранный, на десктопе — попвер поверх меню */}
+            {searchOpen && (
+                <ChatSearchOverlay
+                    lang={lang}
+                    query={searchQuery}
+                    setQuery={setSearchQuery}
+                    results={searchResults}
+                    onPick={openSearchResult}
+                    onClose={() => { setSearchOpen(false); setSearchQuery(''); }}
+                />
+            )}
         </>
+    );
+}
+
+// Оверлей поиска: fullscreen на мобильном, аккуратный попвер на десктопе.
+function ChatSearchOverlay({ lang, query, setQuery, results, onPick, onClose }) {
+    return (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center" onClick={onClose}>
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+            <div
+                className="relative mt-0 sm:mt-24 w-full sm:w-[520px] h-full sm:h-auto sm:max-h-[70vh] bg-white dark:bg-darkCard sm:rounded-3xl shadow-2xl flex flex-col slide-in-up sm:fade-in overflow-hidden"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="flex items-center gap-2 p-4 border-b border-gray-100 dark:border-darkBorder shrink-0">
+                    <Icons.Search className="w-5 h-5 text-gray-400 shrink-0" />
+                    <input
+                        autoFocus
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder={t(lang, 'menu.searchPlaceholder')}
+                        className="flex-1 bg-transparent outline-none text-[15px] dark:text-white"
+                    />
+                    <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400"><Icons.X className="w-4 h-4" /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2">
+                    {query.trim() === '' ? (
+                        <p className="text-sm text-gray-400 text-center py-10">{t(lang, 'menu.searchPlaceholder')}</p>
+                    ) : results.length > 0 ? results.map((r, i) => (
+                        <button key={i} onClick={() => onPick(r)} className="w-full text-left p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <p className="font-semibold text-sm dark:text-white truncate">{r.chatTitle}</p>
+                            <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{r.snippet}</p>
+                        </button>
+                    )) : (
+                        <p className="text-sm text-gray-400 text-center py-10">{t(lang, 'menu.nothingFound')}</p>
+                    )}
+                </div>
+            </div>
+        </div>
     );
 }

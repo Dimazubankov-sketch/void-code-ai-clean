@@ -15,7 +15,7 @@ export const PERSISTED_KEYS = [
     'chatSessions', 'activeChatId', 'selectedModelId', 'reasoningByModel', 'lang', 'voiceLang', 'voiceURI', 'voiceRate', 'voicePitch', 'voicePreset',
     'generatedImages', 'generatedDocuments', 'aiAgents', 'activeAgentId',
     'walletBalance', 'walletTransactions',
-    'projects', 'connectedPlugins',
+    'projects', 'connectedPlugins', 'activeSkills',
     'orchestratorThreads', 'orchestratorReports', 'agentThreads', 'inbox', 'notifyUpdates', 'notifyPersonal', 'readUpdateIds', 'readPersonalIds',
     'starredIds', 'savedAccounts', 'mailComposeDraft', 'accountPhotos', 'accountData'
 ];

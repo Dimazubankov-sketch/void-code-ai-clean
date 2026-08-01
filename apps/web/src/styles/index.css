@@ -112,11 +112,7 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
 .void-subtitle-rise { animation: voidTextRiseUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.15s 1 both; }
 /* Карточки тарифов «подпрыгивают» при переключении месяц/год, чтобы было
    заметно, что цифры внутри сменились (карточки стоят на месте). */
-.void-plan-card { animation: voidPlanPop 0.4s cubic-bezier(0.22, 1, 0.36, 1) 1 both; }
-@keyframes voidPlanPop {
-    0%   { transform: translateY(10px); opacity: 0; }
-    100% { transform: translateY(0); opacity: 1; }
-}
+.void-plan-card { /* Анимация всплытия теперь в GSAP (PricingView.jsx) */ }
 /* Появление иконок карточек на главном экране — короткое и с небольшим
    волнообразным сдвигом между карточками (задаётся через animation-delay
    инлайн-стилем), проигрывается при появлении экрана. */

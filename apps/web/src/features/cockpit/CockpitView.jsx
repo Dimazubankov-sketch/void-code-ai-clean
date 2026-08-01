@@ -59,7 +59,7 @@ function GiftAgentModal({ agent, onClaim }) {
     }, { scope });
 
     return (
-        <div ref={scope} className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+        <div ref={scope} className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="gift-card bg-white dark:bg-darkCard rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
                 <div className="gift-icon w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#5b32d4] to-[#a52fe0] flex items-center justify-center text-3xl">🎁</div>
                 <div className="gift-text">

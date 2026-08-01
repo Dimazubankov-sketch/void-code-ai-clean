@@ -17,6 +17,7 @@ import { ProfileEditView } from '@/features/settings/ProfileEditView';
 import { SecurityView } from '@/features/settings/SecurityView';
 import { SettingsView } from '@/features/settings/SettingsView';
 import { ProjectsView } from '@/features/projects/ProjectsView';
+import { SkillsView } from '@/features/skills/SkillsView';
 import { PluginsView } from '@/features/plugins/PluginsView';
 import { WalletView } from '@/features/wallet/WalletView';
 import { createBackendChat, sendBackendMessage } from '@/shared/api/chat';
@@ -83,6 +84,7 @@ export function App() {
             authTab: 'login',
             imageGenMode: false,
             activeAgentId: null,
+            activeSkills: [],
             isGeneratingImage: false,
             generatedImages: [],
             generatedDocuments: [],
@@ -177,6 +179,7 @@ export function App() {
             userPlan: isGuest ? 'free' : (saved.userPlan || 'free'),
             imageGenMode: false,
             activeAgentId: null,
+            activeSkills: [],
             isGeneratingImage: false,
             showAuthModal: false,
             savedAccounts: saved.savedAccounts || [],
@@ -578,6 +581,7 @@ export function App() {
                 {state.currentView === 'security' && <SecurityView state={state} updateState={updateState} />}
                 {state.currentView === 'limits' && <LimitsView state={state} updateState={updateState} />}
                 {state.currentView === 'projects' && <ProjectsView state={state} updateState={updateState} />}
+                {state.currentView === 'skills' && <SkillsView state={state} updateState={updateState} />}
                 {state.currentView === 'plugins' && <PluginsView state={state} updateState={updateState} />}
                 {state.currentView === 'library' && <LibraryView state={state} updateState={updateState} />}
                 {state.currentView === 'wallet' && <WalletView state={state} updateState={updateState} />}
