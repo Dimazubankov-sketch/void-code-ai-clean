@@ -240,11 +240,23 @@ export function App() {
     // запоминаем, откуда пришли. Это работает для ВСЕХ переходов по
     // всему приложению без необходимости трогать каждый вызов отдельно.
     const updateState = (updates) => setState(prev => {
-        if (updates.currentView !== undefined && updates.currentView !== prev.currentView && !('viewHistory' in updates)) {
-            const newHistory = [...(prev.viewHistory || []), prev.currentView].slice(-20);
-            return { ...prev, ...updates, viewHistory: newHistory };
+        // Уборка «мусорных» пустых чатов: если пользователь создал новый чат,
+        // ничего не написал и ушёл на другой экран — такой чат (без сообщений)
+        // удаляем из истории, чтобы она не забивалась пустышками. Не трогаем
+        // чат, в который переходим, и активный, если остаёмся в чате.
+        let cleaned = prev;
+        if (updates.currentView !== undefined && updates.currentView !== 'chat' && prev.currentView === 'chat') {
+            const keepId = updates.activeChatId !== undefined ? updates.activeChatId : prev.activeChatId;
+            const filtered = (prev.chatSessions || []).filter(s => (s.messages && s.messages.length > 0) || s.id === keepId);
+            if (filtered.length !== (prev.chatSessions || []).length) {
+                cleaned = { ...prev, chatSessions: filtered };
+            }
         }
-        return { ...prev, ...updates };
+        if (updates.currentView !== undefined && updates.currentView !== cleaned.currentView && !('viewHistory' in updates)) {
+            const newHistory = [...(cleaned.viewHistory || []), cleaned.currentView].slice(-20);
+            return { ...cleaned, ...updates, viewHistory: newHistory };
+        }
+        return { ...cleaned, ...updates };
     });
     
     // --- HITL: обработка решения пользователя по плану оркестратора ---

@@ -27,13 +27,14 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128 }) {
             .to('.orb-core', { filter: 'brightness(1.15)', duration: 2.4 }, 0)
             .to('.orb-core', { y: -4, duration: 3.0 }, 0);
 
-        // Два ореола расходятся и гаснут по очереди
+        // Два ореола расходятся и приглушаются (не до полного нуля — так
+        // круг всегда выглядит «живым», без провалов в пустоту)
         gsap.fromTo('.orb-halo-1',
-            { scale: 0.9, autoAlpha: 0.35 },
-            { scale: 1.35, autoAlpha: 0, duration: 2.8, ease: 'power1.out', repeat: -1 });
+            { scale: 0.9, autoAlpha: 0.4 },
+            { scale: 1.3, autoAlpha: 0.12, duration: 2.8, ease: 'sine.inOut', repeat: -1, yoyo: true });
         gsap.fromTo('.orb-halo-2',
-            { scale: 0.9, autoAlpha: 0.25 },
-            { scale: 1.5, autoAlpha: 0, duration: 2.8, ease: 'power1.out', repeat: -1, delay: 1.4 });
+            { scale: 0.95, autoAlpha: 0.3 },
+            { scale: 1.45, autoAlpha: 0.1, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.8 });
     }, { scope });
 
     // Плавно переливаем цвета при смене голоса (contextSafe не нужен —

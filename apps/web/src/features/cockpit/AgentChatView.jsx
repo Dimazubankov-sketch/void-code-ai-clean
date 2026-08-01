@@ -79,7 +79,7 @@ export function AgentChatView({ state, updateState }) {
                     [agent.id]: [...userThread, { id: `a_${now}`, role: 'agent', text: reply, at: now + 1, isAnimated: true }],
                 },
             });
-        }, 1600);
+        }, 900);
     };
 
     return (

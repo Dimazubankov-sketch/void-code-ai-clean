@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { goBack } from '@/shared/lib/navigation';
+import { useStaggerIn } from '@/shared/lib/useEnterAnimation';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
 
@@ -77,6 +78,8 @@ export function PluginsView({ state, updateState }) {
     const [category, setCategory] = useState('all');
     const [query, setQuery] = useState('');
     const connected = state.connectedPlugins || [];
+    // Лёгкое каскадное появление карточек при входе/смене фильтра (GSAP).
+    const listScope = useStaggerIn('.connector-item', [category, query]);
 
     const visible = PLUGIN_TOOLS.filter(tool => {
         const matchesCategory = category === 'all' || tool.category === category;
@@ -106,7 +109,7 @@ export function PluginsView({ state, updateState }) {
         const isOn = connected.includes(tool.id);
         const iconClasses = tool.color ? COLOR_CLASSES[tool.color] : '';
         return (
-            <div key={tool.id} className="flex items-center gap-3 bg-white dark:bg-darkCard p-4 rounded-2xl border border-gray-100 dark:border-darkBorder">
+            <div key={tool.id} className="connector-item flex items-center gap-3 bg-white dark:bg-darkCard p-4 rounded-2xl border border-gray-100 dark:border-darkBorder">
                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconClasses || 'bg-gray-50 dark:bg-gray-800'}`}>
                     <IconC className="w-6 h-6" />
                 </div>

@@ -46,8 +46,8 @@
         rgba(91, 50, 212, 0.22) 0%,
         rgba(91, 50, 212, 0.08) 45%,
         transparent 70%);
-    animation: vcHaloBreath 2.4s ease-in-out infinite;
     pointer-events: none;
+    /* Анимация ореола теперь в GSAP (Splash.jsx) */
 }
 .vc-splash--light .vc-splash__halo {
     background: radial-gradient(circle,
@@ -69,10 +69,9 @@
 /* Такт 1 — логотип проявляется из лёгкого блюра и подрастает до 1:1 */
 .vc-splash__logo {
     width: 132px; height: 132px;
-    opacity: 0;
-    animation: vcLogoIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.05s forwards;
     filter: drop-shadow(0 10px 30px rgba(101, 60, 222, 0.35));
     will-change: transform, opacity, filter;
+    /* Появление и парение логотипа — в GSAP (Splash.jsx) */
 }
 @keyframes vcLogoIn {
     0%   { opacity: 0; transform: scale(0.88) translateY(6px); filter: blur(10px) drop-shadow(0 10px 30px rgba(101,60,222,0)); }
@@ -91,13 +90,9 @@
 .vc-splash--light .vc-splash__brand { color: #1a1a2e; }
 .vc-splash__word {
     display: inline-block;
-    opacity: 0;
-    animation: vcWordRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    animation-delay: 0.55s;
     will-change: transform, opacity;
+    /* Каскад появления слов — в GSAP (Splash.jsx) */
 }
-.vc-splash__word--2 { animation-delay: 0.65s; }
-.vc-splash__word--3 { animation-delay: 0.75s; }
 @keyframes vcWordRise {
     from { opacity: 0; transform: translateY(14px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -115,8 +110,8 @@
     background: linear-gradient(90deg, #7a5cff, #5b32d4);
     transform-origin: left center;
     transform: scaleX(0);
-    animation: vcProgressFill 1.75s cubic-bezier(0.65, 0, 0.35, 1) 0.45s forwards;
     will-change: transform;
+    /* Заполнение прогресса — в GSAP (Splash.jsx) */
 }
 @keyframes vcProgressFill {
     0%   { transform: scaleX(0); }

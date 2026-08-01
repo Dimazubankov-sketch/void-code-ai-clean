@@ -196,73 +196,82 @@ export function GuideView({ state, updateState }) {
     };
 
     return (
-        <div ref={scrollRef} className="flex-1 overflow-y-auto pb-12 h-full bg-[#f8f9fc] dark:bg-darkBg void-view-enter w-full">
-            <div className="max-w-5xl mx-auto px-4 py-8 md:py-12">
-                <div className="flex items-center mb-3 gap-4">
-                    <button onClick={() => goBack(state, updateState, 'home')} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft /></button>
-                    <h2 className="text-3xl font-extrabold dark:text-white">Гид по возможностям</h2>
-                </div>
-                <p className="text-gray-500 dark:text-gray-400 mb-6 ml-1">Всё, что умеет Void Code AI, и как этим пользоваться. Выберите раздел в навигации слева.</p>
+        <div className="flex flex-col h-full bg-[#f8f9fc] dark:bg-darkBg void-view-enter w-full">
+            {/* Фиксированная шапка — всегда на месте, стрелка «назад» под рукой */}
+            <div className="shrink-0 bg-[#f8f9fc]/95 dark:bg-darkBg/95 backdrop-blur-md border-b border-gray-100 dark:border-darkBorder">
+                <div className="max-w-5xl mx-auto px-4 pt-6 pb-3">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => goBack(state, updateState, 'home')} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft /></button>
+                        <h2 className="text-2xl md:text-3xl font-extrabold dark:text-white">Гид по возможностям</h2>
+                    </div>
 
-                {/* Мобильная навигация — липкие чипы вверху */}
-                <div className="lg:hidden sticky top-0 z-20 -mx-4 px-4 py-2 bg-[#f8f9fc]/90 dark:bg-darkBg/90 backdrop-blur-md border-b border-gray-100 dark:border-darkBorder mb-5">
-                    <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                        {GUIDE_SECTIONS.map(section => {
-                            const IconComp = Icons[section.icon] || Icons.Info;
-                            const on = active === section.id;
-                            return (
-                                <button key={section.id} onClick={() => goToSection(section.id)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl whitespace-nowrap text-sm font-bold transition-colors flex-shrink-0 ${on ? 'bg-[#5b32d4] text-white shadow-sm' : 'bg-white dark:bg-darkCard text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-darkBorder'}`}>
-                                    <IconComp className="w-4 h-4" /> {section.title}
-                                </button>
-                            );
-                        })}
+                    {/* Мобильная навигация — фиксированные чипы под шапкой */}
+                    <div className="lg:hidden mt-3">
+                        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                            {GUIDE_SECTIONS.map(section => {
+                                const IconComp = Icons[section.icon] || Icons.Info;
+                                const on = active === section.id;
+                                return (
+                                    <button key={section.id} onClick={() => goToSection(section.id)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl whitespace-nowrap text-sm font-bold transition-colors flex-shrink-0 ${on ? 'bg-[#5b32d4] text-white shadow-sm' : 'bg-white dark:bg-darkCard text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-darkBorder'}`}>
+                                        <IconComp className="w-4 h-4" /> {section.title}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <div className="lg:grid lg:grid-cols-[240px_1fr] lg:gap-8 lg:items-start">
-                    {/* Десктопная навигация — липкий список слева */}
-                    <nav className="hidden lg:block sticky top-4 self-start space-y-1">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-2">Разделы</p>
-                        {GUIDE_SECTIONS.map(section => {
-                            const IconComp = Icons[section.icon] || Icons.Info;
-                            const on = active === section.id;
-                            return (
-                                <button key={section.id} onClick={() => goToSection(section.id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${on ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                                    <IconComp className="w-4 h-4 flex-shrink-0" /> <span className="truncate">{section.title}</span>
-                                </button>
-                            );
-                        })}
-                    </nav>
+            {/* Прокручиваемая область: слева фиксированная навигация (десктоп),
+                справа — спокойно листающийся контент разделов */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
+                <div className="max-w-5xl mx-auto px-4 py-6">
+                    <p className="text-gray-500 dark:text-gray-400 mb-6 ml-1">Всё, что умеет Void Code AI, и как этим пользоваться. Выберите раздел в навигации слева.</p>
+                    <div className="lg:grid lg:grid-cols-[240px_1fr] lg:gap-8 lg:items-start">
+                        {/* Десктопная навигация — липкий список слева */}
+                        <nav className="hidden lg:block sticky top-0 self-start space-y-1">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-2">Разделы</p>
+                            {GUIDE_SECTIONS.map(section => {
+                                const IconComp = Icons[section.icon] || Icons.Info;
+                                const on = active === section.id;
+                                return (
+                                    <button key={section.id} onClick={() => goToSection(section.id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${on ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                                        <IconComp className="w-4 h-4 flex-shrink-0" /> <span className="truncate">{section.title}</span>
+                                    </button>
+                                );
+                            })}
+                        </nav>
 
-                    {/* Контент разделов */}
-                    <div className="space-y-4 min-w-0">
-                        {GUIDE_SECTIONS.map((section) => {
-                            const c = BLOCK_COLORS[section.color] || BLOCK_COLORS.gray;
-                            const IconComp = Icons[section.icon] || Icons.Info;
-                            return (
-                                <div key={section.id} id={'guide-sec-' + section.id} data-secid={section.id} style={{ scrollMarginTop: '80px' }} className="bg-white dark:bg-darkCard rounded-[1.75rem] border border-gray-100 dark:border-darkBorder shadow-sm p-5 sm:p-6">
-                                    <div className="flex items-start gap-3 mb-4">
-                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${c.bg} ${c.text}`}><IconComp className="w-5 h-5" /></div>
-                                        <div className="min-w-0">
-                                            <h3 className="font-extrabold text-lg dark:text-white">{section.title}</h3>
-                                            {section.desc && <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{section.desc}</p>}
+                        {/* Контент разделов */}
+                        <div className="space-y-4 min-w-0">
+                            {GUIDE_SECTIONS.map((section) => {
+                                const c = BLOCK_COLORS[section.color] || BLOCK_COLORS.gray;
+                                const IconComp = Icons[section.icon] || Icons.Info;
+                                return (
+                                    <div key={section.id} id={'guide-sec-' + section.id} data-secid={section.id} style={{ scrollMarginTop: '16px' }} className="bg-white dark:bg-darkCard rounded-[1.75rem] border border-gray-100 dark:border-darkBorder shadow-sm p-5 sm:p-6">
+                                        <div className="flex items-start gap-3 mb-4">
+                                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${c.bg} ${c.text}`}><IconComp className="w-5 h-5" /></div>
+                                            <div className="min-w-0">
+                                                <h3 className="font-extrabold text-lg dark:text-white">{section.title}</h3>
+                                                {section.desc && <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{section.desc}</p>}
+                                            </div>
                                         </div>
+                                        <ul className="space-y-2.5">
+                                            {section.items.map((item, j) => (
+                                                <li key={j} className="flex gap-2.5 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                                                    <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${GUIDE_DOT_COLORS[section.color] || GUIDE_DOT_COLORS.gray}`}></span>
+                                                    <span>{item}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
                                     </div>
-                                    <ul className="space-y-2.5">
-                                        {section.items.map((item, j) => (
-                                            <li key={j} className="flex gap-2.5 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-                                                <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${GUIDE_DOT_COLORS[section.color] || GUIDE_DOT_COLORS.gray}`}></span>
-                                                <span>{item}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
 
-                        <div className="mt-8 p-5 sm:p-6 bg-[#1a0b38] rounded-[1.75rem] text-white flex items-center gap-4">
-                            <Icons.VoidLogo className="w-10 h-10 flex-shrink-0" />
-                            <p className="text-sm text-purple-100 leading-relaxed">Void Code AI постоянно развивается — новые возможности и интеграции будут появляться прямо здесь.</p>
+                            <div className="mt-8 mb-8 p-5 sm:p-6 bg-[#1a0b38] rounded-[1.75rem] text-white flex items-center gap-4">
+                                <Icons.VoidLogo className="w-10 h-10 flex-shrink-0" />
+                                <p className="text-sm text-purple-100 leading-relaxed">Void Code AI постоянно развивается — новые возможности и интеграции будут появляться прямо здесь.</p>
+                            </div>
                         </div>
                     </div>
                 </div>

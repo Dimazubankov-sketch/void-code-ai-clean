@@ -111,13 +111,21 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     };
     // Принудительная прокрутка вниз по клику на плавающую кнопку — всегда
     // должна работать, даже если пользователь до этого прокрутил очень
-    // далеко вверх (гарантируем, что «дно» чата всегда достижимо).
+    // далеко вверх. Делаем несколько повторных попыток, потому что во время
+    // «печати» ответа контент ещё растёт — одиночный scrollTo не догонит
+    // конец, и низ длинного ответа оставался недостижимым (баг долистывания).
     const scrollToBottomNow = () => {
         const el = messagesContainerRef.current;
         if (!el) return;
         autoScrollRef.current = true;
-        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
         setShowScrollDown(false);
+        let tries = 0;
+        const jump = () => {
+            el.scrollTop = el.scrollHeight;
+            tries += 1;
+            if (tries < 12) requestAnimationFrame(jump);
+        };
+        jump();
     };
     // Новое сообщение — снова начинаем следить за низом переписки
     useEffect(() => { autoScrollRef.current = true; followScroll(); setShowScrollDown(false); }, [messages.length]);
@@ -145,7 +153,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         <div className="flex flex-col h-full bg-white dark:bg-darkBg relative w-full max-w-full fade-in">
             <TopHeader state={state} updateState={updateState} />
             
-            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 pb-32 scroll-smooth">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 pb-44 scroll-smooth">
                 <div className="max-w-4xl mx-auto space-y-6">
                     {messages.length === 0 && (
                         <div className="text-center mt-20 fade-in">
@@ -262,7 +270,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 <button
                     onClick={scrollToBottomNow}
                     title={t(lang, 'chat.scrollToBottom')}
-                    className="absolute bottom-32 right-4 sm:right-8 z-30 w-10 h-10 rounded-full bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder shadow-lg flex items-center justify-center text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors fade-in"
+                    className="absolute bottom-32 left-1/2 -translate-x-1/2 z-30 w-10 h-10 rounded-full bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder shadow-lg flex items-center justify-center text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors fade-in"
                 >
                     <Icons.ChevronDown className="w-5 h-5" />
                 </button>

@@ -1,4 +1,5 @@
 import { t } from '@/shared/lib/i18n';
+import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -15,6 +16,7 @@ export const APP_LANGUAGES = [
 ];
 
 export function LanguagePicker({ state, updateState, onClose }) {
+    useLockBodyScroll();
     const current = state.lang || 'ru';
     const choose = (id) => { updateState({ lang: id }); onClose(); };
 

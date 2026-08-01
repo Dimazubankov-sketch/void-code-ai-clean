@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getPlanLimits } from '@/shared/config/models';
 import { goBack } from '@/shared/lib/navigation';
+import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -11,6 +12,7 @@ import { Icons } from '@/shared/ui/Icons';
 // если нет — остаётся полноэкранный режим (обратная совместимость).
 
 export function LimitsView({ state, updateState, onClose }) {
+    useLockBodyScroll(!!onClose);
     if (onClose) {
         return (
             <div className="fixed inset-0 z-[100] bg-black/40 flex justify-end sm:items-center sm:justify-center fade-in" onClick={onClose}>

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
+import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
 import { VoiceOrb } from '@/features/settings/VoiceOrb';
@@ -98,6 +99,7 @@ function VoiceLanguageModal({ uiLang, current, onChoose, onClose }) {
 }
 
 export function VoiceSettings({ state, updateState, onClose }) {
+    useLockBodyScroll();
     const tts = useTextToSpeech();
     const uiLang = state.lang || 'ru';
     const lang = state.voiceLang || 'ru-RU';

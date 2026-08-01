@@ -50,7 +50,7 @@ export function useOrchestratorThread(state, updateState, orchestrator) {
             if ((orchestrator.orchestration?.soundEnabled ?? true) && state.notificationsEnabled !== false) {
                 playNotificationSound();
             }
-        }, 2000);
+        }, 1100);
     };
 
     const respond = (reportId, decision) => {

@@ -103,9 +103,9 @@ export const buildReasoningScript = (level = 'medium', lang = 'ru') => {
 // дольше «думает» ИИ (мс). На low задержки нет — ответ приходит сразу.
 export const REASONING_EXTRA_DELAY_MS = {
     low: 0,
-    medium: 900,
-    high: 2200,
-    max: 4200,
+    medium: 450,
+    high: 1100,
+    max: 2000,
 };
 
 export const levelDelayMs = (level) => REASONING_EXTRA_DELAY_MS[level] ?? REASONING_EXTRA_DELAY_MS.medium;

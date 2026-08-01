@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { switchToAccount } from '@/shared/lib/accounts';
+import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -13,6 +14,7 @@ import { Icons } from '@/shared/ui/Icons';
 const initials = (str) => (str || '?').replace(/[^a-zA-Zа-яА-Я0-9]/g, '').slice(0, 2).toUpperCase();
 
 export function AccountsPanel({ state, updateState, onClose }) {
+    useLockBodyScroll();
     const [manageMode, setManageMode] = useState(false);
     const photoInputRef = useRef(null);
 
