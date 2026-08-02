@@ -17,11 +17,30 @@ export async function sendBackendMessage(chatId, content, model, systemPrompt) {
   return data.content;
 }
 
-// Генерация изображения через backend (DeepInfra). Возвращает URL/ data-URL.
+// Генерация изображения через backend (DALL-E 3). Возвращает URL/ data-URL.
 export async function generateBackendImage(prompt) {
   const data = await apiFetch('/images/generate', {
     method: 'POST',
     body: { prompt },
   });
   return data.url;
+}
+
+// Использование дневных лимитов картинок: сколько израсходовано,
+// какой лимит и сколько осталось. Мягко фолбэчит на нули при ошибке.
+export async function fetchImageUsage() {
+  try {
+    return await apiFetch('/images/usage', { method: 'POST' });
+  } catch {
+    return { used: 0, limit: 0, remaining: 0 };
+  }
+}
+
+// То же самое для TTS — количество СИМВОЛОВ за сутки.
+export async function fetchTtsUsage() {
+  try {
+    return await apiFetch('/tts/usage', { method: 'POST' });
+  } catch {
+    return { used: 0, limit: 0, remaining: 0 };
+  }
 }

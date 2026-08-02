@@ -7,10 +7,12 @@ import { MessageRenderer } from '@/features/chat/MessageRenderer';
 import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
 import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
 import { ImageGenLoader } from '@/features/chat/ImageGenLoader';
+import { GeneratedImage } from '@/features/chat/GeneratedImage';
 import { ChatPlusMenu } from '@/features/chat/ChatPlusMenu';
 import { TopHeader } from '@/features/home/TopHeader';
 import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
+import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
 import { defaultReasoningFor } from '@/shared/config/models';
 import { t } from '@/shared/lib/i18n';
@@ -34,18 +36,22 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         updateState({ inputValue: ((state.inputValue || '') + (state.inputValue ? ' ' : '') + text).trim() });
     }, state.voiceLang || 'ru-RU');
 
-    // Озвучка, фидбэк, шеринг
-    const tts = useTextToSpeech();
+    // Озвучка, фидбэк, шеринг. Приоритетно — через бэкенд (OpenAI TTS-1)
+    // с фолбэком на Web Speech при ошибке.
+    const tts = useOpenAiTts();
     const [ttsMsgIdx, setTtsMsgIdx] = useState(null);       // индекс озвучиваемого сообщения
     const [feedback, setFeedback] = useState(null);          // { idx, type }
     const [feedbackMap, setFeedbackMap] = useState({});      // idx -> 'like'|'dislike'
     const [shareToast, setShareToast] = useState('');
 
     const voiceOpts = () => ({
+        // OpenAI TTS: голос по имени (alloy/echo/fable/onyx/nova/shimmer),
+        // скорость 0.25-4.0. Пресеты голосов теперь мапятся 1:1 на голоса OpenAI —
+        // см. VoiceSettings.
+        voice: state.voicePreset || 'nova',
+        speed: state.voiceRate || 1.0,
+        // Оставляем lang для Web Speech-фолбэка.
         lang: state.voiceLang || 'ru-RU',
-        voiceURI: state.voiceURI || null,
-        rate: state.voiceRate || 1,
-        pitch: state.voicePitch || 1,
     });
 
     const speakMessage = (idx, text) => {
@@ -189,14 +195,18 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 {msg.image && <img src={msg.image} alt="Upload" className="max-w-full md:max-w-sm rounded-xl mb-3 shadow-sm border border-gray-100 dark:border-gray-800" />}
                                 {msg.generatedImage ? (
                                     <div className="void-img-fadein">
-                                        {/* Текст — сверху, изображение — снизу */}
-                                        <div className="flex items-start justify-between gap-3 mb-3">
-                                            <MessageRenderer content={msg.content} />
-                                            <a href={msg.generatedImage} download={`void-code-ai-image-${idx}.svg`} className="flex-shrink-0 p-2 rounded-xl bg-gray-50 dark:bg-darkCard border border-gray-100 dark:border-darkBorder text-[#5b32d4] dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Скачать изображение">
-                                                <Icons.Download className="w-4 h-4" />
-                                            </a>
-                                        </div>
-                                        <img src={msg.generatedImage} alt="Сгенерированное изображение" className="w-full max-w-[240px] rounded-2xl shadow-sm" />
+                                        {/* Текст-описание сверху */}
+                                        {msg.content && (
+                                            <div className="mb-3">
+                                                <MessageRenderer content={msg.content} />
+                                            </div>
+                                        )}
+                                        {/* Крупный превью + иконка скачать в углу + long-press меню */}
+                                        <GeneratedImage
+                                            url={msg.generatedImage}
+                                            prompt={msg.imagePrompt || msg.content}
+                                            idx={idx}
+                                        />
                                     </div>
                                 ) : (
                                     <>

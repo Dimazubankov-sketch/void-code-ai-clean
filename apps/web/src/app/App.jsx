@@ -213,7 +213,9 @@ export function App() {
     // исчерпания. Проверяем регулярно — так это сработает, даже если
     // вкладка с сайтом всё это время была открыта, без необходимости
     // обновлять страницу.
-    const DAILY_LIMIT_RESET_MS = 8 * 60 * 60 * 1000;
+    // Окно автоматического восстановления дневного лимита — 6 часов после
+    // последнего превышения. Соответствует тексту в LimitsView и ТЗ.
+    const DAILY_LIMIT_RESET_MS = 6 * 60 * 60 * 1000;
     useEffect(() => {
         const checkReset = () => {
             setState(prev => {
@@ -592,7 +594,7 @@ export function App() {
             const newSessions = prev.chatSessions.map(session => {
                 if (session.id === prev.activeChatId) {
                     const assistantMsg = imageUrl
-                        ? { role: 'assistant', content: `Готово! Вот изображение по запросу: «${prompt}»`, generatedImage: imageUrl, isAnimated: false }
+                        ? { role: 'assistant', content: `Готово! Вот изображение по запросу: «${prompt}»`, generatedImage: imageUrl, imagePrompt: prompt, isAnimated: false }
                         : { role: 'assistant', content: errorText, isAnimated: false };
                     return { ...session, messages: [...session.messages, assistantMsg] };
                 }

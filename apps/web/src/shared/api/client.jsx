@@ -55,3 +55,35 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
   }
   return data;
 }
+
+// Как apiFetch, но возвращает Blob — для эндпоинтов, которые отдают
+// бинарный контент (audio/mpeg от TTS, image/png от генератора и т.п.).
+// Если сервер ответил с ошибкой, парсит JSON-ошибку из тела как обычный apiFetch.
+export async function apiFetchBlob(path, { method = 'POST', body, auth = true } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (auth) {
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+
+  let response;
+  try {
+    response = await fetch(`/api/v1${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, 'Не удалось связаться с сервером.');
+  }
+
+  if (!response.ok) {
+    let message = `Ошибка сервера (HTTP ${response.status})`;
+    try {
+      const err = await response.json();
+      if (err?.message) message = Array.isArray(err.message) ? err.message.join(', ') : err.message;
+    } catch { /* тело не json */ }
+    throw new ApiError(response.status, message);
+  }
+  return await response.blob();
+}

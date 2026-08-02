@@ -5,6 +5,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { ImageModule } from './modules/image/image.module';
+import { TtsModule } from './modules/tts/tts.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AgentsModule } from './modules/agents/agents.module';
 
@@ -16,6 +17,7 @@ import { AgentsModule } from './modules/agents/agents.module';
     UsersModule,
     ChatModule,
     ImageModule,
+    TtsModule,
     BillingModule,
     AgentsModule,
   ],

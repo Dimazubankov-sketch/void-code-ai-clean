@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
+import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
@@ -34,21 +34,16 @@ export const VOICE_LANGS = [
     { id: 'ar-SA', name: 'العربية' },
 ];
 
-// Единый набор голосов — без разделения по языкам и без мужских тембров.
-// Каждый — это модификатор pitch/rate поверх системного голоса, который
-// браузер подбирает под выбранный язык. Листается свайпом/колесом/стрелками.
-// У каждого голоса свой оттенок круга — палитра ограничена фиолетовым,
-// бирюзовым, синим и голубым, все варианты сведены градиентом к фирменному
-// фиолетовому (#5b32d4), чтобы карусель смотрелась единым семейством.
+// Шесть официальных голосов OpenAI TTS-1. Работают на любом языке
+// (в т.ч. на русском), качественно и одинаково на любом устройстве.
+// colorFrom/colorTo — только оформление под фирменную палитру Void Code.
 export const VOICE_PRESETS = [
-    { id: 'aurora', name: 'Aurora', desc: 'Тёплый и дружелюбный', pitch: 1.05, rate: 1.0, colorFrom: '#c4b5fd', colorTo: '#5b32d4' },
-    { id: 'nova', name: 'Nova', desc: 'Чёткий и энергичный', pitch: 1.15, rate: 1.08, colorFrom: '#22d3ee', colorTo: '#5b32d4' },
-    { id: 'luna', name: 'Luna', desc: 'Мягкий и спокойный', pitch: 1.1, rate: 0.92, colorFrom: '#93c5fd', colorTo: '#5b32d4' },
-    { id: 'vera', name: 'Vera', desc: 'Нейтральный и ровный', pitch: 1.0, rate: 1.0, colorFrom: '#a78bfa', colorTo: '#5b32d4' },
-    { id: 'iris', name: 'Iris', desc: 'Звонкий и лёгкий', pitch: 1.25, rate: 1.05, colorFrom: '#5eead4', colorTo: '#5b32d4' },
-    { id: 'willow', name: 'Willow', desc: 'Глубокий и неторопливый', pitch: 0.95, rate: 0.88, colorFrom: '#3b82f6', colorTo: '#5b32d4' },
-    { id: 'sky', name: 'Sky', desc: 'Живой и быстрый', pitch: 1.1, rate: 1.3, colorFrom: '#38bdf8', colorTo: '#5b32d4' },
-    { id: 'rose', name: 'Rose', desc: 'Нежный и выразительный', pitch: 1.2, rate: 0.97, colorFrom: '#2dd4bf', colorTo: '#5b32d4' },
+    { id: 'alloy',   name: 'Alloy',   desc: 'Универсальный, нейтральный', colorFrom: '#c4b5fd', colorTo: '#5b32d4' },
+    { id: 'nova',    name: 'Nova',    desc: 'Женский, живой',              colorFrom: '#22d3ee', colorTo: '#5b32d4' },
+    { id: 'shimmer', name: 'Shimmer', desc: 'Женский, мягкий',             colorFrom: '#93c5fd', colorTo: '#5b32d4' },
+    { id: 'fable',   name: 'Fable',   desc: 'Женский, тёплый',             colorFrom: '#a78bfa', colorTo: '#5b32d4' },
+    { id: 'echo',    name: 'Echo',    desc: 'Мужской, спокойный',          colorFrom: '#5eead4', colorTo: '#5b32d4' },
+    { id: 'onyx',    name: 'Onyx',    desc: 'Мужской, глубокий',           colorFrom: '#3b82f6', colorTo: '#5b32d4' },
 ];
 
 const SAMPLE = {
@@ -100,20 +95,21 @@ function VoiceLanguageModal({ uiLang, current, onChoose, onClose }) {
 
 export function VoiceSettings({ state, updateState, onClose }) {
     useLockBodyScroll();
-    const tts = useTextToSpeech();
+    const tts = useOpenAiTts();
     const uiLang = state.lang || 'ru';
     const lang = state.voiceLang || 'ru-RU';
     const rate = state.voiceRate || 1;
     const [testing, setTesting] = useState(false);
     const [showLangModal, setShowLangModal] = useState(false);
 
-    const presetIdx = Math.max(0, VOICE_PRESETS.findIndex(p => p.id === (state.voicePreset || 'aurora')));
+    const presetIdx = Math.max(0, VOICE_PRESETS.findIndex(p => p.id === (state.voicePreset || 'nova')));
     const preset = VOICE_PRESETS[presetIdx] || VOICE_PRESETS[0];
     const langLabel = (VOICE_LANGS.find(l => l.id === lang) || VOICE_LANGS[0]).name;
 
     const applyPreset = (idx) => {
         const p = VOICE_PRESETS[(idx + VOICE_PRESETS.length) % VOICE_PRESETS.length];
-        updateState({ voicePreset: p.id, voiceRate: p.rate, voicePitch: p.pitch, voiceURI: null });
+        // Для OpenAI TTS сохраняем только id голоса — pitch/URI больше не нужны.
+        updateState({ voicePreset: p.id });
     };
 
     // Свайп пальцем
@@ -141,7 +137,9 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const test = () => {
         const sample = SAMPLE[lang] || SAMPLE.default;
         setTesting(true);
-        tts.speak(sample, { lang, voiceURI: null, rate, pitch: state.voicePitch || preset.pitch });
+        tts.speak(sample, { voice: preset.id, speed: rate, lang });
+        // Отпускаем «активность» орба через 3с если аудио короче,
+        // а onEnded самой TTS сбросит speaking сам.
         setTimeout(() => setTesting(false), 3000);
     };
 
@@ -154,9 +152,9 @@ export function VoiceSettings({ state, updateState, onClose }) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-5 space-y-8">
-                    {!tts.supported && (
+                    {tts.error && (
                         <div className="px-4 py-3 rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm">
-                            Ваш браузер не поддерживает озвучку текста. Попробуйте Chrome, Edge или Яндекс.Браузер.
+                            {tts.error}
                         </div>
                     )}
 
@@ -204,8 +202,8 @@ export function VoiceSettings({ state, updateState, onClose }) {
                 </div>
 
                 <div className="p-4 border-t border-gray-100 dark:border-darkBorder shrink-0">
-                    <button onClick={test} disabled={!tts.supported} className="w-full py-3 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] disabled:opacity-40 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2">
-                        <Icons.Volume2 className="w-4 h-4" /> {testing ? 'Проигрываю…' : 'Проверить голос'}
+                    <button onClick={test} disabled={testing || tts.loading} className="w-full py-3 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] disabled:opacity-40 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2">
+                        <Icons.Volume2 className="w-4 h-4" /> {tts.loading ? 'Генерирую…' : testing ? 'Проигрываю…' : 'Проверить голос'}
                     </button>
                 </div>
             </div>

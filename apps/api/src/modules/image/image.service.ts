@@ -1,24 +1,21 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 
 // ==========================================
-// Генерация изображений через DeepInfra
+// Генерация изображений через OpenAI DALL-E 3
 // ==========================================
-// Ключ (DEEPINFRA_API_KEY) живёт ТОЛЬКО в окружении сервера — в браузер
-// не попадает. Фронтенд шлёт текстовый промпт, получает data-URL картинки.
+// Ключ (OPENAI_API_KEY) живёт ТОЛЬКО в окружении сервера — в браузер
+// не попадает. Фронтенд шлёт текстовый промпт, получает URL картинки.
+//
+// Раньше здесь была DeepInfra/FLUX-schnell, но пользователю нужен именно
+// DALL-E 3 (лучше следует детальным русскоязычным промптам, аккуратно
+// отрабатывает композицию). API совместим с OpenAI Images.
 @Injectable()
 export class ImageService {
-  // Модель text-to-image на DeepInfra.
-  private readonly model = 'black-forest-labs/FLUX-1-schnell';
-  // ВАЖНО: используем именно OpenAI-совместимый эндпоинт DeepInfra.
-  // Прежний /v1/inference/... с телом { num_images } не соответствовал
-  // формату ответа — из-за этого картинка не парсилась, срабатывал
-  // фолбэк на заглушку, и пользователь видел «случайные» абстрактные
-  // изображения вместо запрошенного. Формат ответа здесь:
-  //   { data: [{ b64_json, url, revised_prompt }], created }
-  private readonly apiUrl = 'https://api.deepinfra.com/v1/openai/images/generations';
+  private readonly model = 'dall-e-3';
+  private readonly apiUrl = 'https://api.openai.com/v1/images/generations';
 
   async generate(prompt: string): Promise<string> {
-    const apiKey = process.env.DEEPINFRA_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new ServiceUnavailableException('Генератор изображений не сконфигурирован');
 
     const response = await fetch(this.apiUrl, {
@@ -32,18 +29,29 @@ export class ImageService {
         prompt,
         n: 1,
         size: '1024x1024',
+        // "standard" дешевле "hd" примерно вдвое ($0.040 vs $0.080)
+        // при почти неотличимом качестве для типовых кейсов чата.
+        quality: 'standard',
+        response_format: 'url',
       }),
     });
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '');
       // eslint-disable-next-line no-console
-      console.error(`[ImageService] HTTP ${response.status}:`, errorBody.slice(0, 500));
+      console.error(`[ImageService/DALL-E3] HTTP ${response.status}:`, errorBody.slice(0, 500));
+      // Пробрасываем внятную ошибку по типовым ситуациям.
+      if (response.status === 400 && errorBody.includes('content_policy')) {
+        throw new ServiceUnavailableException('Запрос отклонён политикой безопасности OpenAI. Переформулируй промпт.');
+      }
+      if (response.status === 401) throw new ServiceUnavailableException('Ключ OpenAI недействителен');
+      if (response.status === 429) throw new ServiceUnavailableException('Слишком много запросов. Попробуй через минуту.');
       throw new ServiceUnavailableException(`Ошибка генерации: HTTP ${response.status}`);
     }
 
     const data: any = await response.json();
-    // OpenAI-совместимый формат: data[0].b64_json или data[0].url.
+    // DALL-E 3 возвращает { data: [{ url, revised_prompt }] }.
+    // URL действителен около часа — фронтенд сразу подтягивает картинку.
     const first = data.data?.[0];
     if (!first) throw new ServiceUnavailableException('Пустой ответ генератора');
     if (typeof first.url === 'string' && first.url) return first.url;

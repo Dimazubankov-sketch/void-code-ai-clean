@@ -100,13 +100,15 @@ model WalletTransaction {
 
 // Дневные/недельные лимиты запросов — источник истины на сервере
 model UsageCounter {
-  id         String @id @default(cuid())
-  userId     String
-  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dayKey     String // 'YYYY-MM-DD'
-  weekKey    String // 'YYYY-Www'
-  dailyUsed  Int    @default(0)
-  weeklyUsed Int    @default(0)
+  id            String @id @default(cuid())
+  userId        String
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayKey        String // 'YYYY-MM-DD'
+  weekKey       String // 'YYYY-Www'
+  dailyUsed     Int    @default(0) // сообщений чата за день
+  weeklyUsed    Int    @default(0) // сообщений чата за неделю
+  imagesUsed    Int    @default(0) // сгенерированных картинок за день (DALL-E)
+  ttsCharsUsed  Int    @default(0) // символов озвучки за день (OpenAI TTS)
 
   @@unique([userId, dayKey])
   @@index([userId, weekKey])
