@@ -158,11 +158,16 @@ export function PricingView({ state, updateState }) {
         alert('Подписка успешно оформлена!');
     };
 
+    // Множитель лимитов относительно базового (free): чем выше тариф,
+    // тем больше запросов в день/неделю (см. PLAN_LIMITS в models.jsx).
+    //   Plus  ×2   (500₽/мес)
+    //   Pro   ×5   (1500₽/мес)
+    //   Ultra ×10  (8000₽/мес)
     const PRICING_PLANS = [
-        { id: 'free', title: 'Free', subtitle: 'Бесплатный доступ. Идеально для знакомства с Void Code AI и базовых задач.', priceMonth: 0, priceYear: 0, features: ["Умный чат с AI", "Обучающие материалы", "Генератор кода — до 10 запросов", "Стандартная скорость", "Базовые модели AI", "Агенты: 1 агент", "Оркестраторы недоступны"] },
-        { id: 'plus', title: 'Plus', subtitle: 'Больше мощностей и меньше ограничений для работы с кодом.', priceMonth: 350, oldPriceMonth: 500, priceYear: 3500, features: ["Безлимитный чат", "Генератор кода — до 200 запросов", "Приоритетная скорость", "Доступ к мощным моделям", "Агенты: до 5 агентов", "Оркестратор: ровно 1 (максимум 1 покупка)"] },
-        { id: 'pro', title: 'Pro', subtitle: 'Максимум возможностей для разработчиков, фрилансеров и команд.', priceMonth: 1200, oldPriceMonth: 1500, priceYear: 12000, features: ["Безлимитно всё", "Максимальная скорость ответов", "Приоритетная поддержка", "Доступ к самым мощным моделям", "Уровень рассуждений Max", "Агенты: до 10 агентов", "Оркестраторы: до 3"] },
-        { id: 'pro_plus', title: 'Ultra', subtitle: 'Максимальные мощности для компаний и масштабных проектов.', priceMonth: 8000, oldPriceMonth: 10000, priceYear: 100000, features: ["Всё из тарифа Pro", "Админ-панель и доступы", "Личный менеджер", "API интеграция", "Уровень рассуждений Max", "Агенты: до 20 агентов", "Оркестраторы: до 5"] }
+        { id: 'free', title: 'Free', subtitle: 'Бесплатный доступ. Идеально для знакомства с Void Code AI и базовых задач.', priceMonth: 0, priceYear: 0, multiplier: 1, features: ["Умный чат с AI", "Обучающие материалы", "Генератор кода — до 10 запросов", "Стандартная скорость", "Базовые модели AI", "Агенты: 1 агент", "Оркестраторы недоступны"] },
+        { id: 'plus', title: 'Plus', subtitle: 'Больше мощностей и меньше ограничений для работы с кодом.', priceMonth: 500, priceYear: 5000, multiplier: 2, features: ["Множитель лимитов ×2 (в 2 раза больше запросов)", "Безлимитный чат", "Генератор кода — увеличенный лимит", "Приоритетная скорость", "Доступ к мощным моделям", "Агенты: до 5 агентов", "Оркестратор: ровно 1 (максимум 1 покупка)"] },
+        { id: 'pro', title: 'Pro', subtitle: 'Максимум возможностей для разработчиков, фрилансеров и команд.', priceMonth: 1500, priceYear: 15000, multiplier: 5, features: ["Множитель лимитов ×5 (в 5 раз больше запросов)", "Безлимитно всё", "Максимальная скорость ответов", "Приоритетная поддержка", "Доступ к самым мощным моделям", "Уровень рассуждений Max", "Агенты: до 10 агентов", "Оркестраторы: до 3"] },
+        { id: 'pro_plus', title: 'Ultra', subtitle: 'Максимальные мощности для компаний и масштабных проектов.', priceMonth: 8000, priceYear: 80000, multiplier: 10, features: ["Множитель лимитов ×10 (в 10 раз больше запросов)", "Всё из тарифа Pro", "Админ-панель и доступы", "Личный менеджер", "API интеграция", "Уровень рассуждений Max", "Агенты: до 20 агентов", "Оркестраторы: до 5"] }
     ];
 
     if (state.checkoutPlan) {
@@ -403,7 +408,12 @@ export function PricingView({ state, updateState }) {
                         return (
                         <div key={p.id} className={`void-plan-card bg-white dark:bg-darkCard p-6 rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm flex flex-col ${isLower ? 'opacity-50' : ''}`}>
                             <h2 className="text-2xl font-bold dark:text-white">{p.title}</h2>
-                            <p className="text-sm text-gray-500 mt-1 mb-4">{p.subtitle}</p>
+                            {p.multiplier > 1 && (
+                                <div className="mt-1.5 inline-flex self-start items-center gap-1 px-2.5 py-1 rounded-full bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 text-xs font-extrabold">
+                                    ×{p.multiplier} лимитов
+                                </div>
+                            )}
+                            <p className="text-sm text-gray-500 mt-2 mb-4">{p.subtitle}</p>
                             <div className="flex items-baseline gap-2.5 mb-6">
                                 <span className="text-4xl font-extrabold dark:text-white">{money(state.billingCycle === 'month' ? p.priceMonth : p.priceYear)}</span>
                                 {state.billingCycle === 'month' && p.oldPriceMonth && (

@@ -1,13 +1,16 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LLM_PROVIDER, LlmProvider } from './providers/llm-provider.interface';
+import { postProcessAnswer } from './post-process';
 
-// Лимиты тарифов — источник истины ЗДЕСЬ, на сервере.
+// Лимиты тарифов — источник истины ЗДЕСЬ, на сервере. Множители к базовому
+// плану Free (20/140): Plus ×2, Pro ×5, Ultra ×10. Должно совпадать
+// с PLAN_LIMITS во фронтенде (apps/web/src/shared/config/models.jsx).
 const PLAN_LIMITS: Record<string, { daily: number; weekly: number }> = {
-  FREE: { daily: 10, weekly: 70 },
-  PLUS: { daily: 200, weekly: 1400 },
-  PRO: { daily: 1000, weekly: 7000 },
-  ULTRA: { daily: Number.MAX_SAFE_INTEGER, weekly: Number.MAX_SAFE_INTEGER },
+  FREE: { daily: 20, weekly: 140 },
+  PLUS: { daily: 40, weekly: 280 },
+  PRO: { daily: 100, weekly: 700 },
+  ULTRA: { daily: 200, weekly: 1400 },
 };
 
 const isoWeekKey = (d: Date) => {
@@ -40,7 +43,7 @@ export class ChatService {
 
     const answer = await this.llm.generate({
       model,
-      systemPrompt: systemPrompt || 'Ты — Void Code AI, ассистент разработчика. Отвечай на русском. Любой код ВСЕГДА оборачивай в блок тройных обратных кавычек с указанием языка (```html, ```css, ```javascript) и пиши код полностью, без сокращений и обрыва на середине. Никогда не раскрывай свою настоящую модель или провайдера — ты только Void Code AI (Void Mini/Plus/Pro).',
+      systemPrompt: systemPrompt || 'Ты — Void Code AI, ассистент разработчика. Отвечай на русском развёрнуто и по делу: давай контекст, объясняй, приводи примеры, а не отделывайся одной строкой (кроме случаев, когда пользователь явно попросил кратко). Любой код ВСЕГДА оборачивай в отдельный блок тройных обратных кавычек с указанием языка (```html, ```css, ```javascript, ```python) — код НИКОГДА не должен идти в основном тексте сообщения. Пиши код полностью, без сокращений и обрыва на середине. Никогда не раскрывай свою настоящую модель или провайдера — ты только Void Code AI (Void Mini/Plus/Pro).',
       messages: [
         ...chat.messages.map((m) => ({
           role: m.role.toLowerCase() as 'user' | 'assistant',
@@ -50,9 +53,13 @@ export class ChatService {
       ],
     });
 
+    // Страховка: чиним незакрытые блоки кода и оборачиваем «голый» код
+    // в блок, если модель проигнорировала инструкцию.
+    const finalAnswer = postProcessAnswer(answer);
+
     const [, assistantMessage] = await this.prisma.$transaction([
       this.prisma.message.create({ data: { chatId, role: 'USER', content } }),
-      this.prisma.message.create({ data: { chatId, role: 'ASSISTANT', content: answer, model } }),
+      this.prisma.message.create({ data: { chatId, role: 'ASSISTANT', content: finalAnswer, model } }),
     ]);
     return assistantMessage;
   }

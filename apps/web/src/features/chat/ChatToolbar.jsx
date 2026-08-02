@@ -10,8 +10,14 @@ import { Icons } from '@/shared/ui/Icons';
 
 function ToolbarButton({ icon: IconC, label, onClick, active, activeColor }) {
     return (
-        <button onClick={onClick} title={label} className={`p-1.5 rounded-lg transition-colors ${active ? activeColor : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-            <IconC className="w-4 h-4" />
+        <button
+            onClick={onClick}
+            title={label}
+            className={`p-2 rounded-lg transition-colors ${active
+                ? activeColor
+                : 'text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+        >
+            <IconC className="w-5 h-5" />
         </button>
     );
 }

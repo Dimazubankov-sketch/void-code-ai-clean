@@ -293,3 +293,21 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
     from { opacity: 0; transform: translateY(3px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ==========================================
+   Плавный скроллбар для многострочного инпута
+   ========================================== */
+/* Появляется, только когда содержимое textarea превысит max-h — до этого
+   момента скролл вообще не виден. Стиль тонкий, под цвет интерфейса. */
+.void-input-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #d5d0ec transparent;
+    scroll-behavior: smooth;
+}
+.void-input-scroll::-webkit-scrollbar { width: 6px; }
+.void-input-scroll::-webkit-scrollbar-track { background: transparent; }
+.void-input-scroll::-webkit-scrollbar-thumb { background: #d5d0ec; border-radius: 999px; }
+.void-input-scroll::-webkit-scrollbar-thumb:hover { background: #5b32d4; }
+.dark .void-input-scroll { scrollbar-color: #3b3b52 transparent; }
+.dark .void-input-scroll::-webkit-scrollbar-thumb { background: #3b3b52; }
+.dark .void-input-scroll::-webkit-scrollbar-thumb:hover { background: #7f57ff; }

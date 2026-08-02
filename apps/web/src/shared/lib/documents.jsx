@@ -20,9 +20,15 @@ export const extractCodeDocuments = (content) => {
 };
 
 
-// Разбивает ответ ассистента на "видимый текст" и блоки кода: в чат идёт
-// только текстовый комментарий, а сам код открывается в отдельном окне
-// просмотра (см. CodeViewerModal), чтобы не загромождать переписку.
+// Языки, которые рендерятся ИНЛАЙНОМ в чате как CLI-виджет терминала —
+// команды bash/sh коротки и удобнее видеть их прямо в диалоге, а не
+// открывать через модалку.
+const INLINE_CLI_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'console', 'cmd', 'terminal', 'powershell', 'ps1']);
+
+// Разбивает ответ ассистента на "видимый текст" и блоки кода: полноценный
+// код (HTML/CSS/JS/Python...) выносится в отдельные блоки для окна просмотра,
+// а CLI-команды (bash/sh) остаются в тексте — их рендерит MessageRenderer
+// как компактный виджет терминала с кнопкой копирования.
 export const splitMessageContent = (content) => {
     if (!content) return { text: '', blocks: [] };
     const blocks = [];
@@ -31,12 +37,20 @@ export const splitMessageContent = (content) => {
     let lastIndex = 0;
     let text = '';
     while ((match = regex.exec(content)) !== null) {
-        text += content.slice(lastIndex, match.index);
-        const lang = (match[1] || 'text').trim() || 'text';
+        const lang = (match[1] || 'text').trim().toLowerCase() || 'text';
         const code = match[2].trim();
-        if (code.length > 0) {
-            const firstLine = code.split('\n')[0].slice(0, 48);
-            blocks.push({ language: lang, content: code, title: firstLine || `Код (${lang})` });
+        const rawFragment = content.slice(match.index, regex.lastIndex);
+
+        // CLI-блок оставляем в тексте как есть, чтобы MessageRenderer нарисовал
+        // виджет терминала прямо в чате.
+        if (INLINE_CLI_LANGS.has(lang)) {
+            text += content.slice(lastIndex, match.index) + rawFragment;
+        } else {
+            text += content.slice(lastIndex, match.index);
+            if (code.length > 0) {
+                const firstLine = code.split('\n')[0].slice(0, 48);
+                blocks.push({ language: lang, content: code, title: firstLine || `Код (${lang})` });
+            }
         }
         lastIndex = regex.lastIndex;
     }

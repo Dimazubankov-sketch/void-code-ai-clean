@@ -42,12 +42,19 @@ export class GroqProvider implements LlmProvider {
       body: JSON.stringify({
         model: this.modelMap[req.model] || 'llama-3.3-70b-versatile',
         messages,
-        max_tokens: req.maxTokens ?? 2048,
-        temperature: req.temperature ?? 0.7,
+        // Void Mini задумана как быстрый ответчик: 1024 токенов достаточно
+        // для типового чата (≈750 слов), больше не тянет отклик к цели ≤3с.
+        // Если приходит явный запрос maxTokens — уважаем его.
+        max_tokens: req.maxTokens ?? 1024,
+        // Чуть ниже temperature ускоряет и делает ответы стабильнее.
+        temperature: req.temperature ?? 0.6,
       }),
     });
 
     if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      // eslint-disable-next-line no-console
+      console.error(`[GroqProvider] HTTP ${response.status}:`, errorBody.slice(0, 500));
       throw new ServiceUnavailableException(`Ошибка провайдера: HTTP ${response.status}`);
     }
     const data: any = await response.json();

@@ -184,7 +184,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                     )}
                     
                     {messages.map((msg, idx) => (
-                        <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-3xl transition-colors rounded-2xl ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
+                        <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-4xl transition-colors rounded-2xl ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
                             <div className={`p-4 md:p-5 rounded-3xl void-selectable ${msg.role === 'user' ? 'bg-[#5b32d4] text-white rounded-tr-sm shadow-sm' : 'bg-white dark:bg-darkBg text-gray-900 dark:text-gray-100 rounded-tl-sm'}`}>
                                 {msg.image && <img src={msg.image} alt="Upload" className="max-w-full md:max-w-sm rounded-xl mb-3 shadow-sm border border-gray-100 dark:border-gray-800" />}
                                 {msg.generatedImage ? (
@@ -272,12 +272,17 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             </div>
 
             {/* Плавающая кнопка «прокрутить вниз» — всегда доступна, если чат
-                отскроллен от самого низа переписки (в т.ч. после ответа ИИ). */}
+                отскроллен от самого низа переписки (в т.ч. после ответа ИИ).
+                Позиция считается от РЕАЛЬНОЙ высоты инпут-бара (bottomPad),
+                поэтому при росте многострочного ввода стрелка плавно уходит
+                выше и никогда не наезжает на поле. Прозрачность opacity-80 —
+                чтобы кнопка не отвлекала, а на hover становилась контрастнее. */}
             {showScrollDown && (
                 <button
                     onClick={scrollToBottomNow}
                     title={t(lang, 'chat.scrollToBottom')}
-                    className="absolute bottom-32 left-1/2 -translate-x-1/2 z-30 w-10 h-10 rounded-full bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder shadow-lg flex items-center justify-center text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors fade-in"
+                    style={{ bottom: `${bottomPad + 8}px`, transition: 'bottom 180ms ease-out' }}
+                    className="absolute left-1/2 -translate-x-1/2 z-30 w-10 h-10 rounded-full bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder shadow-lg flex items-center justify-center text-[#5b32d4] dark:text-purple-400 opacity-80 hover:opacity-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all fade-in"
                 >
                     <Icons.ChevronDown className="w-5 h-5" />
                 </button>
@@ -354,14 +359,23 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             </div>
                         )}
                         <textarea 
-                            className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none max-h-32 min-h-[64px] text-[16px] ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
+                            className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[64px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
                             placeholder={voice.busy ? '' : (state.imageGenMode ? t(lang, 'chat.imagePlaceholder') : t(lang, 'home.inputPlaceholder'))}
                             readOnly={voice.busy}
                             value={state.inputValue}
-                            onChange={(e) => { 
-                                updateState({inputValue: e.target.value}); 
-                                e.target.style.height = 'auto'; 
-                                e.target.style.height = (e.target.scrollHeight < 128 ? e.target.scrollHeight : 128) + 'px'; 
+                            onChange={(e) => {
+                                updateState({inputValue: e.target.value});
+                                // Плавно анимируем высоту через GSAP: считаем target
+                                // с учётом max-h 220px, а gsap.to() создаёт мягкий
+                                // переход вместо резкого прыжка на каждое нажатие.
+                                const target = e.target;
+                                const prev = parseFloat(target.style.height || '0') || target.offsetHeight;
+                                target.style.height = 'auto';
+                                const nextH = Math.min(target.scrollHeight, 220);
+                                target.style.height = prev + 'px';
+                                import('gsap').then(({ gsap }) => {
+                                    gsap.to(target, { height: nextH, duration: 0.18, ease: 'power2.out', overwrite: true });
+                                });
                             }}
                             onKeyDown={(e) => { 
                                 if (e.key === 'Enter' && !e.shiftKey) { 

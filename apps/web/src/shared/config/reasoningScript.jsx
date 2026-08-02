@@ -101,23 +101,26 @@ export const buildReasoningScript = (level = 'medium', lang = 'ru') => {
 
 // Доп. задержка перед выдачей готового ответа — чем выше уровень, тем
 // дольше «думает» ИИ (мс). На low задержки нет — ответ приходит сразу.
+// Значения снижены (было 450/1100/2000) — приложение стало ощутимо
+// отзывчивее без потери «эффекта размышления»: на high и max всё равно
+// успевает пройти несколько фаз.
 export const REASONING_EXTRA_DELAY_MS = {
     low: 0,
-    medium: 450,
-    high: 1100,
-    max: 2000,
+    medium: 200,
+    high: 500,
+    max: 900,
 };
 
 export const levelDelayMs = (level) => REASONING_EXTRA_DELAY_MS[level] ?? REASONING_EXTRA_DELAY_MS.medium;
 
 // Интервал смены фраз в индикаторе — на высоких уровнях фразы идут
 // чуть медленнее, чтобы пользователь успевал их прочитать за более
-// длинный цикл размышления.
+// длинный цикл размышления. Значения снижены — стало ощутимо динамичнее.
 export const REASONING_PHASE_INTERVAL_MS = {
-    low: 1400,
-    medium: 1600,
-    high: 1500,
-    max: 1400,
+    low: 800,
+    medium: 900,
+    high: 850,
+    max: 800,
 };
 
 export const phaseIntervalMs = (level) => REASONING_PHASE_INTERVAL_MS[level] ?? REASONING_PHASE_INTERVAL_MS.medium;

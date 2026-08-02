@@ -1,6 +1,12 @@
 import React from 'react';
 import { copyToCb } from '@/shared/lib/clipboard';
 import { Icons } from '@/shared/ui/Icons';
+import { CliBlock } from '@/features/chat/CliBlock';
+
+// Языки, которые считаем «CLI» и рисуем компактным виджетом терминала
+// прямо в чате (см. CliBlock). Должен совпадать с INLINE_CLI_LANGS в
+// shared/lib/documents.jsx — оба места фильтруют одни и те же языки.
+const CLI_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'console', 'cmd', 'terminal', 'powershell', 'ps1']);
 
 // ==========================================
 // Безопасный рендер **bold**-фрагментов текста
@@ -31,12 +37,16 @@ function renderBoldLine(line, key) {
 export function MessageRenderer({ content }) {
     const blocks = content.split(/(```[\s\S]*?```)/g);
     return (
-        <div className="text-[16px] sm:text-[17px] leading-relaxed break-words">
+        <div className="text-[17px] sm:text-[18px] leading-relaxed break-words">
             {blocks.map((block, index) => {
                 if (block.startsWith('```') && block.endsWith('```') && block.length >= 6) {
                     const lines = block.slice(3, -3).split('\n');
-                    const lang = lines[0].trim();
+                    const lang = lines[0].trim().toLowerCase();
                     const code = lines.slice(1).join('\n');
+                    // CLI-виджет для консольных команд.
+                    if (CLI_LANGS.has(lang)) {
+                        return <CliBlock key={index} code={code} lang={lang} />;
+                    }
                     return (
                         <div key={index} className="my-4 bg-[#1e1e2e] rounded-2xl overflow-hidden shadow-sm border border-gray-800">
                             <div className="flex justify-between items-center px-4 py-2 bg-[#2a2a3c] border-b border-gray-700/50">
