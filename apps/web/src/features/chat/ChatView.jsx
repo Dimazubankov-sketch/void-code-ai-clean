@@ -6,6 +6,7 @@ import { FeedbackModal } from '@/features/chat/FeedbackModal';
 import { MessageRenderer } from '@/features/chat/MessageRenderer';
 import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
 import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
+import { ImageGenLoader } from '@/features/chat/ImageGenLoader';
 import { ChatPlusMenu } from '@/features/chat/ChatPlusMenu';
 import { TopHeader } from '@/features/home/TopHeader';
 import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
@@ -261,20 +262,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         </div>
                     ))}
                     {state.isGenerating && state.isGeneratingImage && (
-                        <div className="flex gap-3 max-w-3xl fade-in">
-                            <div className="bg-white dark:bg-darkBg p-4 rounded-3xl rounded-tl-sm">
-                                <div className="flex items-center gap-1.5 mb-3">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#5b32d4]/60 void-imggen-dot" />
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#5b32d4]/60 void-imggen-dot" style={{ animationDelay: '0.2s' }} />
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#5b32d4]/60 void-imggen-dot" style={{ animationDelay: '0.4s' }} />
-                                    <span className="text-xs font-bold text-[#5b32d4] dark:text-purple-300 ml-1">Создаю изображение</span>
-                                </div>
-                                <div className="relative w-32 h-32 rounded-2xl overflow-hidden void-imggen-canvas flex items-center justify-center">
-                                    <div className="void-imggen-sweep absolute inset-0" />
-                                    <Icons.VoidLogo className="w-9 h-9 text-[#5b32d4] dark:text-purple-300 void-imggen-logo relative z-10" />
-                                </div>
-                            </div>
-                        </div>
+                        <ImageGenLoader lang={lang} />
                     )}
                     {state.isGenerating && !state.isGeneratingImage && (
                         <ThinkingIndicator lang={lang} level={currentReasoningLevel} />

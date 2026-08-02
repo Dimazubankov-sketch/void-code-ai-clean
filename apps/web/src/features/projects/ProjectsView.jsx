@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ProjectMemoryTab, ProjectSkillsTab } from '@/features/projects/ProjectMemoryTab';
 import { goBack } from '@/shared/lib/navigation';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
@@ -17,6 +18,7 @@ export function ProjectsView({ state, updateState }) {
     const [creating, setCreating] = useState(false);
     const [newName, setNewName] = useState('');
     const [openProjectId, setOpenProjectId] = useState(null);
+    const [projectTab, setProjectTab] = useState('chats');
 
     const projects = state.projects || [];
     const chats = state.chatSessions || [];
@@ -79,6 +81,21 @@ export function ProjectsView({ state, updateState }) {
                     </div>
                     <p className="text-sm text-gray-400 mb-6 ml-1">{t(lang, 'projects.sharedContextHint')}</p>
 
+                    {/* Подвкладки проекта: Чаты / Скиллы / Инструкции */}
+                    <div className="flex gap-2 mb-6 bg-gray-100 dark:bg-gray-800/50 p-1 rounded-2xl">
+                        <button onClick={() => setProjectTab('chats')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${projectTab === 'chats' ? 'bg-white dark:bg-darkCard text-[#5b32d4] shadow-sm' : 'text-gray-500'}`}>Чаты</button>
+                        <button onClick={() => setProjectTab('skills')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${projectTab === 'skills' ? 'bg-white dark:bg-darkCard text-[#5b32d4] shadow-sm' : 'text-gray-500'}`}>Скиллы</button>
+                        <button onClick={() => setProjectTab('memory')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${projectTab === 'memory' ? 'bg-white dark:bg-darkCard text-[#5b32d4] shadow-sm' : 'text-gray-500'}`}>Инструкции</button>
+                    </div>
+
+                    {projectTab === 'skills' && (
+                        <ProjectSkillsTab state={state} updateState={updateState} projectId={openProject.id} />
+                    )}
+                    {projectTab === 'memory' && (
+                        <ProjectMemoryTab project={openProject} updateProject={(patch) => updateState({ projects: projects.map(p => p.id === openProject.id ? { ...p, ...patch } : p) })} />
+                    )}
+
+                    {projectTab === 'chats' && (<>
                     <button onClick={() => newChatInProject(openProject)} className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold transition-colors shadow-md mb-6">
                         <Icons.Plus /> {t(lang, 'projects.newChatInProject')}
                     </button>
@@ -116,6 +133,7 @@ export function ProjectsView({ state, updateState }) {
                             ))}
                         </div>
                     )}
+                    </>)}
                 </div>
             </div>
         );

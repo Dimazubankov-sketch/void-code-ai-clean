@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useStaggerIn } from '@/shared/lib/useEnterAnimation';
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { PLUGIN_TOOLS } from '@/features/plugins/PluginsView';
-import { SKILLS } from '@/features/skills/SkillsView';
+import { SkillsPanel } from '@/features/skills/SkillsView';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -44,14 +44,15 @@ export function ChatPlusMenu({
                 <BigButton icon="PaperclipThin" label="Файлы" onClick={() => { onPickFile?.(); onClose(); }} />
             </div>
 
-            {/* Блок: добавить в проект */}
-            <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl overflow-hidden mb-3">
+            {/* Блок: добавить в проект + скиллы (строго под проектом) */}
+            <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl overflow-hidden mb-3 divide-y divide-gray-100 dark:divide-gray-700/50">
                 <RowButton icon="Folder" label="Добавить в проект" chevron onClick={() => setSub('project')} />
+                <RowButton icon="Skills" label="Скиллы" chevron onClick={() => setSub('skills')} />
             </div>
 
-            {/* Блок: скиллы (заменил «Создать изображение») */}
+            {/* Блок: создать изображение */}
             <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl overflow-hidden mb-3">
-                <RowButton icon="Skills" label="Скиллы" chevron onClick={() => setSub('skills')} />
+                <RowButton icon="Image" label="Создать изображение" onClick={() => { onEnableImage?.(); onClose(); }} />
             </div>
 
             {/* Блок: агенты и коннекторы */}
@@ -245,32 +246,11 @@ function ConnectorPickerSheet({ state, updateState, onBack, onClose }) {
     );
 }
 
-// --- Вложенное окно: скиллы ---
+// --- Вложенное окно: скиллы (та же панель, что и во вкладке Скиллы) ---
 function SkillsSheet({ state, updateState, onBack, onClose }) {
-    const active = state.activeSkills || [];
-    const toggle = (id) => {
-        updateState({ activeSkills: active.includes(id) ? active.filter(s => s !== id) : [...active, id] });
-    };
     return (
         <SheetWithBack title="Скиллы" onBack={onBack} onClose={onClose}>
-            <div className="space-y-2">
-                {SKILLS.map(skill => {
-                    const Icon = Icons[skill.icon] || Icons.Sparkles;
-                    const on = active.includes(skill.id);
-                    return (
-                        <button key={skill.id} onClick={() => toggle(skill.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-colors ${on ? 'bg-[#efecf9] dark:bg-purple-900/20' : 'bg-gray-50 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${on ? 'bg-[#5b32d4] text-white' : 'bg-white dark:bg-gray-800 text-[#5b32d4] dark:text-purple-400'}`}><Icon className="w-5 h-5" /></div>
-                            <div className="flex-1 min-w-0 text-left">
-                                <p className="font-bold text-sm dark:text-white truncate">{skill.name}</p>
-                                <p className="text-xs text-gray-400 truncate">{skill.desc}</p>
-                            </div>
-                            <div className={`w-10 h-6 rounded-full p-0.5 transition-colors flex items-center shrink-0 ${on ? 'bg-[#5b32d4]' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                                <div className={`w-5 h-5 bg-white rounded-full transition-transform ${on ? 'translate-x-4' : 'translate-x-0'}`} />
-                            </div>
-                        </button>
-                    );
-                })}
-            </div>
+            <SkillsPanel state={state} updateState={updateState} />
         </SheetWithBack>
     );
 }

@@ -17,10 +17,10 @@ import { ProfileEditView } from '@/features/settings/ProfileEditView';
 import { SecurityView } from '@/features/settings/SecurityView';
 import { SettingsView } from '@/features/settings/SettingsView';
 import { ProjectsView } from '@/features/projects/ProjectsView';
-import { SkillsView } from '@/features/skills/SkillsView';
+import { SkillsView, buildSkillsInstruction } from '@/features/skills/SkillsView';
 import { PluginsView } from '@/features/plugins/PluginsView';
 import { WalletView } from '@/features/wallet/WalletView';
-import { createBackendChat, sendBackendMessage } from '@/shared/api/chat';
+import { createBackendChat, sendBackendMessage, generateBackendImage } from '@/shared/api/chat';
 import { ApiError } from '@/shared/api/client';
 import { AI_MODELS, getPlanLimits, defaultReasoningFor } from '@/shared/config/models';
 import { buildReasoningScript, levelDelayMs } from '@/shared/config/reasoningScript';
@@ -85,6 +85,7 @@ export function App() {
             imageGenMode: false,
             activeAgentId: null,
             activeSkills: [],
+            customSkills: [],
             isGeneratingImage: false,
             generatedImages: [],
             generatedDocuments: [],
@@ -180,6 +181,7 @@ export function App() {
             imageGenMode: false,
             activeAgentId: null,
             activeSkills: [],
+            customSkills: [],
             isGeneratingImage: false,
             showAuthModal: false,
             savedAccounts: saved.savedAccounts || [],
@@ -437,6 +439,12 @@ export function App() {
             // поэтому объединение истории соседних чатов проекта (как было в
             // тестовом режиме) здесь не переносится — только текст подсказки.
             systemPrompt = `${activeModel.sysPrompt}\n\nЭтот диалог входит в проект «${project.name}».`;
+            // Сквозной контекст проекта: если включён — считываем «Инструкции
+            // проекта» (стек, архитектура, ключевые детали прошлых обсуждений),
+            // чтобы ассистент помнил контекст даже в новом чате проекта.
+            if ((project.unifiedContext ?? true) && (project.memory || '').trim()) {
+                systemPrompt += `\n\nИнструкции и контекст проекта (учитывай их):\n${project.memory.trim()}`;
+            }
         }
 
         // Режим агента: если в поле ввода выбран агент, ИИ отвечает как
@@ -450,6 +458,11 @@ export function App() {
         if (activeAgent) {
             systemPrompt = buildAgentSystemPrompt(activeAgent, state.connectedPlugins || []);
         }
+
+        // Добавляем инструкции активных скиллов (базовых + кастомных, а для
+        // чата в проекте — ещё и проектных) к системному промпту.
+        const skillsInstruction = buildSkillsInstruction(state, project);
+        if (skillsInstruction) systemPrompt = `${systemPrompt}\n\n${skillsInstruction}`;
 
         let responseText = '';
         try {
@@ -509,9 +522,28 @@ export function App() {
                 chatId: targetChatId
             }));
 
+            // Автоагрегация памяти проекта: если чат входит в проект и включён
+            // «сквозной контекст», ключевые сообщения пользователя (стек, ключи,
+            // архитектура, требования) кратко дописываются в «Инструкции
+            // проекта», чтобы новый чат проекта помнил контекст обсуждений.
+            let updatedProjects = prev.projects;
+            const proj = (prev.projects || []).find(p => (p.chatIds || []).includes(targetChatId));
+            if (proj && (proj.unifiedContext ?? true) && textToSend) {
+                const markers = /(стек|architecture|архитектур|api|ключ|token|токен|требовани|deploy|деплой|база данных|database|framework|фреймворк|версия|version|endpoint|url|домен|domain)/i;
+                if (markers.test(textToSend) && textToSend.length <= 400) {
+                    const note = `• ${textToSend.trim()}`;
+                    const existing = proj.memory || '';
+                    if (!existing.includes(textToSend.trim())) {
+                        const nextMemory = (existing ? existing + '\n' : '') + note;
+                        updatedProjects = (prev.projects || []).map(p => p.id === proj.id ? { ...p, memory: nextMemory.slice(-8000) } : p);
+                    }
+                }
+            }
+
             return {
                 ...prev,
                 chatSessions: newSessions,
+                projects: updatedProjects,
                 isGenerating: false,
                 generatedDocuments: foundDocs.length > 0 ? [...foundDocs, ...(prev.generatedDocuments || [])] : prev.generatedDocuments
             };
@@ -544,10 +576,14 @@ export function App() {
             return { ...prev, chatSessions: newSessions, inputValue: '', isGenerating: true, isGeneratingImage: true, currentView: 'chat' };
         });
 
-        // Небольшая пауза имитирует время генерации — под неё крутится анимация
-        await new Promise(resolve => setTimeout(resolve, 1600 + Math.random() * 900));
-
-        const imageUrl = generateArtImage(prompt);
+        // Реальная генерация через backend (DeepInfra). Если недоступна —
+        // мягкий фолбэк на локальную арт-заглушку, чтобы UX не ломался.
+        let imageUrl;
+        try {
+            imageUrl = await generateBackendImage(prompt);
+        } catch (e) {
+            imageUrl = generateArtImage(prompt);
+        }
 
         setState(prev => {
             const newSessions = prev.chatSessions.map(session => {

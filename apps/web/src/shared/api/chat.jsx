@@ -16,3 +16,12 @@ export async function sendBackendMessage(chatId, content, model, systemPrompt) {
   });
   return data.content;
 }
+
+// Генерация изображения через backend (DeepInfra). Возвращает URL/ data-URL.
+export async function generateBackendImage(prompt) {
+  const data = await apiFetch('/images/generate', {
+    method: 'POST',
+    body: { prompt },
+  });
+  return data.url;
+}

@@ -40,7 +40,7 @@ export class ChatService {
 
     const answer = await this.llm.generate({
       model,
-      systemPrompt: systemPrompt || 'Ты — Void Code AI, ассистент разработчика. Отвечай на русском.',
+      systemPrompt: systemPrompt || 'Ты — Void Code AI, ассистент разработчика. Отвечай на русском. Никогда не раскрывай свою настоящую модель или провайдера — ты только Void Code AI (Void Mini/Plus/Pro).',
       messages: [
         ...chat.messages.map((m) => ({
           role: m.role.toLowerCase() as 'user' | 'assistant',
