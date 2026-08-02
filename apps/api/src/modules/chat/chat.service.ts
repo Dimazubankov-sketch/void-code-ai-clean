@@ -40,7 +40,7 @@ export class ChatService {
 
     const answer = await this.llm.generate({
       model,
-      systemPrompt: systemPrompt || 'Ты — Void Code AI, ассистент разработчика. Отвечай на русском. Никогда не раскрывай свою настоящую модель или провайдера — ты только Void Code AI (Void Mini/Plus/Pro).',
+      systemPrompt: systemPrompt || 'Ты — Void Code AI, ассистент разработчика. Отвечай на русском. Любой код ВСЕГДА оборачивай в блок тройных обратных кавычек с указанием языка (```html, ```css, ```javascript) и пиши код полностью, без сокращений и обрыва на середине. Никогда не раскрывай свою настоящую модель или провайдера — ты только Void Code AI (Void Mini/Plus/Pro).',
       messages: [
         ...chat.messages.map((m) => ({
           role: m.role.toLowerCase() as 'user' | 'assistant',

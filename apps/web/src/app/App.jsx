@@ -26,7 +26,6 @@ import { AI_MODELS, getPlanLimits, defaultReasoningFor } from '@/shared/config/m
 import { buildReasoningScript, levelDelayMs } from '@/shared/config/reasoningScript';
 import { buildAgentSystemPrompt } from '@/shared/lib/agentPrompt';
 import { splitMessageContent } from '@/shared/lib/documents';
-import { generateArtImage } from '@/shared/lib/imagegen';
 import { goBack } from '@/shared/lib/navigation';
 import { readSharedFromHash, clearShareHash } from '@/shared/lib/shareDialog';
 import { loadPersistedState, savePersistedState } from '@/shared/lib/storage';
@@ -576,19 +575,26 @@ export function App() {
             return { ...prev, chatSessions: newSessions, inputValue: '', isGenerating: true, isGeneratingImage: true, currentView: 'chat' };
         });
 
-        // Реальная генерация через backend (DeepInfra). Если недоступна —
-        // мягкий фолбэк на локальную арт-заглушку, чтобы UX не ломался.
-        let imageUrl;
+        // Реальная генерация через backend (DeepInfra). Раньше при ошибке
+        // тихо подставлялась локальная арт-заглушка (случайные абстрактные
+        // картинки) — из-за этого пользователь видел «рандом» вместо своего
+        // запроса и не понимал, что генерация упала. Теперь при ошибке
+        // показываем честное сообщение, а не фейковую картинку.
+        let imageUrl = null;
+        let errorText = null;
         try {
             imageUrl = await generateBackendImage(prompt);
         } catch (e) {
-            imageUrl = generateArtImage(prompt);
+            errorText = 'Не удалось сгенерировать изображение — сервис временно недоступен. Попробуй ещё раз через минуту.';
         }
 
         setState(prev => {
             const newSessions = prev.chatSessions.map(session => {
                 if (session.id === prev.activeChatId) {
-                    return { ...session, messages: [...session.messages, { role: 'assistant', content: `Готово! Вот изображение по запросу: «${prompt}»`, generatedImage: imageUrl, isAnimated: false }] };
+                    const assistantMsg = imageUrl
+                        ? { role: 'assistant', content: `Готово! Вот изображение по запросу: «${prompt}»`, generatedImage: imageUrl, isAnimated: false }
+                        : { role: 'assistant', content: errorText, isAnimated: false };
+                    return { ...session, messages: [...session.messages, assistantMsg] };
                 }
                 return session;
             });
@@ -597,7 +603,10 @@ export function App() {
                 chatSessions: newSessions,
                 isGenerating: false,
                 isGeneratingImage: false,
-                generatedImages: [{ id: Date.now() + Math.random(), prompt, url: imageUrl, timestamp: Date.now(), chatId: prev.activeChatId }, ...(prev.generatedImages || [])]
+                // В галерею добавляем только реально сгенерированные картинки.
+                generatedImages: imageUrl
+                    ? [{ id: Date.now() + Math.random(), prompt, url: imageUrl, timestamp: Date.now(), chatId: prev.activeChatId }, ...(prev.generatedImages || [])]
+                    : (prev.generatedImages || [])
             };
         });
     };

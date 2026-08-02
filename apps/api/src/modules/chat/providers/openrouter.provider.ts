@@ -53,7 +53,9 @@ export class OpenRouterProvider implements LlmProvider {
       body: JSON.stringify({
         model: this.modelMap[req.model] || this.fallbackModel,
         messages,
-        max_tokens: req.maxTokens ?? 2048,
+        // 8192 — Qwen2.5 поддерживает до 8K токенов вывода. Прежние 2048
+        // обрезали большие файлы (полноценный HTML-сайт не помещался).
+        max_tokens: req.maxTokens ?? 8192,
         temperature: req.temperature ?? 0.7,
       }),
     });

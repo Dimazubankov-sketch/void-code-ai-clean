@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { buildCodePreviewDoc } from '@/shared/lib/documents';
+import { downloadZip, blocksToFiles, fileNameForBlock } from '@/shared/lib/zip';
 import { Icons } from '@/shared/ui/Icons';
 
 
@@ -91,6 +92,15 @@ export function CodeViewerModal({ block, siblings = [], onClose }) {
         }).catch(() => {});
     };
 
+    // Скачивание ZIP: если в ответе несколько блоков (HTML+CSS+JS) — кладём
+    // все в один архив (index.html/style.css/script.js). Если блок один —
+    // архив всё равно содержит его как отдельный файл с правильным расширением.
+    const handleDownloadZip = () => {
+        const allBlocks = siblings.length ? siblings : [block];
+        const files = blocksToFiles(allBlocks);
+        downloadZip(files, 'void-code.zip');
+    };
+
     return (
         <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center sm:p-4 fade-in ${fullscreen ? 'sm:p-0' : ''}`}>
             <div className={`bg-white dark:bg-darkCard w-full shadow-2xl border border-gray-100 dark:border-darkBorder flex flex-col overflow-hidden overscroll-contain transition-all ${fullscreen ? 'sm:max-w-full sm:h-screen sm:rounded-none code-modal-h rounded-t-[2rem]' : 'sm:max-w-3xl code-modal-h rounded-t-[2rem] sm:rounded-[2rem]'}`}>
@@ -126,7 +136,10 @@ export function CodeViewerModal({ block, siblings = [], onClose }) {
                 <div className="flex-1 overflow-hidden mt-3">
                     {tab === 'code' && (
                         <div className="h-full flex flex-col">
-                            <div className="flex justify-end px-4 sm:px-5 pb-2 flex-shrink-0">
+                            <div className="flex justify-end gap-2 px-4 sm:px-5 pb-2 flex-shrink-0">
+                                <button onClick={handleDownloadZip} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-[#efecf9] dark:bg-purple-900/30 hover:bg-[#e3ddf5] dark:hover:bg-purple-900/50 text-[#5b32d4] dark:text-purple-300 transition-colors">
+                                    <Icons.Download className="w-3.5 h-3.5" /> Скачать ZIP
+                                </button>
                                 <button onClick={handleCopy} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors">
                                     {copied ? 'Скопировано ✓' : 'Копировать'}
                                 </button>
