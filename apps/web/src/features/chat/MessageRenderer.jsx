@@ -2,13 +2,38 @@ import React from 'react';
 import { copyToCb } from '@/shared/lib/clipboard';
 import { Icons } from '@/shared/ui/Icons';
 
+// ==========================================
+// Безопасный рендер **bold**-фрагментов текста
+// ==========================================
+// ВАЖНО: никогда не использовать dangerouslySetInnerHTML для текста
+// от ИИ — это не только риск XSS, но и конкретный баг, который был здесь:
+// пока сообщение печаталось посимвольно (TypewriterMessage), незакрытый
+// тройными кавычками код-блок (```html ...) на середине печати попадал
+// в этот "обычный текст" путь и, будучи вставлен как реальный HTML,
+// рендерился настоящими DOM-элементами (<div>, <header>, <nav>...)
+// вместо видимого текста — так весь код "пропадал", оставляя только
+// пустые строки. Теперь строка всегда рендерится как текст через React
+// (безопасно и предсказуемо в любой момент печати).
+function renderBoldLine(line, key) {
+    const parts = line.split(/(\*\*.*?\*\*)/g);
+    return (
+        <React.Fragment key={key}>
+            {parts.map((part, i) => {
+                if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+                    return <strong key={i}>{part.slice(2, -2)}</strong>;
+                }
+                return <React.Fragment key={i}>{part}</React.Fragment>;
+            })}
+        </React.Fragment>
+    );
+}
 
 export function MessageRenderer({ content }) {
     const blocks = content.split(/(```[\s\S]*?```)/g);
     return (
         <div className="text-[16px] sm:text-[17px] leading-relaxed break-words">
             {blocks.map((block, index) => {
-                if (block.startsWith('```') && block.endsWith('```')) {
+                if (block.startsWith('```') && block.endsWith('```') && block.length >= 6) {
                     const lines = block.slice(3, -3).split('\n');
                     const lang = lines[0].trim();
                     const code = lines.slice(1).join('\n');
@@ -24,10 +49,19 @@ export function MessageRenderer({ content }) {
                         </div>
                     );
                 }
-                const formattedText = block.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').split('\n').map((line, i) => (
-                    <React.Fragment key={i}><span dangerouslySetInnerHTML={{ __html: line }} />{i !== block.split('\n').length - 1 && <br />}</React.Fragment>
-                ));
-                return <span key={index}>{formattedText}</span>;
+                // Незакрытый код-блок (ещё печатается) или обычный текст —
+                // в обоих случаях рендерим как безопасный текст, без HTML-инъекции.
+                const lines = block.split('\n');
+                return (
+                    <span key={index}>
+                        {lines.map((line, i) => (
+                            <React.Fragment key={i}>
+                                {renderBoldLine(line, i)}
+                                {i !== lines.length - 1 && <br />}
+                            </React.Fragment>
+                        ))}
+                    </span>
+                );
             })}
         </div>
     );

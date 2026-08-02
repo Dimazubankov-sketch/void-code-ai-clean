@@ -17,14 +17,17 @@ export class OpenRouterProvider implements LlmProvider {
 
   private readonly apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
 
-  // Void Plus → Qwen 2.5 Coder 32B, Void Pro → Qwen 2.5 Coder 72B.
+  // Void Plus → Qwen 2.5 Coder 32B (специализация на коде).
+  // Void Pro → Qwen 2.5 72B (более крупная модель общего назначения;
+  // у Qwen2.5-Coder нет варианта 72B — попытка использовать
+  // "qwen-2.5-coder-72b-instruct" даёт HTTP 400, такой модели не существует).
   // Void Mini (быстрые/дешёвые ответы) — на младшей coder-модели.
   private readonly modelMap: Record<string, string> = {
     mini: 'qwen/qwen-2.5-coder-32b-instruct',
     flash: 'qwen/qwen-2.5-coder-32b-instruct',
     flash_ext: 'qwen/qwen-2.5-coder-32b-instruct',
     plus: 'qwen/qwen-2.5-coder-32b-instruct',
-    pro: 'qwen/qwen-2.5-coder-72b-instruct',
+    pro: 'qwen/qwen-2.5-72b-instruct',
   };
 
   private readonly fallbackModel = 'qwen/qwen-2.5-coder-32b-instruct';
@@ -56,6 +59,11 @@ export class OpenRouterProvider implements LlmProvider {
     });
 
     if (!response.ok) {
+      // Логируем тело ответа провайдера на сервере для диагностики
+      // (неверный ID модели, лимиты, и т.п.), но наружу отдаём общий текст.
+      const errorBody = await response.text().catch(() => '');
+      // eslint-disable-next-line no-console
+      console.error(`[OpenRouterProvider] HTTP ${response.status}:`, errorBody.slice(0, 500));
       throw new ServiceUnavailableException(`Ошибка провайдера: HTTP ${response.status}`);
     }
     const data: any = await response.json();
