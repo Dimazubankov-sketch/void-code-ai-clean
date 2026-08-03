@@ -6,6 +6,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { ImageModule } from './modules/image/image.module';
 import { TtsModule } from './modules/tts/tts.module';
+import { TasksModule } from './modules/tasks/tasks.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AgentsModule } from './modules/agents/agents.module';
 
@@ -18,6 +19,7 @@ import { AgentsModule } from './modules/agents/agents.module';
     ChatModule,
     ImageModule,
     TtsModule,
+    TasksModule,
     BillingModule,
     AgentsModule,
   ],

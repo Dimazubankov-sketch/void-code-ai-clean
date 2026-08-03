@@ -63,7 +63,12 @@ export class ImageService {
           n: 1,
           size: '1024x1024',
           quality: 'standard',
-          response_format: 'url',
+          // response_format НЕ передаём: с недавних пор OpenAI отдаёт
+          // на DALL-E 3 «Unknown parameter: 'response_format'» — этот
+          // параметр депрекейтнут для gpt-image-1/dall-e-3. URL всё
+          // равно возвращается по умолчанию (data[0].url), а если у
+          // нового API вернётся b64_json — обработчик ответа ниже
+          // справится и с этим (см. `if first.b64_json`).
         }),
       });
     } catch (e: any) {

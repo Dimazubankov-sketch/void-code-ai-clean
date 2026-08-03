@@ -168,7 +168,13 @@ export function VoiceSettings({ state, updateState, onClose }) {
                         <div className="flex items-center justify-center gap-4">
                             <button onClick={() => applyPreset(presetIdx - 1)} className="p-2 rounded-full text-gray-300 hover:text-[#5b32d4] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"><Icons.ChevronLeft className="w-6 h-6" /></button>
                             <div className="flex flex-col items-center gap-3">
-                                <VoiceOrb colorFrom={preset.colorFrom} colorTo={preset.colorTo} active={testing} size={128} />
+                                <VoiceOrb
+                                    colorFrom={preset.colorFrom}
+                                    colorTo={preset.colorTo}
+                                    active={testing}
+                                    size={128}
+                                    audioElement={testing ? (tts.audioRef?.current || null) : null}
+                                />
                                 <div className="text-center">
                                     <p className="font-extrabold text-lg dark:text-white">{preset.name}</p>
                                     <p className="text-xs text-gray-400">{preset.desc}</p>

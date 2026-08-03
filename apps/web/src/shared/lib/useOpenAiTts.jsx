@@ -144,5 +144,5 @@ export function useOpenAiTts() {
         }
     }, []);
 
-    return { speak, pause, resume, stop, seek, speaking, paused, loading, elapsed, duration, error, supported: true };
+    return { speak, pause, resume, stop, seek, speaking, paused, loading, elapsed, duration, error, supported: true, audioRef };
 }

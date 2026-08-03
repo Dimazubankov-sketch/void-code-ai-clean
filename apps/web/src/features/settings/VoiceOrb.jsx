@@ -1,46 +1,50 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 
 // ==========================================
 // VoiceOrb — большой «живой» круг во вкладке Голос
 // ==========================================
-// Анимация построена на GSAP-таймлайне (см. gsap-timeline skill): круг
-// мягко «дышит» (scale + лёгкое смещение) и переливается яркостью, а
-// вокруг пульсируют два ореола. При смене голоса цвета обновляются через
-// gsap.to() плавным переходом, а не резким свопом. Всё создаётся в
-// useGSAP() со scope — очистка при размонтировании автоматическая
-// (gsap-react skill). Уважаем prefers-reduced-motion: при включённом
-// «уменьшить движение» оставляем статичный круг без бесконечных твинов.
+// Анимация построена на GSAP: круг мягко «дышит» и переливается яркостью,
+// а вокруг пульсируют два ореола. Уважаем prefers-reduced-motion.
+//
+// Новое: если передан audioElement (HTMLAudioElement), подключаем Web
+// Audio API (AudioContext + AnalyserNode) и синхронизируем масштаб/opacity
+// круга с реальной ГРОМКОСТЬЮ речи в реальном времени. Пока звук играет —
+// круг реагирует на амплитуду (тихий момент → маленький и приглушённый,
+// громкий → больше и ярче). Когда звук останавливается — плавно возвращаем
+// пассивную анимацию «дыхания». GSAP используется для плавной интерполяции
+// значений через quickTo (см. gsap-performance skill: quickTo избегает
+// создания нового tween на каждый requestAnimationFrame).
 
-export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128 }) {
+export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audioElement = null }) {
     const scope = useRef(null);
     const coreRef = useRef(null);
+    const halo1Ref = useRef(null);
+    const halo2Ref = useRef(null);
 
+    // ---- Пассивная анимация «дыхания» и ореолов ----
     useGSAP(() => {
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (reduce) return;
 
         // Дыхание ядра — бесконечный yoyo-таймлайн
-        gsap.timeline({ repeat: -1, yoyo: true, defaults: { ease: 'sine.inOut' } })
+        const breathTl = gsap.timeline({ repeat: -1, yoyo: true, defaults: { ease: 'sine.inOut' } })
             .to('.orb-core', { scale: 1.06, duration: 2.4 }, 0)
             .to('.orb-core', { filter: 'brightness(1.15)', duration: 2.4 }, 0)
             .to('.orb-core', { y: -4, duration: 3.0 }, 0);
 
-        // Два ореола расходятся и приглушаются (не до полного нуля — так
-        // круг всегда выглядит «живым», без провалов в пустоту)
         gsap.fromTo('.orb-halo-1',
             { scale: 0.9, autoAlpha: 0.4 },
             { scale: 1.3, autoAlpha: 0.12, duration: 2.8, ease: 'sine.inOut', repeat: -1, yoyo: true });
         gsap.fromTo('.orb-halo-2',
             { scale: 0.95, autoAlpha: 0.3 },
             { scale: 1.45, autoAlpha: 0.1, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.8 });
+
+        return () => { breathTl?.kill(); };
     }, { scope });
 
-    // Плавно переливаем цвета при смене голоса. Градиент строится только на
-    // оттенках самого голоса (от светлого к более насыщенному) — БЕЗ тёмного,
-    // почти чёрного края, чтобы круг не выглядел «потухшим». Даже в самой
-    // тёмной точке остаётся приглушённый цвет, а не чернота.
+    // ---- Плавная смена цвета голоса ----
     const buildGradient = (from, to) =>
         `radial-gradient(circle at 32% 28%, ${from}, ${to} 70%, ${to})`;
 
@@ -54,18 +58,101 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128 }) {
         });
     }, { scope, dependencies: [colorFrom, colorTo] });
 
-    // Реакция на активную запись/проигрыш — чуть ускоряем и усиливаем пульс
+    // ---- Реакция на «active» (запись/проигрыш) — усиливаем ореолы ----
     useGSAP(() => {
-        const core = coreRef.current;
-        if (!core) return;
         gsap.to('.orb-halo-1, .orb-halo-2', { scale: active ? 1.1 : 1, duration: 0.4 });
     }, { scope, dependencies: [active] });
+
+    // ---- Web Audio API: пульсация круга под реальную громкость речи ----
+    useEffect(() => {
+        if (!audioElement) return;
+
+        let ctx = null;
+        let analyser = null;
+        let source = null;
+        let rafId = 0;
+        let stopped = false;
+
+        // quickTo — оптимальный способ анимировать одно свойство много раз
+        // подряд (см. gsap-performance skill). Внутренне GSAP переиспользует
+        // один и тот же твин, а не создаёт новый на каждый rAF.
+        const setScale = gsap.quickTo(coreRef.current, 'scale', { duration: 0.15, ease: 'power2.out' });
+        const setBrightness = gsap.quickTo(coreRef.current, 'filter', {
+            duration: 0.15,
+            ease: 'power2.out',
+            // filter не число — используем строковую интерполяцию через set
+            modifiers: {
+                filter: (v) => `brightness(${v})`,
+            },
+        });
+        const setHalo1 = gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.15, ease: 'power2.out' });
+        const setHalo2 = gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.15, ease: 'power2.out' });
+        const setHalo1Alpha = gsap.quickTo(halo1Ref.current, 'autoAlpha', { duration: 0.15, ease: 'power2.out' });
+
+        try {
+            // AudioContext создаём внутри try — некоторые браузеры
+            // (iOS Safari до user-gesture) кинут исключение.
+            ctx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = ctx.createAnalyser();
+            analyser.fftSize = 256; // 128 бинов — хватает и легковесно
+            analyser.smoothingTimeConstant = 0.75;
+            source = ctx.createMediaElementSource(audioElement);
+            source.connect(analyser);
+            // Подключаем к destination чтобы звук всё-таки играл (иначе
+            // Web Audio перехватит поток и <audio> замолкнет).
+            analyser.connect(ctx.destination);
+        } catch (e) {
+            // Если MediaElementSource уже был создан для этого <audio>
+            // (повторный useEffect), createMediaElementSource кинет
+            // InvalidStateError — просто выходим без анимации громкости.
+            // eslint-disable-next-line no-console
+            console.debug('[VoiceOrb] Web Audio недоступен:', e?.message);
+            return;
+        }
+
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        // Небольшое сглаживание амплитуды через экспоненциальное среднее:
+        // от резких скачков графика картинка выглядит нервной, а речь
+        // редко даёт «идеально ровный» уровень.
+        let smoothed = 0;
+        const tick = () => {
+            if (stopped) return;
+            analyser.getByteFrequencyData(data);
+            // Среднее по низкой части спектра — голос в основном 100-1000Гц,
+            // это первые ~30 бинов при fftSize=256, sampleRate 44100.
+            let sum = 0;
+            const N = Math.min(30, data.length);
+            for (let i = 0; i < N; i++) sum += data[i];
+            const avg = sum / N / 255; // 0..1
+            smoothed = smoothed * 0.7 + avg * 0.3;
+            // Масштаб от 1.0 до 1.18 — не более, иначе круг «прыгает».
+            const scale = 1 + smoothed * 0.18;
+            const brightness = 1 + smoothed * 0.35;
+            const haloScale = 1 + smoothed * 0.35;
+            const halo1Alpha = 0.15 + smoothed * 0.45;
+            setScale(scale);
+            setBrightness(brightness);
+            setHalo1(haloScale);
+            setHalo2(haloScale * 1.06);
+            setHalo1Alpha(halo1Alpha);
+            rafId = requestAnimationFrame(tick);
+        };
+        rafId = requestAnimationFrame(tick);
+
+        return () => {
+            stopped = true;
+            cancelAnimationFrame(rafId);
+            try { source?.disconnect(); } catch { /* ignore */ }
+            try { analyser?.disconnect(); } catch { /* ignore */ }
+            try { ctx?.close(); } catch { /* ignore */ }
+        };
+    }, [audioElement]);
 
     const px = `${size}px`;
     return (
         <div ref={scope} className="relative flex items-center justify-center" style={{ width: px, height: px }}>
-            <div className="orb-halo-1 absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${colorFrom}, transparent 70%)` }} />
-            <div className="orb-halo-2 absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${colorTo}, transparent 70%)` }} />
+            <div ref={halo1Ref} className="orb-halo-1 absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${colorFrom}, transparent 70%)` }} />
+            <div ref={halo2Ref} className="orb-halo-2 absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${colorTo}, transparent 70%)` }} />
             <div
                 ref={coreRef}
                 className="orb-core rounded-full shadow-lg will-change-transform"

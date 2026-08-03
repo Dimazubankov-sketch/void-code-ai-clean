@@ -50,16 +50,20 @@ export class TtsController {
     const userId = req.user.userId;
     await this.consumeTtsLimit(userId, dto.text.length);
 
-    const buf = await this.tts.synthesize(
+    // Заголовки ДО стрима — иначе браузер не поймёт что это mp3-стрим.
+    // Content-Length НЕ выставляем, потому что при стриминге он неизвестен;
+    // Transfer-Encoding: chunked применяется автоматически.
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+    // Отключаем nginx-буферизацию, чтобы стрим доходил до браузера сразу,
+    // а не собирался в один пакет.
+    res.setHeader('X-Accel-Buffering', 'no');
+    await this.tts.streamTo(
+      res,
       dto.text,
       dto.voice || 'nova',
       dto.speed ?? 1.0,
     );
-
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Content-Length', String(buf.length));
-    res.end(buf);
   }
 
   // GET-эндпоинт: сколько символов пользователь уже израсходовал сегодня.

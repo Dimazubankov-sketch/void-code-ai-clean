@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { SubordinateLinkMenu } from '@/features/cockpit/SubordinateLinkMenu';
 import { OrchestratorMessages } from '@/features/cockpit/OrchestratorMessages';
 import { useOrchestratorThread } from '@/features/cockpit/useOrchestratorThread';
+import { ScheduleTaskModal } from '@/features/cockpit/ScheduleTaskModal';
 import { ChatInputBar } from '@/features/chat/ChatInputBar';
 import { getAgentStatus, resolveCockpitStatus } from '@/shared/config/orchestrator';
 import { Icons } from '@/shared/ui/Icons';
@@ -21,6 +22,7 @@ export function OrchestratorChatView({ state, updateState }) {
     const [input, setInput] = useState('');
     const [image, setImage] = useState(null);
     const [showLinkMenu, setShowLinkMenu] = useState(false);
+    const [showSchedule, setShowSchedule] = useState(false);
     const [renaming, setRenaming] = useState(false);
     const [nameDraft, setNameDraft] = useState('');
     const endRef = useRef(null);
@@ -109,6 +111,7 @@ export function OrchestratorChatView({ state, updateState }) {
                         <CockpitBtn icon={resolveCockpitStatus(orchestrator) === 'sleeping' ? Icons.Play : Icons.Pause} label={resolveCockpitStatus(orchestrator) === 'sleeping' ? 'Запуск' : 'Пауза'} onClick={toggleRun} />
                         <CockpitBtn icon={soundOn ? Icons.VolumeOn : Icons.VolumeOff} label={soundOn ? 'Звук' : 'Тихо'} onClick={toggleSound} />
                         <CockpitBtn icon={Icons.MailLogo} label="Почта" onClick={() => updateState({ showNotifications: true })} />
+                        <CockpitBtn icon={Icons.Clock} label="План" onClick={() => setShowSchedule(true)} />
                     </div>
 
                     {/* Ряд 3: статус-лента подчинённых (мини-дэшборд) */}
@@ -165,6 +168,12 @@ export function OrchestratorChatView({ state, updateState }) {
                         onClose={() => setShowLinkMenu(false)}
                     />
                 )}
+                <ScheduleTaskModal
+                    open={showSchedule}
+                    onClose={() => setShowSchedule(false)}
+                    agentId={orchestrator?.id}
+                    agentName={orchestrator?.name}
+                />
             </div>
         </div>
     );

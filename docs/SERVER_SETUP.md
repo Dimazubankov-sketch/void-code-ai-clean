@@ -62,6 +62,12 @@ pm2 save
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        # ВАЖНО: LLM-модели на кодовых задачах могут думать до 60-90 секунд.
+        # Дефолтный proxy_read_timeout=60 обрывает такие запросы с HTTP 504.
+        # Синхронизировано с таймаутом в openrouter.provider.ts (90с).
+        proxy_read_timeout 180s;
+        proxy_send_timeout 180s;
+        proxy_connect_timeout 30s;
     }
 ```
 
