@@ -311,3 +311,25 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
 .dark .void-input-scroll { scrollbar-color: #3b3b52 transparent; }
 .dark .void-input-scroll::-webkit-scrollbar-thumb { background: #3b3b52; }
 .dark .void-input-scroll::-webkit-scrollbar-thumb:hover { background: #7f57ff; }
+
+/* ==========================================
+   Горизонтальный скроллбар для CLI-блока и chart
+   ========================================== */
+/* Тонкий, плавный, под фиолетовую тему проекта. Появляется только
+   когда команда/график не помещается по ширине. Работает и на macOS
+   (там дефолтный скроллбар прячется до скролла — с этими стилями
+   он всегда видим тонкой полоской, что удобно для длинных команд). */
+.void-cli-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #5b32d4 transparent;
+    scroll-behavior: smooth;
+}
+.void-cli-scroll::-webkit-scrollbar { height: 6px; }
+.void-cli-scroll::-webkit-scrollbar-track { background: transparent; }
+.void-cli-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #5b32d4, #7f57ff);
+    border-radius: 999px;
+}
+.void-cli-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #7f57ff, #a855f7);
+}

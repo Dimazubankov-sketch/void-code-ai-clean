@@ -28,7 +28,7 @@ export function CliBlock({ code, lang = 'bash' }) {
     };
 
     return (
-        <div className="my-3 rounded-2xl overflow-hidden border border-gray-800 bg-[#0f0f1a] shadow-sm void-selectable">
+        <div className="my-3 rounded-2xl overflow-hidden border border-gray-800 bg-[#0f0f1a] shadow-sm void-selectable max-w-full">
             {/* Шапка терминала */}
             <div className="flex items-center justify-between px-3 py-2 bg-[#181828] border-b border-gray-800/70">
                 <div className="flex items-center gap-2 min-w-0">
@@ -47,13 +47,14 @@ export function CliBlock({ code, lang = 'bash' }) {
                     {copied ? 'Скопировано' : 'Копировать'}
                 </button>
             </div>
-            {/* Тело — промпт + команды. Разрешаем выделение (mobile long-press). */}
-            <div className="px-4 py-3 overflow-x-auto">
+            {/* Тело — промпт + команды. Разрешаем выделение (mobile long-press).
+                Кастомный скроллбар (void-cli-scroll) через global CSS в index.css. */}
+            <div className="px-4 py-3 overflow-x-auto void-cli-scroll">
                 <pre className="text-[13px] leading-relaxed font-mono text-gray-100 whitespace-pre">
                     {lines.map((line, i) => (
                         <div key={i} className="flex gap-2">
                             <span className="text-[#5b32d4] select-none flex-shrink-0">❯</span>
-                            <span className="break-all">{line || '\u00A0'}</span>
+                            <span>{line || '\u00A0'}</span>
                         </div>
                     ))}
                 </pre>

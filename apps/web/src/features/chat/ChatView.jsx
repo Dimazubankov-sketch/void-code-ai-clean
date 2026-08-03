@@ -15,6 +15,7 @@ import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
 import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
 import { defaultReasoningFor } from '@/shared/config/models';
+import { getPlanLimits } from '@/shared/config/models';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
 
@@ -175,6 +176,24 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         return () => clearTimeout(timer);
     }, [state.scrollToMessageIdx, state.scrollToMessageChatId, activeChat?.id]);
 
+    // Warning-баннер при 90%+ дневного лимита. Показывается над инпутом
+    // до тех пор, пока пользователь не закроет его крестиком (тогда баннер
+    // не появится снова до следующего сеанса — хранится в localStorage).
+    const planLimits = getPlanLimits(state.userPlan);
+    const dailyLimit = planLimits.daily;
+    const dailyUsed = state.usedDailyLimits || 0;
+    const dailyPercent = (dailyLimit === Infinity || dailyLimit === 'Infinity' || dailyLimit === 0)
+        ? 0
+        : Math.min(100, Math.round((dailyUsed / dailyLimit) * 100));
+    const [warningDismissed, setWarningDismissed] = useState(() => {
+        try { return localStorage.getItem('void_limit_warning_dismissed_at') === new Date().toISOString().slice(0, 10); } catch { return false; }
+    });
+    const showLimitWarning = dailyPercent >= 90 && dailyPercent < 100 && !warningDismissed;
+    const dismissLimitWarning = () => {
+        try { localStorage.setItem('void_limit_warning_dismissed_at', new Date().toISOString().slice(0, 10)); } catch {}
+        setWarningDismissed(true);
+    };
+
     return (
         <div className="flex flex-col h-full bg-white dark:bg-darkBg relative w-full max-w-full fade-in">
             <TopHeader state={state} updateState={updateState} />
@@ -190,8 +209,8 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                     )}
                     
                     {messages.map((msg, idx) => (
-                        <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-4xl transition-colors rounded-2xl ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
-                            <div className={`p-4 md:p-5 rounded-3xl void-selectable ${msg.role === 'user' ? 'bg-[#5b32d4] text-white rounded-tr-sm shadow-sm' : 'bg-white dark:bg-darkBg text-gray-900 dark:text-gray-100 rounded-tl-sm'}`}>
+                        <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-4xl transition-colors rounded-2xl min-w-0 ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
+                            <div className={`p-4 md:p-5 rounded-3xl void-selectable min-w-0 max-w-full overflow-hidden break-words ${msg.role === 'user' ? 'bg-[#5b32d4] text-white rounded-tr-sm shadow-sm' : 'bg-white dark:bg-darkBg text-gray-900 dark:text-gray-100 rounded-tl-sm'}`}>
                                 {msg.image && <img src={msg.image} alt="Upload" className="max-w-full md:max-w-sm rounded-xl mb-3 shadow-sm border border-gray-100 dark:border-gray-800" />}
                                 {msg.generatedImage ? (
                                     <div className="void-img-fadein">
@@ -300,6 +319,29 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
 
             <div ref={inputWrapRef} className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white dark:from-darkBg via-white dark:via-darkBg to-transparent pt-14 px-3 sm:px-4 md:px-8 z-20 pointer-events-none pb-safe">
                 <div className="relative max-w-4xl mx-auto pointer-events-auto">
+                    {/* Warning-баннер: показывается когда дневной лимит чата
+                        превышает 90%. Пользователь может закрыть крестиком —
+                        тогда баннер не появится до следующего дня (сброс по
+                        календарной дате в localStorage). */}
+                    {showLimitWarning && (
+                        <div className="flex items-center gap-2.5 mb-2.5 px-3.5 py-2.5 rounded-2xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/50 fade-in">
+                            <Icons.Alert className="w-4 h-4 shrink-0 text-orange-500" />
+                            <p className="flex-1 text-xs font-semibold text-orange-700 dark:text-orange-300 leading-tight">
+                                Использовано {dailyPercent}% дневного лимита. Скоро запросы закончатся —
+                                <button
+                                    onClick={() => updateState({ currentView: 'pricing' })}
+                                    className="ml-1 underline hover:no-underline"
+                                >сменить тариф</button>.
+                            </p>
+                            <button
+                                onClick={dismissLimitWarning}
+                                className="w-5 h-5 shrink-0 rounded-full hover:bg-orange-200/50 dark:hover:bg-orange-800/50 flex items-center justify-center text-orange-600 dark:text-orange-400 transition-colors"
+                                title="Скрыть до завтра"
+                            >
+                                <Icons.X className="w-3 h-3" />
+                            </button>
+                        </div>
+                    )}
                     {/* Активный режим: генерация изображения или работа через агента.
                         Показываем иконку + подпись + крестик для отключения. */}
                     {(state.imageGenMode || state.activeAgentId) && (

@@ -2,14 +2,18 @@ import { CodeViewerModal } from '@/features/chat/CodeViewerModal';
 
 
 // Достаёт из ответа ассистента блоки кода — они автоматически попадают
-// в "Библиотеку" как отдельные документы.
+// в "Библиотеку" как отдельные документы. Виджет-блоки (bash/chart)
+// сюда не попадают — это данные для инлайн-рендера, а не «код», который
+// имеет смысл сохранять как файл.
+const LIBRARY_EXCLUDE_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'console', 'cmd', 'terminal', 'powershell', 'ps1', 'chart', 'graph', 'plot', 'json-chart', 'linechart', 'barchart', 'chartjs', 'recharts']);
 export const extractCodeDocuments = (content) => {
     if (!content) return [];
     const docs = [];
     const regex = /```(\w*)\n([\s\S]*?)```/g;
     let match;
     while ((match = regex.exec(content)) !== null) {
-        const lang = (match[1] || 'text').trim() || 'text';
+        const lang = (match[1] || 'text').trim().toLowerCase() || 'text';
+        if (LIBRARY_EXCLUDE_LANGS.has(lang)) continue;
         const code = match[2].trim();
         if (code.length >= 25) {
             const firstLine = code.split('\n')[0].slice(0, 48);
@@ -24,6 +28,10 @@ export const extractCodeDocuments = (content) => {
 // команды bash/sh коротки и удобнее видеть их прямо в диалоге, а не
 // открывать через модалку.
 const INLINE_CLI_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'console', 'cmd', 'terminal', 'powershell', 'ps1']);
+// Языки-виджеты для графиков — тоже остаются в тексте (их отрисует
+// ChartBlock в MessageRenderer), не попадают в «Библиотеку кода» и не
+// открываются в CodeViewerModal.
+const INLINE_CHART_LANGS = new Set(['chart', 'graph', 'plot', 'json-chart', 'linechart', 'barchart', 'chartjs', 'recharts']);
 
 // Разбивает ответ ассистента на "видимый текст" и блоки кода: полноценный
 // код (HTML/CSS/JS/Python...) выносится в отдельные блоки для окна просмотра,
@@ -41,9 +49,9 @@ export const splitMessageContent = (content) => {
         const code = match[2].trim();
         const rawFragment = content.slice(match.index, regex.lastIndex);
 
-        // CLI-блок оставляем в тексте как есть, чтобы MessageRenderer нарисовал
-        // виджет терминала прямо в чате.
-        if (INLINE_CLI_LANGS.has(lang)) {
+        // CLI-блок и Chart-блок оставляем в тексте как есть, чтобы MessageRenderer
+        // нарисовал их соответствующим виджетом (терминал / SVG-график) прямо в чате.
+        if (INLINE_CLI_LANGS.has(lang) || INLINE_CHART_LANGS.has(lang)) {
             text += content.slice(lastIndex, match.index) + rawFragment;
         } else {
             text += content.slice(lastIndex, match.index);

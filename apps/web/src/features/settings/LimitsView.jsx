@@ -47,24 +47,30 @@ export function LimitsView({ state, updateState, onClose }) {
 // ==========================================
 // Используется для дневного/недельного лимита чата, для картинок и для
 // символов TTS — единый визуальный контракт.
-function LimitBar({ title, used, limit, unitLabel = 'запросов', accent = '#5b32d4' }) {
+function LimitBar({ title, used, limit, unitLabel = 'запросов', accent = '#5b32d4', asPercent = false }) {
     const isInfinite = limit === Infinity || limit === 'Infinity';
     const percent = isInfinite ? 100 : (limit > 0 ? Math.min((used / limit) * 100, 100) : 0);
     const exhausted = !isInfinite && used >= limit;
-    const label = isInfinite ? 'Безлимитно' : `${formatCompact(used)} / ${formatCompact(limit)} ${unitLabel}`;
+    // asPercent — вместо «12 / 50 запросов» показываем «24%». Актуально
+    // для дневного/недельного лимита чата: пользователю важнее видеть
+    // приблизительное соотношение, чем точное число.
+    let label;
+    if (isInfinite) label = 'Безлимитно';
+    else if (asPercent) label = `${Math.round(percent)}%`;
+    else label = `${formatCompact(used)} / ${formatCompact(limit)} ${unitLabel}`;
+    // Предупреждение при 90%+ — сигнальный оранжевый цвет
+    const warning = !isInfinite && !exhausted && percent >= 90;
+    const barColor = exhausted ? '#f59e0b' : (warning ? '#f97316' : accent);
     return (
         <div>
             <div className="flex justify-between items-end mb-2">
                 <span className="font-bold text-sm dark:text-white">{title}</span>
-                <span className={`text-sm font-bold ${exhausted ? 'text-amber-500' : 'text-gray-500'}`}>{label}</span>
+                <span className={`text-sm font-bold ${exhausted ? 'text-amber-500' : (warning ? 'text-orange-500' : 'text-gray-500')}`}>{label}</span>
             </div>
             <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-3 overflow-hidden">
                 <div
                     className="h-3 rounded-full transition-all duration-700"
-                    style={{
-                        width: `${percent}%`,
-                        background: exhausted ? '#f59e0b' : accent,
-                    }}
+                    style={{ width: `${percent}%`, background: barColor }}
                 />
             </div>
         </div>
@@ -158,11 +164,13 @@ function LimitsContent({ state, updateState, onNavigate }) {
                 </div>
             </div>
 
-            {/* Дневной / Недельный лимит чатов */}
+            {/* Дневной / Недельный лимит чатов — показ в процентах.
+                Пользователю проще ориентироваться «20% использовано» чем
+                «12 из 60»: точное число редко имеет значение. */}
             <div className="space-y-5">
                 <h5 className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Чат-запросы</h5>
-                <LimitBar title="Дневной лимит" used={usedDaily} limit={maxDaily} />
-                <LimitBar title="Недельный лимит" used={usedWeekly} limit={maxWeekly} />
+                <LimitBar title="Дневной лимит" used={usedDaily} limit={maxDaily} asPercent />
+                <LimitBar title="Недельный лимит" used={usedWeekly} limit={maxWeekly} asPercent />
             </div>
 
             {/* Лимит изображений */}
