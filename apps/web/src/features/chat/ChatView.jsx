@@ -8,12 +8,15 @@ import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
 import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
 import { ImageGenLoader } from '@/features/chat/ImageGenLoader';
 import { GeneratedImage } from '@/features/chat/GeneratedImage';
+import { ScrollDownButton } from '@/features/chat/ScrollDownButton';
+import { UserMessageBubble } from '@/features/chat/UserMessageBubble';
 import { ChatPlusMenu } from '@/features/chat/ChatPlusMenu';
 import { TopHeader } from '@/features/home/TopHeader';
 import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
 import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
+import { useLongPressCopy } from '@/shared/lib/useLongPressCopy';
 import { defaultReasoningFor } from '@/shared/config/models';
 import { getPlanLimits } from '@/shared/config/models';
 import { t } from '@/shared/lib/i18n';
@@ -210,7 +213,10 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                     
                     {messages.map((msg, idx) => (
                         <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-4xl transition-colors rounded-2xl min-w-0 ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
-                            <div className={`p-4 md:p-5 rounded-3xl void-selectable min-w-0 max-w-full overflow-hidden break-words ${msg.role === 'user' ? 'bg-[#5b32d4] text-white rounded-tr-sm shadow-sm' : 'bg-white dark:bg-darkBg text-gray-900 dark:text-gray-100 rounded-tl-sm'}`}>
+                            {msg.role === 'user' ? (
+                                <UserMessageBubble msg={msg} onCopied={setShareToast} />
+                            ) : (
+                            <div className={`p-4 md:p-5 rounded-3xl void-selectable min-w-0 max-w-full overflow-hidden break-words bg-white dark:bg-darkBg text-gray-900 dark:text-gray-100 rounded-tl-sm`}>
                                 {msg.image && <img src={msg.image} alt="Upload" className="max-w-full md:max-w-sm rounded-xl mb-3 shadow-sm border border-gray-100 dark:border-gray-800" />}
                                 {msg.generatedImage ? (
                                     <div className="void-img-fadein">
@@ -288,6 +294,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                     </>
                                 )}
                             </div>
+                            )}
                         </div>
                     ))}
                     {state.isGenerating && state.isGeneratingImage && (
@@ -304,18 +311,15 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 отскроллен от самого низа переписки (в т.ч. после ответа ИИ).
                 Позиция считается от РЕАЛЬНОЙ высоты инпут-бара (bottomPad),
                 поэтому при росте многострочного ввода стрелка плавно уходит
-                выше и никогда не наезжает на поле. Прозрачность opacity-80 —
-                чтобы кнопка не отвлекала, а на hover становилась контрастнее. */}
-            {showScrollDown && (
-                <button
-                    onClick={scrollToBottomNow}
-                    title={t(lang, 'chat.scrollToBottom')}
-                    style={{ bottom: `${bottomPad + 8}px`, transition: 'bottom 180ms ease-out' }}
-                    className="absolute left-1/2 -translate-x-1/2 z-30 w-10 h-10 rounded-full bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder shadow-lg flex items-center justify-center text-[#5b32d4] dark:text-purple-400 opacity-80 hover:opacity-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all fade-in"
-                >
-                    <Icons.ChevronDown className="w-5 h-5" />
-                </button>
-            )}
+                выше и никогда не наезжает на поле. Фон полупрозрачный с
+                backdrop-blur, чтобы кнопка не отвлекала внимание, но иконка
+                стрелки — четкая на 100% (см. ScrollDownButton). */}
+            <ScrollDownButton
+                visible={showScrollDown}
+                bottomPad={bottomPad}
+                onClick={scrollToBottomNow}
+                title={t(lang, 'chat.scrollToBottom')}
+            />
 
             <div ref={inputWrapRef} className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white dark:from-darkBg via-white dark:via-darkBg to-transparent pt-14 px-3 sm:px-4 md:px-8 z-20 pointer-events-none pb-safe">
                 <div className="relative max-w-4xl mx-auto pointer-events-auto">

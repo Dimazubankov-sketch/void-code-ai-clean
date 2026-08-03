@@ -73,15 +73,40 @@ export const splitMessageContent = (content) => {
 // способного запутать браузерный парсер) — вместо этого возвращается
 // отдельно и добавляется в iframe уже после его загрузки через DOM API
 // (document.createElement('script')) в CodeViewerModal ниже.
+// Модели пишут «сырой» HTML без базовых стилей — предпросмотр выглядит как
+// в 90-х (Times New Roman, дефолтные кнопки). Подмешиваем в <head> tailwind
+// через CDN + Google Fonts (Inter) + минимальный reset, ЕСЛИ модель этого
+// не сделала сама. Проверяем по подстрокам «tailwindcss» / «cdn.tailwindcss»
+// / «fonts.googleapis» — если что-то из этого уже есть, не трогаем.
+const MODERN_HEAD_INJECTIONS = `
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+    :root { color-scheme: light; }
+    html, body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    body { margin: 0; }
+</style>
+`;
+
+function injectModernAssets(html) {
+    if (/tailwindcss|cdn\.tailwindcss|fonts\.googleapis/i.test(html)) return html;
+    if (/<head[^>]*>/i.test(html)) {
+        return html.replace(/<head[^>]*>/i, (m) => m + MODERN_HEAD_INJECTIONS);
+    }
+    if (/<!doctype/i.test(html) || /<html[\s>]/i.test(html)) {
+        return html.replace(/<body[^>]*>/i, (m) => `<head>${MODERN_HEAD_INJECTIONS}</head>` + m);
+    }
+    return `<!DOCTYPE html><html><head>${MODERN_HEAD_INJECTIONS}</head><body>${html}</body></html>`;
+}
+
 export const buildCodePreviewDoc = (code, language, siblings = []) => {
     const lang = (language || '').toLowerCase();
     if (lang === 'html' || /<!doctype/i.test(code) || /<html[\s>]/i.test(code)) {
         let html = code;
-        // Если ИИ прислал HTML отдельным блоком, а CSS/JS — соседними блоками
-        // в том же ответе (типичный случай для многофайлового кода), сама
-        // разметка часто ссылается на внешние файлы (style.css, script.js),
-        // которых в песочнице iframe физически нет — предпросмотр выходил
-        // белым, без оформления. Подмешиваем соседние блоки прямо в документ.
+        // Соседние блоки CSS/JS в одном ответе — подмешиваем в документ.
         const cssSiblings = siblings.filter(b => b.content !== code && ['css'].includes((b.language || '').toLowerCase()));
         const jsSiblings = siblings.filter(b => b.content !== code && ['javascript', 'js'].includes((b.language || '').toLowerCase()));
         if (cssSiblings.length) {
@@ -92,14 +117,16 @@ export const buildCodePreviewDoc = (code, language, siblings = []) => {
             const scriptTag = `<script>${jsSiblings.map(b => b.content).join('\n')}</script>`;
             html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${scriptTag}</body>`) : html + scriptTag;
         }
+        // Модернизируем: Tailwind CDN + Inter, если модель их не подключила.
+        html = injectModernAssets(html);
         return { html, jsCode: null };
     }
     if (lang === 'css') {
-        const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;padding:24px;color:#1a1a2e}' + code + '</style></head><body><div class="preview-demo"><h1>Пример заголовка</h1><p>Демонстрационный текст для проверки стилей.</p><button>Кнопка</button></div>';
+        const html = `<!DOCTYPE html><html><head>${MODERN_HEAD_INJECTIONS}<style>body{padding:24px;color:#1a1a2e}${code}</style></head><body><div class="preview-demo"><h1 class="text-3xl font-bold mb-4">Пример заголовка</h1><p class="text-gray-600 mb-4">Демонстрационный текст для проверки стилей.</p><button class="px-4 py-2 bg-purple-600 text-white rounded-lg">Кнопка</button></div></body></html>`;
         return { html, jsCode: null };
     }
     if (lang === 'javascript' || lang === 'js' || lang === 'jsx' || lang === 'typescript' || lang === 'ts') {
-        const html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:ui-monospace,monospace;padding:16px;font-size:13px;white-space:pre-wrap;color:#1a1a2e;"><div id="void-console-out"></div>';
+        const html = `<!DOCTYPE html><html><head>${MODERN_HEAD_INJECTIONS}</head><body style="font-family:ui-monospace,monospace;padding:16px;font-size:13px;white-space:pre-wrap;color:#1a1a2e;"><div id="void-console-out"></div></body></html>`;
         const jsCode = `
             const out = document.getElementById('void-console-out');
             const render = (color) => (...args) => {
