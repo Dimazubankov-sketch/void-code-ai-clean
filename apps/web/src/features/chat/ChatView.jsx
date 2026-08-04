@@ -9,6 +9,7 @@ import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
 import { ImageGenLoader } from '@/features/chat/ImageGenLoader';
 import { GeneratedImage } from '@/features/chat/GeneratedImage';
 import { ScrollDownButton } from '@/features/chat/ScrollDownButton';
+import { Toast } from '@/shared/ui/Toast';
 import { UserMessageBubble } from '@/features/chat/UserMessageBubble';
 import { ChatPlusMenu } from '@/features/chat/ChatPlusMenu';
 import { TopHeader } from '@/features/home/TopHeader';
@@ -47,18 +48,11 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     const [feedback, setFeedback] = useState(null);          // { idx, type }
     const [feedbackMap, setFeedbackMap] = useState({});      // idx -> 'like'|'dislike'
     const [shareToast, setShareToast] = useState('');
-    // Единая точка авто-скрытия тоста: раньше setTimeout стоял только
-    // внутри shareDialog(), поэтому тост «Скопировано» из мини-меню
-    // long-press (onCopied={setShareToast} в UserMessageBubble) вызывал
-    // setShareToast НАПРЯМУЮ без какого-либо таймера и просто висел
-    // бесконечно. Теперь ЛЮБОЕ появление shareToast (из какого угодно
-    // места) автоматически скрывается через 1.1с — быстрее чем раньше
-    // (было 2.2с), по просьбе пользователя.
-    useEffect(() => {
-        if (!shareToast) return;
-        const timer = setTimeout(() => setShareToast(''), 1100);
-        return () => clearTimeout(timer);
-    }, [shareToast]);
+    // Авто-скрытие теперь встроено в компонент <Toast>: он сам плавно
+    // затухает через ~1.3с и по завершении затухания вызывает onFadeDone,
+    // который здесь сбрасывает shareToast обратно в ''. Так родитель
+    // избавлен от таймеров, а пользователь видит плавное появление И
+    // плавное исчезновение (раньше пропадало резко).
 
     const voiceOpts = () => ({
         // OpenAI TTS: голос по имени (alloy/echo/fable/onyx/nova/shimmer),
@@ -514,7 +508,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 <FeedbackModal type={feedback.type} onSubmit={submitFeedback} onClose={() => setFeedback(null)} />
             )}
             {shareToast && (
-                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[120] px-4 py-2.5 rounded-2xl bg-gray-900 dark:bg-gray-700 text-white text-sm font-semibold shadow-xl fade-in">{shareToast}</div>
+                <Toast message={shareToast} onFadeDone={() => setShareToast('')} />
             )}
         </div>
     );

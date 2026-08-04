@@ -26,18 +26,22 @@ export class ImageService {
   // Порядок важен: gpt-image-1 — новая единая модель OpenAI для генерации
   // изображений (пришла на смену DALL-E 3 для большинства новых аккаунтов),
   // пробуем её первой. Если у ключа нет доступа (org не верифицирована) —
-  // падаем на dall-e-3 как проверенный временем вариант для старых ключей.
+  // падаем на dall-e-3 как проверенный временем вариант. Если и он
+  // недоступен — dall-e-2 как последняя гарантированная опция: она
+  // доступна всем аккаунтам OpenAI без каких-либо ограничений/верификаций.
   //
   // Разные модели принимают РАЗНЫЕ параметры:
   // - gpt-image-1: quality — 'low'|'medium'|'high'|'auto' (НЕ 'standard'),
-  //   не принимает response_format (всегда возвращает b64_json), не
-  //   принимает style.
-  // - dall-e-3: quality — 'standard'|'hd', принимает style ('vivid'|'natural'),
-  //   response_format — 'url'|'b64_json' (правда этот параметр тоже мог
-  //   отвалиться, поэтому мы его не передаём вовсе — см. историю багов).
+  //   не принимает response_format, не принимает style. ТРЕБУЕТ
+  //   верификации организации у большинства аккаунтов.
+  // - dall-e-3: quality — 'standard'|'hd', размер 1024x1024/1792x1024/
+  //   1024x1792, доступ есть у большинства старых аккаунтов.
+  // - dall-e-2: quality не принимает вовсе (одна ступень качества),
+  //   размер 256x256/512x512/1024x1024. Доступна всем.
   private readonly modelConfigs: Array<{ model: string; body: Record<string, any> }> = [
     { model: 'gpt-image-1', body: { quality: 'high', size: '1024x1024' } },
     { model: 'dall-e-3', body: { quality: 'standard', size: '1024x1024' } },
+    { model: 'dall-e-2', body: { size: '1024x1024' } },
   ];
 
   async generate(prompt: string): Promise<string> {
@@ -140,11 +144,25 @@ export class ImageService {
       // Модель недоступна для этого ключа/организации — сигнализируем
       // наверх специальным флагом, чтобы generate() попробовал следующую
       // модель из списка вместо того чтобы сразу падать с ошибкой.
+      //
+      // Также сюда попадают: (а) ошибки верификации организации у
+      // gpt-image-1 (аккаунт без пройденной проверки не может её
+      // использовать); (б) невнятные 400 с упоминанием 'safety' или
+      // 'content_policy' — на новых моделях (gpt-image-1) это часто НЕ
+      // реальный content policy violation, а способ платформы сказать
+      // «доступ ограничен для вашего типа аккаунта». Мы даём попробовать
+      // следующую модель — если ВСЕ модели подряд ответят одинаково,
+      // тогда покажем финальную ошибку про policy.
+      const looksLikeSafetyOrVerify =
+        /verification|verify.*organization|not.*verified|content.?policy|safety.*system/i.test(
+          parsedMessage || errorBody
+        );
       const isModelUnavailable =
         response.status === 400 &&
         (parsedCode === 'model_not_found' ||
           /does not exist/i.test(parsedMessage || '') ||
-          /does not have access/i.test(parsedMessage || ''));
+          /does not have access/i.test(parsedMessage || '') ||
+          looksLikeSafetyOrVerify);
       if (isModelUnavailable) {
         const err: any = new ServiceUnavailableException(`Модель ${body.model} недоступна для этого ключа OpenAI`);
         err.__modelUnavailable = true;
@@ -163,7 +181,9 @@ export class ImageService {
 
       const lowerBody = errorBody.toLowerCase();
       if (response.status === 400) {
-        if (lowerBody.includes('content_policy') || lowerBody.includes('safety')) {
+        // Реальная политика контента — только по явному коду, а не по
+        // упоминанию слова в тексте (эти уже перехвачены как fallback выше).
+        if (parsedCode === 'content_policy_violation') {
           throw new ServiceUnavailableException('Запрос отклонён политикой безопасности OpenAI. Переформулируй промпт.');
         }
         if (lowerBody.includes('billing') || lowerBody.includes('quota')) {

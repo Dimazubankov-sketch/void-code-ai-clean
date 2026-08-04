@@ -29,15 +29,28 @@ export class OpenRouterProvider implements LlmProvider {
   readonly name = 'openrouter';
 
   private readonly apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
-  // Держим таймаут строго меньше типового nginx proxy_read_timeout (обычно
-  // 60с, у нас на сервере поднято до 180с — см. docs/SERVER_SETUP.md).
-  private readonly timeoutMs = 90_000;
+  // Держим таймаут в 60с. Раньше стоял 90с как страховка от медленного
+  // upstream'а — но теперь мы явно просим OpenRouter выбирать самого
+  // быстрого провайдера через provider.sort='throughput', поэтому нормальный
+  // ответ приходит за 10-30 сек даже на больших запросах. Если что-то не
+  // укладывается в 60с — почти наверняка проблема на стороне upstream, и
+  // лучше упасть быстро с внятной ошибкой, чем висеть 90с ради одного из
+  // ста случаев, когда медленный ответ всё же дойдёт.
+  private readonly timeoutMs = 60_000;
 
-  // Void Plus → qwen-2.5-coder-32b-instruct (специализация на коде,
-  // быстрее 72B, сильнее mini).
-  // Void Pro → qwen3-coder (новое поколение Qwen для кода, быстрее и
-  // качественнее 2.5-72b-instruct, особенно на многофайловых задачах).
-  // Void Mini (быстрые/дешёвые ответы) — на младшей coder-модели.
+  // Void Plus → qwen-2.5-coder-32b-instruct: специализирована на коде,
+  // очень стабильный throughput у большинства upstream-провайдеров.
+  // Void Pro → qwen3-coder: новое поколение Qwen для кода, качественнее
+  // 2.5-72b-instruct на многофайловых задачах. РАНЬШЕ время генерации
+  // лендинга доходило до 5–10 минут — виноват был не сам qwen3-coder,
+  // а то, что OpenRouter по умолчанию мог маршрутизировать запрос на
+  // дешёвого, но крайне медленного upstream-провайдера (~5–15 tok/s
+  // вместо возможных 100+). Теперь мы явно указываем provider.sort =
+  // 'throughput' в теле запроса — OpenRouter выбирает upstream по
+  // скорости, а не по цене. Плюс max_tokens 16384 → 6144: этого хватает
+  // на полный лендинг (~3000 строк HTML+CSS+JS), но не даёт модели
+  // размывать ответ на 15000 токенов «на всякий случай», что и было
+  // главным источником 5-минутного ожидания.
   private readonly modelMap: Record<string, string> = {
     mini: 'qwen/qwen-2.5-coder-32b-instruct',
     flash: 'qwen/qwen-2.5-coder-32b-instruct',
@@ -77,11 +90,24 @@ export class OpenRouterProvider implements LlmProvider {
         body: JSON.stringify({
           model: chosenModel,
           messages,
-          // 16384 — Qwen coder-модели держат до 32K output; 16К хватает
-          // на любые сайты/файлы и не режет ответ посередине. При кастомном
-          // maxTokens в запросе оставляем контроль пользователю.
-          max_tokens: req.maxTokens ?? 16384,
+          // 6144 токенов — золотая середина: хватает на полноценный лендинг,
+          // компонент со всеми состояниями, скрипт с обработкой ошибок; но
+          // модель НЕ пытается размыть ответ до 15000 токенов «для запаса»,
+          // что раньше давало 5–10 мин ожидания на Void Pro. Если запрос
+          // явно передаёт больший maxTokens — уважаем.
+          max_tokens: req.maxTokens ?? 6144,
           temperature: req.temperature ?? 0.7,
+          // Ключевая оптимизация скорости: заставляем OpenRouter выбирать
+          // upstream-провайдера по throughput (токенов в секунду), а не по
+          // дефолтной цене. Для одной и той же модели разные upstream дают
+          // разброс от 5 до 150 tok/s; без этой настройки OpenRouter мог
+          // отправить запрос на самого медленного и дешёвого поставщика.
+          // allow_fallbacks оставляем true — если самый быстрый провайдер
+          // перегружен, автоматически уйдём на следующего по throughput.
+          provider: {
+            sort: 'throughput',
+            allow_fallbacks: true,
+          },
         }),
       });
     } catch (e: any) {
