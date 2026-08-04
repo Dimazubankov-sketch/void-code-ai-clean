@@ -10,19 +10,25 @@
 
 const SCRIPTS_RU = {
     low: [
-        { icon: 'Sparkles', text: 'Думаю…' },
+        { icon: 'Sparkles', text: 'Анализирую запрос…' },
+        { icon: 'Search', text: 'Уточняю контекст…' },
         { icon: 'MessageSquare', text: 'Формулирую ответ…' },
     ],
     medium: [
-        { icon: 'Sparkles', text: 'Думаю…' },
-        { icon: 'Search', text: 'Ищу информацию…' },
+        { icon: 'Sparkles', text: 'Разбираю запрос…' },
+        { icon: 'Search', text: 'Ищу подходящую информацию…' },
+        { icon: 'BarChart', text: 'Выделяю ключевые моменты…' },
+        { icon: 'Code', text: 'Продумываю структуру ответа…' },
         { icon: 'MessageSquare', text: 'Формулирую ответ…' },
     ],
     high: [
-        { icon: 'Sparkles', text: 'Разбираю задачу…' },
+        { icon: 'Sparkles', text: 'Разбираю задачу на составляющие…' },
         { icon: 'Search', text: 'Ищу информацию в сети…' },
         { icon: 'Globe', text: 'Проверяю несколько источников…' },
-        { icon: 'BarChart', text: 'Сопоставляю факты…' },
+        { icon: 'BarChart', text: 'Сопоставляю факты между собой…' },
+        { icon: 'Code', text: 'Продумываю структуру решения…' },
+        { icon: 'Skills', text: 'Подбираю подходящие подходы…' },
+        { icon: 'Check', text: 'Проверяю логику рассуждений…' },
         { icon: 'MessageSquare', text: 'Формулирую развёрнутый ответ…' },
     ],
     max: [
@@ -30,8 +36,11 @@ const SCRIPTS_RU = {
         { icon: 'Search', text: 'Ищу информацию в сети…' },
         { icon: 'Globe', text: 'Просматриваю релевантные источники…' },
         { icon: 'BarChart', text: 'Сопоставляю и перепроверяю факты…' },
-        { icon: 'Code', text: 'Продумываю структуру решения…' },
-        { icon: 'Check', text: 'Проверяю ответ на точность…' },
+        { icon: 'Skills', text: 'Рассматриваю альтернативные подходы…' },
+        { icon: 'Code', text: 'Продумываю архитектуру решения…' },
+        { icon: 'BarChart', text: 'Оцениваю компромиссы каждого варианта…' },
+        { icon: 'Check', text: 'Проверяю ответ на точность и полноту…' },
+        { icon: 'Sparkles', text: 'Убеждаюсь, что ничего не упустил…' },
         { icon: 'MessageSquare', text: 'Формулирую максимально глубокий ответ…' },
     ],
 };

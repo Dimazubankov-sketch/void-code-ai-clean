@@ -17,7 +17,9 @@ export class GroqProvider implements LlmProvider {
   // эксплуатации (без точной даты) — когда это случится, замени здесь на
   // актуальную модель из https://console.groq.com/docs/models.
   private readonly modelMap: Record<string, string> = {
+    mini: 'llama-3.3-70b-versatile',
     flash: 'llama-3.3-70b-versatile',
+    plus: 'llama-3.3-70b-versatile',
     flash_ext: 'llama-3.3-70b-versatile',
     pro: 'llama-3.3-70b-versatile',
   };

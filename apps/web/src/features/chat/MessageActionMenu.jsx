@@ -70,8 +70,11 @@ export function MessageActionMenu({ open, onCopy, onEdit, onClose }) {
     return (
         <div
             ref={menuRef}
-            className="absolute -top-14 right-0 z-40 flex items-center gap-1.5 bg-white dark:bg-darkCard rounded-2xl shadow-xl border border-gray-100 dark:border-darkBorder px-1.5 py-1.5"
-            style={{ transformOrigin: 'bottom right' }}
+            // Меню теперь ПОД сообщением, а не над: пользователь просил
+            // перенести. transformOrigin из bottom-right в top-right —
+            // GSAP scale-анимация «раскрывается вниз» из верхнего края.
+            className="absolute top-full mt-2 right-0 z-40 flex items-center gap-1.5 bg-white dark:bg-darkCard rounded-2xl shadow-xl border border-gray-100 dark:border-darkBorder px-1.5 py-1.5"
+            style={{ transformOrigin: 'top right' }}
             onClick={(e) => e.stopPropagation()}
         >
             <button

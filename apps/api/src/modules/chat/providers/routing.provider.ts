@@ -26,8 +26,14 @@ export class RoutingLlmProvider implements LlmProvider {
 
   async generate(req: LlmRequest): Promise<string> {
     const model = (req.model || '').toLowerCase();
-    // Void Mini — быстрая линия. Всё остальное — OpenRouter/Qwen.
-    const useGroqFirst = model === 'flash' || model === 'mini';
+    // Void Mini И Void Plus — быстрая линия через Groq (llama-3.3-70b-
+    // versatile, 200-500 tok/s). Раньше Void Plus ходил на OpenRouter/
+    // Qwen — там качество кода чуть выше, но пользователь жаловался
+    // «долго грузит ответ». Для чата с быстрыми диалогами скорость
+    // важнее — на Groq/llama 8k токенов приходят за 3-5 секунд, тогда
+    // как на OpenRouter/Qwen могло уйти 20-30. Void Pro остаётся на
+    // OpenRouter/qwen3-coder для сложных задач, где качество важнее.
+    const useGroqFirst = model === 'flash' || model === 'mini' || model === 'flash_ext' || model === 'plus';
 
     const primary = useGroqFirst ? this.groq : this.openrouter;
     const fallback = useGroqFirst ? this.openrouter : this.groq;

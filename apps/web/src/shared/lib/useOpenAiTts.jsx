@@ -93,15 +93,9 @@ export function useOpenAiTts() {
         setError(null);
         setLoading(true);
 
-        // Защита от гонки: если пользователь успел нажать «Проверить голос»
-        // ещё раз, пока первый запрос ещё летит (например, очень быстрый
-        // повторный тап до того, как React перерисовал disabled на кнопке),
-        // раньше оба fetch-запроса могли завершиться и оба пытались создать
-        // свой <audio> и включить play() — это и приводило к «обрезанию»
-        // звука (второй audio перебивал первый на середине). requestToken
-        // помечает какой вызов speak() «актуальный» — если к моменту
-        // получения ответа пришёл более новый вызов, текущий результат
-        // тихо отбрасывается вместо создания второго проигрывателя.
+        // Защита от гонки при быстром повторном нажатии — см. историю
+        // предыдущих правок: без токена два fetch могли создать по
+        // <audio> и обрезать друг друга.
         const myToken = Symbol('tts-request');
         requestTokenRef.current = myToken;
 
@@ -118,36 +112,81 @@ export function useOpenAiTts() {
                 },
             });
 
-            // Пока шёл fetch, пользователь успел запустить ещё один speak() —
-            // этот ответ уже неактуален, не создаём для него audio.
             if (requestTokenRef.current !== myToken) return;
 
             const url = URL.createObjectURL(blob);
             urlRef.current = url;
-            const audio = new Audio(url);
+            const audio = new Audio();
+            // preload="auto" + ждать canplaythrough перед play() — раньше
+            // play() стартовал сразу после new Audio(url), когда браузер
+            // ещё даже не начал декодировать MP3. Это давало два бага
+            // разом: (1) первое слово стартовало с задержкой и слышалось
+            // «обрубленным»; (2) на медленной сети .play() отклонялся с
+            // NotAllowedError/NotSupportedError, и мы ошибочно показывали
+            // «Не удалось воспроизвести аудио», хотя файл был валидный.
+            audio.preload = 'auto';
+            audio.src = url;
             audioRef.current = audio;
             setAudioEl(audio);
 
             audio.onloadedmetadata = () => setDuration(audio.duration || 0);
             audio.ontimeupdate = () => setElapsed(audio.currentTime || 0);
             audio.onended = () => { setSpeaking(false); setPaused(false); };
-            audio.onerror = () => { setError('Не удалось воспроизвести аудио'); setSpeaking(false); };
+            // onerror сбрасывался при ЛЮБОЙ ошибке медиа-элемента,
+            // включая безобидную MEDIA_ERR_ABORTED (когда мы сами
+            // сменили src или вызвали stop()). Фильтруем только реальные
+            // ошибки декодирования/сети — MEDIA_ERR_DECODE (3) и
+            // MEDIA_ERR_SRC_NOT_SUPPORTED (4).
+            audio.onerror = () => {
+                const code = audio.error?.code;
+                if (code === 3 || code === 4) {
+                    setError('Не удалось воспроизвести аудио');
+                    setSpeaking(false);
+                }
+            };
+
+            // Ждём, пока браузер сможет проиграть файл БЕЗ пауз до конца
+            // (canplaythrough), а не начинает play() как только пришли
+            // первые байты. Максимум 5 сек ожидания — потом всё равно
+            // пробуем, чтобы не висеть вечно на очень слабых устройствах.
+            await new Promise((resolve) => {
+                let done = false;
+                const finish = () => {
+                    if (done) return;
+                    done = true;
+                    audio.removeEventListener('canplaythrough', finish);
+                    resolve();
+                };
+                audio.addEventListener('canplaythrough', finish, { once: true });
+                setTimeout(finish, 5000);
+                audio.load();
+            });
+
+            if (requestTokenRef.current !== myToken) return;
 
             setLoading(false);
             setSpeaking(true);
-            await audio.play();
+            try {
+                await audio.play();
+            } catch (playErr) {
+                // AbortError возникает при stop()/сmене src во время play() —
+                // это НЕ ошибка воспроизведения, ничего пользователю не
+                // показываем. Всё остальное — реальная проблема (autoplay-
+                // policy без user-gesture и т.п.).
+                if (playErr?.name === 'AbortError') return;
+                console.warn('[useOpenAiTts] play() отклонён:', playErr?.message);
+                setError('Не удалось воспроизвести аудио');
+                setSpeaking(false);
+            }
         } catch (e) {
             if (requestTokenRef.current !== myToken) return;
             setLoading(false);
-            // Ошибка лимита — показываем сообщение, не идём в фолбэк
-            // (пользователь не должен думать, что «работает» — платный ресурс кончился).
             if (e instanceof ApiError && e.status === 403) {
                 setError(e.message || 'Дневной лимит озвучки исчерпан');
                 return;
             }
             // eslint-disable-next-line no-console
             console.warn('[useOpenAiTts] Падение OpenAI TTS, фолбэк на Web Speech:', e?.message);
-            // Иначе — молча Web Speech
             speakWithFallback(safeText, opts);
         }
     }, [stop, speakWithFallback]);

@@ -141,14 +141,6 @@ function LimitsContent({ state, updateState, onNavigate }) {
 
     return (
         <div className="bg-white dark:bg-darkCard rounded-[2rem] p-6 shadow-sm border border-gray-100 dark:border-darkBorder space-y-6">
-            {/* Пояснение про Void Mini */}
-            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-2xl border border-purple-100 dark:border-purple-900/50 flex gap-3 items-start">
-                <Icons.Info className="w-5 h-5 shrink-0 text-[#5b32d4] mt-0.5" />
-                <p className="text-sm text-[#5b32d4] dark:text-purple-300 font-medium leading-relaxed flex-1 min-w-0">
-                    Обычные запросы к модели <strong>Void Mini</strong> не расходуют премиум-лимиты и не отображаются на графике.
-                </p>
-            </div>
-
             {/* Универсальное уведомление о восстановлении через 6 часов */}
             <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 flex gap-3 items-start">
                 <Icons.Clock className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />

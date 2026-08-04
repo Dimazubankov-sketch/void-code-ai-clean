@@ -39,8 +39,16 @@ export function UserMessageBubble({ msg, onCopied, onEdit }) {
             />
             <div
                 {...bind}
-                className="p-4 md:p-5 rounded-3xl void-selectable min-w-0 max-w-full overflow-hidden break-words bg-[#5b32d4] text-white rounded-tr-sm shadow-sm cursor-pointer select-none touch-manipulation"
-                style={{ willChange: 'transform' }}
+                // Специально БЕЗ void-selectable: пользователь попросил
+                // убрать ручное выделение и копирование СВОИХ сообщений —
+                // теперь единственный способ скопировать текст своего
+                // сообщения это open-меню и кнопка «Скопировать». user-select-none
+                // отключает системное выделение (на desktop и iOS long-press
+                // тоже перестанет вызывать системное меню Copy). Сообщения
+                // ИИ по-прежнему остаются выделяемыми — их отдельный
+                // рендер в MessageRenderer.
+                className="p-4 md:p-5 rounded-3xl min-w-0 max-w-full overflow-hidden break-words bg-[#5b32d4] text-white rounded-tr-sm shadow-sm cursor-pointer select-none touch-manipulation"
+                style={{ willChange: 'transform', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
             >
                 {msg.image && (
                     <img
