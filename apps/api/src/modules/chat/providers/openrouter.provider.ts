@@ -71,6 +71,14 @@ export class OpenRouterProvider implements LlmProvider {
     ];
 
     const chosenModel = this.modelMap[req.model] || this.fallbackModel;
+    // Void Plus работает на qwen-2.5-coder-32b — модель специализирована
+    // на коде, но 6144 токенов на выходе давали 20-30 сек ожидания. Для
+    // Plus снижаем до 4096 — этого хватает на полноценный компонент/
+    // страницу, и одновременно ощутимо снижает latency. Void Pro
+    // (qwen3-coder) остаётся на 6144 — там качество важнее скорости.
+    const isPlusOrLighter = req.model === 'plus' || req.model === 'flash_ext' ||
+                            req.model === 'flash' || req.model === 'mini';
+    const defaultMaxTokens = isPlusOrLighter ? 4096 : 6144;
     const started = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -95,7 +103,7 @@ export class OpenRouterProvider implements LlmProvider {
           // модель НЕ пытается размыть ответ до 15000 токенов «для запаса»,
           // что раньше давало 5–10 мин ожидания на Void Pro. Если запрос
           // явно передаёт больший maxTokens — уважаем.
-          max_tokens: req.maxTokens ?? 6144,
+          max_tokens: req.maxTokens ?? defaultMaxTokens,
           temperature: req.temperature ?? 0.7,
           // Ключевая оптимизация скорости: заставляем OpenRouter выбирать
           // upstream-провайдера по throughput (токенов в секунду), а не по

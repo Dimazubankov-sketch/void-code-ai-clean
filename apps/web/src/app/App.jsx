@@ -20,7 +20,7 @@ import { ProjectsView } from '@/features/projects/ProjectsView';
 import { SkillsView, buildSkillsInstruction } from '@/features/skills/SkillsView';
 import { PluginsView } from '@/features/plugins/PluginsView';
 import { WalletView } from '@/features/wallet/WalletView';
-import { createBackendChat, sendBackendMessage, generateBackendImage } from '@/shared/api/chat';
+import { createBackendChat, sendBackendMessage, generateBackendImage, fetchWebPage } from '@/shared/api/chat';
 import { ApiError } from '@/shared/api/client';
 import { AI_MODELS, getPlanLimits, defaultReasoningFor } from '@/shared/config/models';
 import { buildReasoningScript, levelDelayMs } from '@/shared/config/reasoningScript';
@@ -483,7 +483,35 @@ export function App() {
             // В режиме агента используем pro-модель (код уровня Plus/Pro),
             // иначе — выбранную пользователем модель.
             const modelForRequest = activeAgent ? 'pro' : state.selectedModelId;
-            responseText = await sendBackendMessage(backendChatId, textToSend, modelForRequest, systemPrompt);
+
+            // Если в сообщении есть URL(ы) — предзагружаем их содержимое
+            // и подмешиваем в запрос к LLM. Модель не имеет прямого выхода
+            // в интернет, но благодаря этому пользователь может присылать
+            // ссылки и просить «изучи этот сайт». Максимум 2 URL за раз,
+            // чтобы не раздувать промпт и время ожидания. Ошибки загрузки
+            // игнорируем молча — модель просто ответит на исходное
+            // сообщение без обогащения.
+            let enrichedText = textToSend;
+            const urlRegex = /https?:\/\/[^\s<>"'`)]+/gi;
+            const urls = (textToSend.match(urlRegex) || []).slice(0, 2);
+            if (urls.length > 0) {
+                const parts = [];
+                for (const u of urls) {
+                    try {
+                        const page = await fetchWebPage(u);
+                        if (page?.text) {
+                            parts.push(`\n\n[Содержимое страницы ${page.url}${page.title ? ` — «${page.title}»` : ''}${page.truncated ? ' (обрезано)' : ''}]\n${page.text}`);
+                        }
+                    } catch (e) {
+                        console.warn(`[App] Не удалось загрузить ${u}:`, e?.message);
+                    }
+                }
+                if (parts.length > 0) {
+                    enrichedText = textToSend + parts.join('') + '\n\n[/содержимое страниц]';
+                }
+            }
+
+            responseText = await sendBackendMessage(backendChatId, enrichedText, modelForRequest, systemPrompt);
             // На более тяжёлых уровнях рассуждений даём ИИ «подумать» чуть
             // дольше перед выдачей ответа — пользователь тем временем видит
             // расширенный индикатор размышления (см. ThinkingIndicator).

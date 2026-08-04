@@ -1,27 +1,26 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 
 // ==========================================
-// Генерация изображений — двухпровайдерная схема
+// Генерация изображений — OpenRouter (Grok Imagine) → OpenAI fallback
 // ==========================================
-// Три раунда правок с OpenAI (dall-e-3 depreкейт, unknown_parameter,
-// gpt-image-1 org verification, model_not_found, safety-подобные ошибки)
-// показали, что связка OpenAI+Images для этого конкретного аккаунта
-// нестабильна: то одно, то другое всё время отваливается. Решение —
-// НЕ полагаться на один провайдер, а иметь запасной.
+// История: OpenAI Images API у этого аккаунта нестабилен — для доступа к
+// gpt-image-1 нужно потратить $5 (verification tier), к dall-e-3 доступ
+// отваливается по «model_not_found»/policy-подобным ошибкам. Пользователь
+// нашёл выход: использовать OpenRouter (у нас там уже есть работающий
+// ключ для Qwen Coder) с моделью x-ai/grok-2-image как основной, а OpenAI
+// оставить резервом на случай, если Grok сам недоступен.
 //
 // Порядок:
-// 1) TOGETHER AI (черный.flux.1-schnell-Free) — быстро, бесплатно, без
-//    org-verification, промпт-free, требует TOGETHER_API_KEY. Работает
-//    для любых аккаунтов, регистрация занимает 1 минуту.
-// 2) OpenAI gpt-image-1 → dall-e-3 → dall-e-2 — как раньше, но теперь
-//    это ФОЛБЭК на случай, если Together API-ключ не задан или упал.
+//   1) OPENROUTER_API_KEY + x-ai/grok-2-image — основной путь. Grok
+//      возвращает картинку по OpenAI-совместимому JSON (data[].url или
+//      data[].b64_json).
+//   2) OPENAI_API_KEY + dall-e-3 → gpt-image-1 → dall-e-2 — fallback,
+//      идёт последовательно с автоматической сменой модели при
+//      «недоступности» (model_not_found, verification required и т.п.).
 //
-// Если Together-ключ есть — используется он (быстро, стабильно, бесплатно).
-// Если нет — сервис прозрачно уходит на OpenAI, как раньше.
-
-interface ProviderResult {
-  url: string;
-}
+// Умное восстановление: если один параметр запроса вызывает 400
+// «Unknown parameter: X» — сервис вырезает X и пробует ещё раз (защита
+// от изменения допустимых параметров API без деплоя).
 
 @Injectable()
 export class ImageService {
@@ -31,37 +30,37 @@ export class ImageService {
     const safePrompt = prompt.length > 1500 ? prompt.slice(0, 1500) : prompt;
     console.log(`[ImageService] запрос → "${safePrompt.slice(0, 100)}${safePrompt.length > 100 ? '…' : ''}"`);
 
-    const togetherKey = process.env.TOGETHER_API_KEY?.trim();
+    const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
     const openaiKey = process.env.OPENAI_API_KEY?.trim();
 
-    if (!togetherKey && !openaiKey) {
-      throw new ServiceUnavailableException('Ни один провайдер изображений не сконфигурирован (нужен TOGETHER_API_KEY или OPENAI_API_KEY)');
+    if (!openrouterKey && !openaiKey) {
+      throw new ServiceUnavailableException('Ни один провайдер изображений не сконфигурирован (нужен OPENROUTER_API_KEY или OPENAI_API_KEY)');
     }
 
     const errors: string[] = [];
 
-    // 1) Together AI (FLUX.1-schnell)
-    if (togetherKey) {
+    // 1) OpenRouter / Grok Imagine — основной провайдер
+    if (openrouterKey) {
       try {
-        const url = await this.callTogether(togetherKey, safePrompt);
+        const url = await this.callOpenRouterGrok(openrouterKey, safePrompt);
         return url;
       } catch (e: any) {
         const msg = e?.message || String(e);
-        console.warn(`[ImageService] Together AI не сработал: ${msg}`);
-        errors.push(`Together: ${msg}`);
-        // Продолжаем на OpenAI, если ключ есть
+        console.warn(`[ImageService] OpenRouter Grok не сработал: ${msg}`);
+        errors.push(`OpenRouter: ${msg}`);
       }
     }
 
     // 2) OpenAI как fallback
     if (openaiKey) {
       if (!openaiKey.startsWith('sk-') || openaiKey.length < 20) {
-        throw new ServiceUnavailableException('Ключ OpenAI имеет неверный формат');
-      }
-      try {
-        return await this.callOpenAiWithModelFallback(openaiKey, safePrompt);
-      } catch (e: any) {
-        errors.push(`OpenAI: ${e?.message || String(e)}`);
+        errors.push('OpenAI: ключ имеет неверный формат');
+      } else {
+        try {
+          return await this.callOpenAiWithModelFallback(openaiKey, safePrompt);
+        } catch (e: any) {
+          errors.push(`OpenAI: ${e?.message || String(e)}`);
+        }
       }
     }
 
@@ -71,62 +70,72 @@ export class ImageService {
   }
 
   // ==========================================
-  // Together AI (FLUX.1-schnell-Free)
+  // OpenRouter — Grok Imagine Image Quality
   // ==========================================
-  private async callTogether(apiKey: string, prompt: string): Promise<string> {
+  private async callOpenRouterGrok(apiKey: string, prompt: string): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const started = Date.now();
+    const modelTag = '[ImageService/OpenRouter/x-ai/grok-2-image]';
 
     let response: Response;
     try {
-      response = await fetch('https://api.together.xyz/v1/images/generations', {
+      response = await fetch('https://openrouter.ai/api/v1/images/generations', {
         method: 'POST',
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
+          'HTTP-Referer': process.env.APP_URL || 'https://void-code.ru',
+          'X-Title': 'Void Code AI',
         },
         body: JSON.stringify({
-          // FLUX.1-schnell-Free — бесплатная быстрая модель (4 шага, ~2сек).
-          model: 'black-forest-labs/FLUX.1-schnell-Free',
+          // Модель Grok-2 Image — генератор от xAI, доступный через
+          // OpenRouter. Ключ тот же, что для Qwen — единая биллинг-точка,
+          // не требует отдельной верификации организации.
+          model: 'x-ai/grok-2-image',
           prompt,
-          width: 1024,
-          height: 1024,
-          steps: 4,
           n: 1,
+          size: '1024x1024',
         }),
       });
     } catch (e: any) {
       clearTimeout(timer);
-      if (e?.name === 'AbortError') {
-        throw new Error(`Together AI таймаут ${Math.round(this.timeoutMs / 1000)}с`);
+      if (e?.name === 'AbortError' || e?.code === 'ABORT_ERR') {
+        throw new Error(`OpenRouter не ответил за ${Math.round(this.timeoutMs / 1000)}с`);
       }
-      throw new Error(`Together AI сетевая ошибка: ${e?.message || e}`);
+      throw new Error(`сетевая ошибка: ${e?.message || e}`);
     }
     clearTimeout(timer);
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '');
-      console.error(`[ImageService/Together] HTTP ${response.status}:`, errorBody.slice(0, 1000));
-      if (response.status === 401) throw new Error('Ключ Together AI недействителен');
-      if (response.status === 429) throw new Error('Rate limit Together AI');
-      throw new Error(`Together AI HTTP ${response.status}`);
+      console.error(`${modelTag} HTTP ${response.status}:`, errorBody.slice(0, 1000));
+      let parsedMessage: string | null = null;
+      try {
+        const parsed = JSON.parse(errorBody);
+        parsedMessage = parsed?.error?.message || null;
+      } catch { /* not json */ }
+      if (response.status === 401) throw new Error('ключ OpenRouter недействителен');
+      if (response.status === 402) throw new Error('нет баланса на OpenRouter');
+      if (response.status === 429) throw new Error('rate limit OpenRouter');
+      throw new Error(parsedMessage ? parsedMessage.slice(0, 200) : `HTTP ${response.status}`);
     }
     const data: any = await response.json();
-    console.log(`[ImageService/Together] ок за ${Date.now() - started}мс`);
+    console.log(`${modelTag} ок за ${Date.now() - started}мс`);
     const first = data.data?.[0];
-    if (first?.url) return first.url;
-    if (first?.b64_json) return `data:image/png;base64,${first.b64_json}`;
-    throw new Error('Together AI: пустой ответ');
+    if (!first) throw new Error('OpenRouter вернул пустой data');
+    if (typeof first.url === 'string' && first.url) return first.url;
+    if (typeof first.b64_json === 'string' && first.b64_json) return `data:image/png;base64,${first.b64_json}`;
+    throw new Error('неизвестный формат ответа OpenRouter');
   }
 
   // ==========================================
-  // OpenAI с моделями по очереди (как было раньше)
+  // OpenAI fallback — по очереди
   // ==========================================
   private readonly openAiConfigs: Array<{ model: string; body: Record<string, any> }> = [
-    { model: 'gpt-image-1', body: { quality: 'high', size: '1024x1024' } },
     { model: 'dall-e-3', body: { quality: 'standard', size: '1024x1024' } },
+    { model: 'gpt-image-1', body: { quality: 'high', size: '1024x1024' } },
     { model: 'dall-e-2', body: { size: '1024x1024' } },
   ];
 
@@ -160,7 +169,7 @@ export class ImageService {
     const started = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    const modelTag = `[ImageService/${body.model}]`;
+    const modelTag = `[ImageService/OpenAI/${body.model}]`;
 
     let response: Response;
     try {
@@ -178,13 +187,13 @@ export class ImageService {
       if (e?.name === 'AbortError' || e?.code === 'ABORT_ERR') {
         throw new ServiceUnavailableException(`OpenAI не ответил за ${Math.round(this.timeoutMs / 1000)}с`);
       }
-      throw new ServiceUnavailableException('Сбой сети OpenAI');
+      throw new ServiceUnavailableException('Сбой сети при обращении к OpenAI');
     }
     clearTimeout(timer);
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '');
-      console.error(`${modelTag} попытка ${attempt + 1} HTTP ${response.status} за ${Date.now() - started}мс: ${errorBody.slice(0, 1000)}`);
+      console.error(`${modelTag} попытка ${attempt + 1} HTTP ${response.status} за ${Date.now() - started}мс: ${errorBody.slice(0, 1500)}`);
 
       let parsedMessage: string | null = null;
       let parsedCode: string | null = null;
@@ -196,10 +205,6 @@ export class ImageService {
         parsedParam = parsed?.error?.param || null;
       } catch { /* not json */ }
 
-      // «Недоступна» — любой сигнал, что модель не отдаст результат
-      // именно этому ключу: не существует, нет доступа, не верифицирован
-      // аккаунт, safety-подобная ошибка (у gpt-image-1 без верификации
-      // OpenAI отвечает именно так).
       const looksLikeSafetyOrVerify = /verification|verify.*organization|not.*verified|content.?policy|safety.*system/i.test(parsedMessage || errorBody);
       const isModelUnavailable =
         (response.status === 400 || response.status === 403) &&
@@ -224,7 +229,7 @@ export class ImageService {
       const lowerBody = errorBody.toLowerCase();
       if (response.status === 400) {
         if (parsedCode === 'content_policy_violation') {
-          throw new ServiceUnavailableException('Запрос отклонён политикой безопасности. Переформулируй промпт.');
+          throw new ServiceUnavailableException('Запрос отклонён политикой безопасности OpenAI. Переформулируй промпт.');
         }
         if (lowerBody.includes('billing') || lowerBody.includes('quota')) {
           throw new ServiceUnavailableException('Проблема с оплатой OpenAI: закончилась квота.');
@@ -234,7 +239,7 @@ export class ImageService {
       }
       if (response.status === 401) throw new ServiceUnavailableException('Ключ OpenAI недействителен');
       if (response.status === 429) throw new ServiceUnavailableException('Rate limit OpenAI');
-      if (response.status >= 500) throw new ServiceUnavailableException('OpenAI недоступен');
+      if (response.status >= 500) throw new ServiceUnavailableException('OpenAI временно недоступен');
       throw new ServiceUnavailableException(`Ошибка HTTP ${response.status}`);
     }
 

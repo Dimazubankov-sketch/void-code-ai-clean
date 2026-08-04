@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
+import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
 
 
 // ==========================================
@@ -145,11 +146,10 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         {/* Анимация записи — на всё поле ввода */}
                         {voice.recording && (
                             <div className="absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center pl-16 pr-32 pointer-events-none fade-in">
-                                <span className="flex items-end gap-[3px] w-full h-6 overflow-hidden">
-                                    {Array.from({ length: 42 }).map((_, i) => (
-                                        <span key={i} className="void-rec-bar bg-[#5b32d4] dark:bg-purple-300" style={{ animationDelay: `${(i % 7) * 110}ms` }} />
-                                    ))}
-                                </span>
+                                <VoiceWaveMic
+                                    analyserRef={voice.analyserRef}
+                                    className="text-[#5b32d4] dark:text-purple-300"
+                                />
                             </div>
                         )}
                         {/* Плейсхолдер фазы «Преобразование в текст» */}

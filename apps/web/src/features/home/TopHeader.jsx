@@ -1,14 +1,20 @@
 import { useState } from 'react';
 import { AI_MODELS, getPlanLimits, REASONING_LEVELS, defaultReasoningFor, isReasoningAllowed, getReasoningLevel } from '@/shared/config/models';
 import { Icons } from '@/shared/ui/Icons';
+import { ChatActionsMenu } from '@/features/chat/ChatActionsMenu';
 
 
-export function TopHeader({ state, updateState }) {
+export function TopHeader({ state, updateState, onChatMenuAction }) {
     const [showDropdown, setShowDropdown] = useState(false);
     const [showReasoning, setShowReasoning] = useState(false);
+    const [showChatMenu, setShowChatMenu] = useState(false);
     const activeModel = AI_MODELS.find(m => m.id === state.selectedModelId) || AI_MODELS[1];
     const maxDaily = getPlanLimits(state.userPlan).daily;
     const limitExhausted = maxDaily !== Infinity && state.usedDailyLimits >= maxDaily;
+
+    // В чате прячем логотип+название бренда слева, а селектор модели
+    // сдвигаем от левого края к центру. По просьбе пользователя.
+    const inChatView = state.currentView === 'chat';
 
     // Текущий уровень рассуждений выбранной модели (с учётом дефолта по модели)
     const currentReasoningId = (state.reasoningByModel || {})[activeModel.id] || defaultReasoningFor(activeModel.id);
@@ -20,12 +26,16 @@ export function TopHeader({ state, updateState }) {
     };
 
     return (
-        <div className="bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg sticky top-0 z-30 border-b border-gray-100 dark:border-darkBorder shadow-sm pl-3 sm:pl-4 md:pl-8 pr-4 sm:pr-6 py-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 sm:gap-2.5 font-extrabold tracking-tight cursor-pointer text-[#1a1a2e] dark:text-white min-w-0 leading-none" onClick={() => updateState({currentView: 'home'})}>
-                <Icons.VoidLogo className="w-11 h-11 md:w-14 md:h-14 flex-shrink-0" />
-                <span className="text-base sm:text-xl md:text-2xl truncate leading-none"><span className="void-grad-text">VOID</span> CODE AI</span>
-            </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0">
+        <div className="bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg sticky top-0 z-30 border-b border-gray-100 dark:border-darkBorder shadow-sm pl-3 sm:pl-4 md:pl-8 pr-4 sm:pr-6 py-3 flex items-center gap-2">
+            {!inChatView && (
+                <div className="flex items-center gap-2 sm:gap-2.5 font-extrabold tracking-tight cursor-pointer text-[#1a1a2e] dark:text-white min-w-0 leading-none" onClick={() => updateState({currentView: 'home'})}>
+                    <Icons.VoidLogo className="w-11 h-11 md:w-14 md:h-14 flex-shrink-0" />
+                    <span className="text-base sm:text-xl md:text-2xl truncate leading-none"><span className="void-grad-text">VOID</span> CODE AI</span>
+                </div>
+            )}
+            {/* В чате — распорка слева от селектора, чтобы он сдвинулся ближе к центру */}
+            {inChatView && <div className="flex-1" />}
+            <div className={`flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0 ${inChatView ? '' : 'ml-auto'}`}>
                 <div className="relative min-w-0">
                     <button onClick={() => setShowDropdown(!showDropdown)} className="void-tap-target flex items-center gap-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-xl transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none">
                         <div className="flex items-center gap-1 font-extrabold text-[13px] sm:text-[15px] md:text-lg dark:text-white leading-tight min-w-0">
@@ -106,6 +116,30 @@ export function TopHeader({ state, updateState }) {
                         </>
                     )}
                 </div>
+                {/* Распорка справа от селектора модели — в чате
+                    вместе с левой она удерживает селектор ближе к центру */}
+                {inChatView && <div className="flex-1" />}
+                {/* Меню-троеточие для действий над текущим чатом. Открывается
+                    с плавной GSAP-анимацией — см. ChatActionsMenu ниже. */}
+                {inChatView && onChatMenuAction && (
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowChatMenu(v => !v)}
+                            className="void-tap-target flex-shrink-0 p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-800 dark:text-gray-200"
+                            title="Действия с чатом"
+                        >
+                            <Icons.Dots className="w-5 h-5" />
+                        </button>
+                        <ChatActionsMenu
+                            open={showChatMenu}
+                            onClose={() => setShowChatMenu(false)}
+                            onAction={(action) => {
+                                setShowChatMenu(false);
+                                onChatMenuAction(action);
+                            }}
+                        />
+                    </div>
+                )}
                 {state.user ? (
                     <button onClick={() => updateState({isRightMenuOpen: true})} className="void-tap-target flex-shrink-0 p-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder">
                         <Icons.TwoLines className="w-6 h-6" />

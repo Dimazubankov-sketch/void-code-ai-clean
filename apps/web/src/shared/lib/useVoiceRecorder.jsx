@@ -38,9 +38,54 @@ export function useVoiceRecorder(onText, lang = 'ru-RU') {
     const phaseRef = useRef(VOICE_PHASE.IDLE);
     const stopModeRef = useRef(null);      // 'stop' (преобразовать) | 'cancel' (отбросить)
     const transcribeTimerRef = useRef(null);
+    // Замер громкости в реальном времени. Web Speech API даёт сам факт
+    // «идёт распознавание» + текст, но НЕ уровень входного сигнала —
+    // визуализировать волну по нему нельзя. Заводим ПАРАЛЛЕЛЬНЫЙ поток
+    // getUserMedia + AnalyserNode специально ради громкости. Значение
+    // (0..1) кладём в ref, чтобы компонент-визуализатор читал его в rAF
+    // без ре-рендеров (в отличие от useState — тот вызывал бы рендер
+    // на каждый кадр и убивал бы производительность).
+    const audioCtxRef = useRef(null);
+    const analyserRef = useRef(null);
+    const audioStreamRef = useRef(null);
+    const levelRef = useRef(0);
     onTextRef.current = onText;
 
     const setPhaseBoth = (p) => { phaseRef.current = p; setPhase(p); };
+
+    // Запуск замера уровня микрофона. Вызывается из start(). Если
+    // getUserMedia недоступен (не HTTPS, нет разрешения) — молча
+    // ничего не делаем, компонент-волна нарисует прямую линию.
+    const startLevelMeter = async () => {
+        if (audioCtxRef.current) return; // уже запущено
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioStreamRef.current = stream;
+            const AC = window.AudioContext || window.webkitAudioContext;
+            const ctx = new AC();
+            audioCtxRef.current = ctx;
+            const source = ctx.createMediaStreamSource(stream);
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 512;
+            analyser.smoothingTimeConstant = 0.55;
+            source.connect(analyser);
+            analyserRef.current = analyser;
+            // Данные читаются потребителем (WaveMic компонент). Мы
+            // держим только структуру: analyser + буфер.
+        } catch (e) {
+            // eslint-disable-next-line no-console
+            console.debug('[useVoiceRecorder] getUserMedia недоступен:', e?.message);
+        }
+    };
+
+    const stopLevelMeter = () => {
+        try { audioStreamRef.current?.getTracks().forEach(t => t.stop()); } catch { /* noop */ }
+        try { audioCtxRef.current?.close(); } catch { /* noop */ }
+        audioStreamRef.current = null;
+        audioCtxRef.current = null;
+        analyserRef.current = null;
+        levelRef.current = 0;
+    };
 
     useEffect(() => {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -116,6 +161,7 @@ export function useVoiceRecorder(onText, lang = 'ru-RU') {
             phaseRef.current = VOICE_PHASE.IDLE;
             clearTimeout(transcribeTimerRef.current);
             try { rec.abort(); } catch { /* noop */ }
+            stopLevelMeter();
         };
     }, [lang]);
 
@@ -125,6 +171,12 @@ export function useVoiceRecorder(onText, lang = 'ru-RU') {
         bufferRef.current = '';
         interimRef.current = '';
         stopModeRef.current = null;
+        // Стартуем замер громкости параллельно с распознаванием — это
+        // отдельный поток getUserMedia, он не конфликтует с Web Speech API
+        // (у большинства браузеров два подключения к одному микрофону идут
+        // штатно). Если getUserMedia недоступен — visualizer нарисует
+        // прямую линию, само распознавание всё равно работает.
+        startLevelMeter();
         if (hasRealApiRef.current && recognitionRef.current) {
             try {
                 recognitionRef.current.start();
@@ -140,6 +192,7 @@ export function useVoiceRecorder(onText, lang = 'ru-RU') {
     const stop = () => {
         if (phaseRef.current !== VOICE_PHASE.RECORDING) return;
         stopModeRef.current = 'stop';
+        stopLevelMeter();
         if (hasRealApiRef.current && recognitionRef.current) {
             try { recognitionRef.current.stop(); } catch { recognitionRef.current.onend?.(); }
         } else {
@@ -156,6 +209,7 @@ export function useVoiceRecorder(onText, lang = 'ru-RU') {
     const cancel = () => {
         if (phaseRef.current !== VOICE_PHASE.RECORDING) return;
         stopModeRef.current = 'cancel';
+        stopLevelMeter();
         if (hasRealApiRef.current && recognitionRef.current) {
             try { recognitionRef.current.abort(); } catch { /* noop */ }
         }
@@ -175,5 +229,8 @@ export function useVoiceRecorder(onText, lang = 'ru-RU') {
         start,
         stop,
         cancel,
+        // Ref на AnalyserNode для визуализатора волны. Может быть null,
+        // если getUserMedia недоступен — тогда компонент рисует прямую.
+        analyserRef,
     };
 }

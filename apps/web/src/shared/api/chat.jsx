@@ -26,6 +26,15 @@ export async function generateBackendImage(prompt) {
   return data.url;
 }
 
+// Извлекает основной текст с указанной страницы через бэкенд, чтобы
+// подмешать его в запрос к LLM. Возвращает { url, title, text, truncated }
+// или бросает исключение при ошибке (нет доступа, неподдерживаемый формат).
+// См. WebFetchService на сервере (SSRF-защита, лимиты по байтам и по
+// длине итогового текста).
+export async function fetchWebPage(url) {
+  return apiFetch('/webfetch/read', { method: 'POST', body: { url } });
+}
+
 // Использование дневных лимитов картинок: сколько израсходовано,
 // какой лимит и сколько осталось. Мягко фолбэчит на нули при ошибке.
 export async function fetchImageUsage() {

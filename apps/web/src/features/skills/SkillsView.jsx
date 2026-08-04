@@ -270,7 +270,13 @@ export function SkillsPanel({ state, updateState, projectId = null }) {
             </div>
 
             {tab === 'base' ? (
-                <div className="grid sm:grid-cols-2 gap-3">
+                // grid-flow: masonry-подобное поведение через align-items: start
+                // и auto-rows: min-content. Раньше при grid-cols-2 карточки в
+                // ОДНОЙ строке всегда выравнивались по высоте самой высокой —
+                // раскрытие одной вытягивало соседнюю пустым пространством.
+                // Теперь каждая ячейка занимает ровно свою реальную высоту,
+                // соседняя остаётся компактной.
+                <div className="grid sm:grid-cols-2 gap-3" style={{ alignItems: 'start', gridAutoRows: 'min-content' }}>
                     {SKILLS.map(skill => (
                         <SkillCard
                             key={skill.id}

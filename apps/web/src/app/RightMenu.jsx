@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
+import { useLongPressMenu } from '@/shared/lib/useLongPressMenu';
+import { ChatActionsMenu } from '@/features/chat/ChatActionsMenu';
+import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
 
 // Ищет по всем чатам сообщения, содержащие ключевое слово, и возвращает
 // короткий фрагмент текста вокруг найденного места (как в поиске Ctrl+F).
@@ -97,20 +100,80 @@ export function RightMenu({ state, updateState }) {
     const { pinned, rest } = sortChats(visibleChats);
 
     // Строка чата в списке (используется и для закреплённых, и для недавних)
-    const ChatRow = ({ chat }) => (
-        <div className={`group w-full flex items-center gap-2 px-1 py-0.5 rounded-xl transition-colors ${state.activeChatId === chat.id ? 'bg-[#efecf9] dark:bg-purple-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-            <button onClick={() => updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false })} className={`flex-1 min-w-0 flex items-center gap-3 p-2 rounded-lg text-left ${state.activeChatId === chat.id ? 'text-[#5b32d4] dark:text-purple-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                {chat.pinnedAt ? <Icons.PinFilled className="w-4 h-4 flex-shrink-0 text-[#5b32d4]" /> : <Icons.MessageSquare className="w-5 h-5 flex-shrink-0" />}
-                <span className="font-semibold text-[15px] truncate">{chat.title}</span>
-            </button>
-            <button onClick={() => togglePin(chat)} className="void-tap-target flex-shrink-0 p-2 text-gray-400 hover:text-[#5b32d4] hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title={chat.pinnedAt ? t(lang, 'menu.unpin') : t(lang, 'menu.pin')}>
-                <Icons.Pin className="w-4 h-4" />
-            </button>
-            <button onClick={() => deleteChat(chat)} className="void-tap-target flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title={t(lang, 'menu.deleteChat')}>
-                <Icons.Trash className="w-4 h-4" />
-            </button>
-        </div>
-    );
+    // ChatRow с long-press меню (задача 12). Кнопки закрепить/удалить
+    // убраны — теперь зажатие открывает мини-меню (ChatActionsMenu) с
+    // теми же действиями + Поделиться/Переименовать/В проект. Хук
+    // useLongPressMenu уже используется в UserMessageBubble для похожего
+    // сценария на сообщениях.
+    const ChatRow = ({ chat }) => {
+        const { bind, menuOpen, setMenuOpen } = useLongPressMenu(400);
+        const alreadyPinned = !!chat.pinnedAt;
+
+        const handleAction = (action) => {
+            setMenuOpen(false);
+            switch (action) {
+                case 'share': {
+                    const { url, tooLong } = buildShareLink(chat);
+                    if (!tooLong && navigator.share) {
+                        try { navigator.share({ title: chat.title, url }); } catch { /* noop */ }
+                    } else {
+                        try {
+                            navigator.clipboard.writeText(tooLong ? dialogToText(chat) : url);
+                        } catch { /* noop */ }
+                    }
+                    break;
+                }
+                case 'pin':
+                    togglePin(chat);
+                    break;
+                case 'rename': {
+                    const newTitle = window.prompt(t(lang, 'menu.renameChat') || 'Новое название чата', chat.title || '');
+                    if (newTitle != null && newTitle.trim()) {
+                        updateState({
+                            chatSessions: state.chatSessions.map(c =>
+                                c.id === chat.id ? { ...c, title: newTitle.trim() } : c
+                            ),
+                        });
+                    }
+                    break;
+                }
+                case 'moveToProj':
+                    // Пока — заглушка, полноценный picker будущей итерации
+                    window.alert('Функция «Добавить в проект» появится совсем скоро');
+                    break;
+                case 'delete':
+                    deleteChat(chat);
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        return (
+            <div className="relative">
+                <div
+                    {...bind}
+                    className={`group w-full flex items-center gap-2 px-1 py-0.5 rounded-xl transition-colors ${state.activeChatId === chat.id ? 'bg-[#efecf9] dark:bg-purple-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800'} touch-manipulation`}
+                    style={{ WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                >
+                    <button
+                        onClick={() => updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false })}
+                        className={`flex-1 min-w-0 flex items-center gap-3 p-2 rounded-lg text-left ${state.activeChatId === chat.id ? 'text-[#5b32d4] dark:text-purple-400' : 'text-gray-700 dark:text-gray-300'}`}
+                    >
+                        {chat.pinnedAt ? <Icons.PinFilled className="w-4 h-4 flex-shrink-0 text-[#5b32d4]" /> : <Icons.MessageSquare className="w-5 h-5 flex-shrink-0" />}
+                        <span className="font-semibold text-[15px] truncate">{chat.title}</span>
+                    </button>
+                </div>
+                <ChatActionsMenu
+                    open={menuOpen}
+                    onClose={() => setMenuOpen(false)}
+                    onAction={handleAction}
+                    alreadyPinned={alreadyPinned}
+                    position="inline"
+                />
+            </div>
+        );
+    };
 
     // Кнопка навигации меню: белый фон, без постоянной обводки; серая обводка
     // появляется при наведении/нажатии. Отступы плотные.

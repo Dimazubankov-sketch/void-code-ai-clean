@@ -9,6 +9,7 @@ import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
 import { ImageGenLoader } from '@/features/chat/ImageGenLoader';
 import { GeneratedImage } from '@/features/chat/GeneratedImage';
 import { ScrollDownButton } from '@/features/chat/ScrollDownButton';
+import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
 import { Toast } from '@/shared/ui/Toast';
 import { UserMessageBubble } from '@/features/chat/UserMessageBubble';
 import { ChatPlusMenu } from '@/features/chat/ChatPlusMenu';
@@ -87,6 +88,57 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
 
     const submitFeedback = ({ type }) => {
         if (feedback) setFeedbackMap(m => ({ ...m, [feedback.idx]: type }));
+    };
+
+    // Обработчик действий из меню-троеточия в шапке чата (задача 11)
+    // и из long-press меню на строке чата в истории (задача 12).
+    // Работает с текущим activeChatId. Для действий, требующих ввод
+    // (переименование), открывает prompt(); удаление подтверждается через
+    // confirm(). Перемещение в проект временно показывает уведомление —
+    // полноценный picker проектов — отдельная задача UI.
+    const handleChatMenuAction = (action, chatId = null) => {
+        const targetId = chatId || state.activeChatId;
+        const chat = state.chatSessions.find(c => c.id === targetId);
+        if (!chat) return;
+        switch (action) {
+            case 'share':
+                shareDialog();
+                break;
+            case 'pin':
+                updateState({
+                    chatSessions: state.chatSessions.map(c =>
+                        c.id === targetId ? { ...c, pinnedAt: c.pinnedAt ? null : Date.now() } : c
+                    ),
+                });
+                setShareToast(chat.pinnedAt ? 'Чат откреплён' : 'Чат закреплён');
+                break;
+            case 'rename': {
+                const newTitle = window.prompt('Новое название чата', chat.title || '');
+                if (newTitle != null && newTitle.trim()) {
+                    updateState({
+                        chatSessions: state.chatSessions.map(c =>
+                            c.id === targetId ? { ...c, title: newTitle.trim() } : c
+                        ),
+                    });
+                }
+                break;
+            }
+            case 'moveToProj':
+                setShareToast('Функция «Добавить в проект» появится совсем скоро');
+                break;
+            case 'delete': {
+                if (!window.confirm(`Удалить чат «${chat.title || 'Без названия'}»?`)) return;
+                const remaining = state.chatSessions.filter(c => c.id !== targetId);
+                updateState({
+                    chatSessions: remaining,
+                    activeChatId: remaining[0]?.id || null,
+                    currentView: remaining.length === 0 ? 'home' : state.currentView,
+                });
+                break;
+            }
+            default:
+                break;
+        }
     };
 
     // Как только печать ответа завершилась — снимаем флаг isAnimated, чтобы под
@@ -223,7 +275,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-darkBg relative w-full max-w-full fade-in">
-            <TopHeader state={state} updateState={updateState} />
+            <TopHeader state={state} updateState={updateState} onChatMenuAction={handleChatMenuAction} />
             
             <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth" style={{ paddingBottom: bottomPad }}>
                 <div className="max-w-4xl mx-auto space-y-6">
@@ -425,11 +477,14 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         {/* Анимация записи — на всё поле ввода */}
                         {voice.recording && (
                             <div className="absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center pl-16 pr-32 pointer-events-none fade-in">
-                                <span className="flex items-end gap-[3px] w-full h-6 overflow-hidden">
-                                    {Array.from({ length: 42 }).map((_, i) => (
-                                        <span key={i} className="void-rec-bar bg-[#5b32d4] dark:bg-purple-300" style={{ animationDelay: `${(i % 7) * 110}ms` }} />
-                                    ))}
-                                </span>
+                                {/* Новая анимация записи: плоская линия в тишине,
+                                    волна под речь. Уровень читается напрямую из
+                                    analyserRef, экспортированного из useVoiceRecorder
+                                    (Web Audio API). См. VoiceWaveMic.jsx. */}
+                                <VoiceWaveMic
+                                    analyserRef={voice.analyserRef}
+                                    className="text-[#5b32d4] dark:text-purple-300"
+                                />
                             </div>
                         )}
                         {/* Плейсхолдер фазы «Преобразование в текст» */}
