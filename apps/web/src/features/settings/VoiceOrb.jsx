@@ -5,65 +5,97 @@ import { useGSAP } from '@gsap/react';
 // ==========================================
 // VoiceOrb — большой «живой» круг во вкладке Голос
 // ==========================================
-// Анимация построена на GSAP: круг мягко «дышит» и переливается яркостью,
-// а вокруг пульсируют два ореола. Уважаем prefers-reduced-motion.
+// Концепция пассивной (idle) анимации ПЕРЕДЕЛАНА по прямому запросу:
+// раньше это было «дыхание» — плавное затухание/разгорание яркости и
+// прозрачности ореолов (opacity/brightness pulse). Пользователю не
+// понравилось именно ощущение затухания. Новая идея — «вращающаяся
+// энергетическая сфера»: сам круг медленно и БЕСКОНЕЧНО вращается вокруг
+// своей оси (конический градиент едет по кругу — ощущение внутреннего
+// движения энергии), а вокруг орбитой летают две маленькие светящиеся
+// точки на разных радиусах и с разной скоростью. Никаких fade in/out —
+// только непрерывное вращательное движение, которое не «затухает» и не
+// «разгорается», а всегда одинаково живое.
 //
-// Новое: если передан audioElement (HTMLAudioElement), подключаем Web
-// Audio API (AudioContext + AnalyserNode) и синхронизируем масштаб/opacity
-// круга с реальной ГРОМКОСТЬЮ речи в реальном времени. Пока звук играет —
-// круг реагирует на амплитуду (тихий момент → маленький и приглушённый,
-// громкий → больше и ярче). Когда звук останавливается — плавно возвращаем
-// пассивную анимацию «дыхания». GSAP используется для плавной интерполяции
-// значений через quickTo (см. gsap-performance skill: quickTo избегает
-// создания нового tween на каждый requestAnimationFrame).
+// Активная (audio-reactive) часть НЕ ТРОНУТА: если передан audioElement,
+// Web Audio API (AudioContext + AnalyserNode) по-прежнему синхронизирует
+// масштаб/яркость круга с реальной громкостью речи в реальном времени —
+// это работает поверх пассивного вращения (вращение продолжается, амплитуда
+// добавляется как доп. scale/brightness).
 
 export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audioElement = null }) {
     const scope = useRef(null);
     const coreRef = useRef(null);
-    const halo1Ref = useRef(null);
-    const halo2Ref = useRef(null);
+    const gradientRef = useRef(null);
+    const satellite1Ref = useRef(null);
+    const satellite2Ref = useRef(null);
 
-    // ---- Пассивная анимация «дыхания» и ореолов ----
+    // ---- Пассивная анимация: вращение градиента + орбитальные спутники ----
     useGSAP(() => {
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (reduce) return;
 
-        // Дыхание ядра — бесконечный yoyo-таймлайн
-        const breathTl = gsap.timeline({ repeat: -1, yoyo: true, defaults: { ease: 'sine.inOut' } })
-            .to('.orb-core', { scale: 1.06, duration: 2.4 }, 0)
-            .to('.orb-core', { filter: 'brightness(1.15)', duration: 2.4 }, 0)
-            .to('.orb-core', { y: -4, duration: 3.0 }, 0);
+        // Внутренний конический градиент крутится бесконечно и линейно
+        // (ease: 'none') — постоянная скорость создаёт ощущение спокойного
+        // непрерывного вращения энергии внутри сферы, без ускорений/
+        // замираний, которые выглядели бы как «дыхание».
+        const rotateTl = gsap.to('.orb-gradient', {
+            rotation: 360,
+            duration: 8,
+            repeat: -1,
+            ease: 'none',
+            transformOrigin: '50% 50%',
+        });
 
-        gsap.fromTo('.orb-halo-1',
-            { scale: 0.9, autoAlpha: 0.4 },
-            { scale: 1.3, autoAlpha: 0.12, duration: 2.8, ease: 'sine.inOut', repeat: -1, yoyo: true });
-        gsap.fromTo('.orb-halo-2',
-            { scale: 0.95, autoAlpha: 0.3 },
-            { scale: 1.45, autoAlpha: 0.1, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.8 });
+        // Два спутника вращаются вокруг ядра по своим орбитам — в разные
+        // стороны и с разной скоростью, чтобы движение не выглядело
+        // механически синхронным. Каждый спутник — точка на краю своего
+        // wrapper-div, а вращается сам wrapper (transform-origin в центре).
+        const sat1Tl = gsap.to('.orb-satellite-1-wrap', {
+            rotation: 360,
+            duration: 6,
+            repeat: -1,
+            ease: 'none',
+            transformOrigin: '50% 50%',
+        });
+        const sat2Tl = gsap.to('.orb-satellite-2-wrap', {
+            rotation: -360,
+            duration: 9,
+            repeat: -1,
+            ease: 'none',
+            transformOrigin: '50% 50%',
+        });
 
-        return () => { breathTl?.kill(); };
+        return () => { rotateTl?.kill(); sat1Tl?.kill(); sat2Tl?.kill(); };
     }, { scope });
 
     // ---- Плавная смена цвета голоса ----
     const buildGradient = (from, to) =>
-        `radial-gradient(circle at 32% 28%, ${from}, ${to} 70%, ${to})`;
+        `conic-gradient(from 0deg, ${from}, ${to}, ${from})`;
 
     useGSAP(() => {
-        const core = coreRef.current;
-        if (!core) return;
-        gsap.to(core, {
+        const grad = gradientRef.current;
+        if (!grad) return;
+        gsap.to(grad, {
             background: buildGradient(colorFrom, colorTo),
             duration: 0.6,
             ease: 'power2.out',
         });
     }, { scope, dependencies: [colorFrom, colorTo] });
 
-    // ---- Реакция на «active» (запись/проигрыш) — усиливаем ореолы ----
+    // ---- Реакция на «active» (запись/проигрыш) — ускоряем вращение спутников ----
     useGSAP(() => {
-        gsap.to('.orb-halo-1, .orb-halo-2', { scale: active ? 1.1 : 1, duration: 0.4 });
+        gsap.to('.orb-satellite-1-wrap, .orb-satellite-2-wrap', {
+            timeScale: active ? 1.8 : 1,
+            duration: 0.4,
+        });
     }, { scope, dependencies: [active] });
 
     // ---- Web Audio API: пульсация круга под реальную громкость речи ----
+    // Работает поверх пассивного вращения — ядро дополнительно немного
+    // растёт/светлеет на пиках громкости, а вращение градиента и спутников
+    // продолжается независимо (разные trasnform-свойства не конфликтуют:
+    // rotation крутит .orb-gradient/.orb-satellite-*-wrap, а scale/filter
+    // применяются к .orb-core).
     useEffect(() => {
         if (!audioElement) return;
 
@@ -73,68 +105,41 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
         let rafId = 0;
         let stopped = false;
 
-        // quickTo — оптимальный способ анимировать одно свойство много раз
-        // подряд (см. gsap-performance skill). Внутренне GSAP переиспользует
-        // один и тот же твин, а не создаёт новый на каждый rAF.
         const setScale = gsap.quickTo(coreRef.current, 'scale', { duration: 0.15, ease: 'power2.out' });
         const setBrightness = gsap.quickTo(coreRef.current, 'filter', {
             duration: 0.15,
             ease: 'power2.out',
-            // filter не число — используем строковую интерполяцию через set
-            modifiers: {
-                filter: (v) => `brightness(${v})`,
-            },
+            modifiers: { filter: (v) => `brightness(${v})` },
         });
-        const setHalo1 = gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.15, ease: 'power2.out' });
-        const setHalo2 = gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.15, ease: 'power2.out' });
-        const setHalo1Alpha = gsap.quickTo(halo1Ref.current, 'autoAlpha', { duration: 0.15, ease: 'power2.out' });
 
         try {
-            // AudioContext создаём внутри try — некоторые браузеры
-            // (iOS Safari до user-gesture) кинут исключение.
             ctx = new (window.AudioContext || window.webkitAudioContext)();
             analyser = ctx.createAnalyser();
-            analyser.fftSize = 256; // 128 бинов — хватает и легковесно
+            analyser.fftSize = 256;
             analyser.smoothingTimeConstant = 0.75;
             source = ctx.createMediaElementSource(audioElement);
             source.connect(analyser);
-            // Подключаем к destination чтобы звук всё-таки играл (иначе
-            // Web Audio перехватит поток и <audio> замолкнет).
             analyser.connect(ctx.destination);
         } catch (e) {
-            // Если MediaElementSource уже был создан для этого <audio>
-            // (повторный useEffect), createMediaElementSource кинет
-            // InvalidStateError — просто выходим без анимации громкости.
             // eslint-disable-next-line no-console
             console.debug('[VoiceOrb] Web Audio недоступен:', e?.message);
             return;
         }
 
         const data = new Uint8Array(analyser.frequencyBinCount);
-        // Небольшое сглаживание амплитуды через экспоненциальное среднее:
-        // от резких скачков графика картинка выглядит нервной, а речь
-        // редко даёт «идеально ровный» уровень.
         let smoothed = 0;
         const tick = () => {
             if (stopped) return;
             analyser.getByteFrequencyData(data);
-            // Среднее по низкой части спектра — голос в основном 100-1000Гц,
-            // это первые ~30 бинов при fftSize=256, sampleRate 44100.
             let sum = 0;
             const N = Math.min(30, data.length);
             for (let i = 0; i < N; i++) sum += data[i];
-            const avg = sum / N / 255; // 0..1
+            const avg = sum / N / 255;
             smoothed = smoothed * 0.7 + avg * 0.3;
-            // Масштаб от 1.0 до 1.18 — не более, иначе круг «прыгает».
             const scale = 1 + smoothed * 0.18;
             const brightness = 1 + smoothed * 0.35;
-            const haloScale = 1 + smoothed * 0.35;
-            const halo1Alpha = 0.15 + smoothed * 0.45;
             setScale(scale);
             setBrightness(brightness);
-            setHalo1(haloScale);
-            setHalo2(haloScale * 1.06);
-            setHalo1Alpha(halo1Alpha);
             rafId = requestAnimationFrame(tick);
         };
         rafId = requestAnimationFrame(tick);
@@ -149,15 +154,63 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
     }, [audioElement]);
 
     const px = `${size}px`;
+    const satelliteSize = Math.round(size * 0.09);
+    const orbitRadius = size / 2 + satelliteSize; // спутник летает чуть за краем ядра
+
     return (
         <div ref={scope} className="relative flex items-center justify-center" style={{ width: px, height: px }}>
-            <div ref={halo1Ref} className="orb-halo-1 absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${colorFrom}, transparent 70%)` }} />
-            <div ref={halo2Ref} className="orb-halo-2 absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${colorTo}, transparent 70%)` }} />
+            {/* Ядро — фиксированный размер, без opacity/scale-дыхания в состоянии покоя */}
             <div
                 ref={coreRef}
-                className="orb-core rounded-full shadow-lg will-change-transform"
-                style={{ width: px, height: px, background: `radial-gradient(circle at 32% 28%, ${colorFrom}, ${colorTo} 70%, ${colorTo})` }}
-            />
+                className="orb-core relative rounded-full shadow-lg overflow-hidden will-change-transform"
+                style={{ width: px, height: px }}
+            >
+                <div
+                    ref={gradientRef}
+                    className="orb-gradient absolute inset-[-25%]"
+                    style={{ background: buildGradient(colorFrom, colorTo) }}
+                />
+            </div>
+
+            {/* Спутник 1 — своя орбита-обёртка вращается, точка сидит на краю */}
+            <div
+                className="orb-satellite-1-wrap absolute inset-0 pointer-events-none"
+                style={{ width: px, height: px }}
+            >
+                <div
+                    ref={satellite1Ref}
+                    className="absolute rounded-full shadow-md"
+                    style={{
+                        width: satelliteSize,
+                        height: satelliteSize,
+                        background: colorFrom,
+                        top: '50%',
+                        left: '50%',
+                        transform: `translate(-50%, -50%) translateX(${orbitRadius}px)`,
+                        boxShadow: `0 0 8px 2px ${colorFrom}`,
+                    }}
+                />
+            </div>
+
+            {/* Спутник 2 — другой радиус и направление вращения */}
+            <div
+                className="orb-satellite-2-wrap absolute inset-0 pointer-events-none"
+                style={{ width: px, height: px }}
+            >
+                <div
+                    ref={satellite2Ref}
+                    className="absolute rounded-full shadow-md"
+                    style={{
+                        width: satelliteSize * 0.75,
+                        height: satelliteSize * 0.75,
+                        background: colorTo,
+                        top: '50%',
+                        left: '50%',
+                        transform: `translate(-50%, -50%) translateX(${orbitRadius * 0.82}px) translateY(${orbitRadius * 0.3}px)`,
+                        boxShadow: `0 0 6px 2px ${colorTo}`,
+                    }}
+                />
+            </div>
         </div>
     );
 }

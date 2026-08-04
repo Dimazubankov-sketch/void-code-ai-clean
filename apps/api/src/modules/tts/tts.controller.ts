@@ -50,20 +50,29 @@ export class TtsController {
     const userId = req.user.userId;
     await this.consumeTtsLimit(userId, dto.text.length);
 
-    // Заголовки ДО стрима — иначе браузер не поймёт что это mp3-стрим.
-    // Content-Length НЕ выставляем, потому что при стриминге он неизвестен;
-    // Transfer-Encoding: chunked применяется автоматически.
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader('Cache-Control', 'no-store');
-    // Отключаем nginx-буферизацию, чтобы стрим доходил до браузера сразу,
-    // а не собирался в один пакет.
-    res.setHeader('X-Accel-Buffering', 'no');
-    await this.tts.streamTo(
-      res,
+    // ВАЖНО: раньше здесь был потоковый (streaming) ответ через tts.streamTo()
+    // ради более быстрого старта воспроизведения. После подключения домена
+    // через Cloudflare пользователи стали часто получать «Не удалось
+    // воспроизвести аудио» — Cloudflare-прокси (и, возможно, nginx на пути)
+    // не всегда корректно доставляет chunked audio/mpeg стрим целиком:
+    // соединение могло обрываться до конца потока, и клиент получал
+    // усечённый/повреждённый MP3, который браузер не мог декодировать.
+    // Возвращаемся на простой буферизованный ответ: сервис полностью
+    // получает файл от OpenAI, ЗАТЕМ единым куском с Content-Length
+    // отправляет клиенту. Это гарантирует целостность файла ценой
+    // небольшой доп. задержки перед стартом воспроизведения — для
+    // короткой фразы (проверка голоса, разовое сообщение в чате) это
+    // разница в десятые доли секунды, а корректность важнее.
+    const buf = await this.tts.synthesize(
       dto.text,
       dto.voice || 'nova',
       dto.speed ?? 1.0,
     );
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Length', String(buf.length));
+    res.end(buf);
   }
 
   // GET-эндпоинт: сколько символов пользователь уже израсходовал сегодня.

@@ -40,6 +40,7 @@ export function useOpenAiTts() {
 
     const audioRef = useRef(null);
     const urlRef = useRef(null);
+    const requestTokenRef = useRef(null);
     // Фолбэк на Web Speech: заводим отложенно, только если OpenAI TTS упал.
     const fallbackUtterRef = useRef(null);
 
@@ -92,6 +93,18 @@ export function useOpenAiTts() {
         setError(null);
         setLoading(true);
 
+        // Защита от гонки: если пользователь успел нажать «Проверить голос»
+        // ещё раз, пока первый запрос ещё летит (например, очень быстрый
+        // повторный тап до того, как React перерисовал disabled на кнопке),
+        // раньше оба fetch-запроса могли завершиться и оба пытались создать
+        // свой <audio> и включить play() — это и приводило к «обрезанию»
+        // звука (второй audio перебивал первый на середине). requestToken
+        // помечает какой вызов speak() «актуальный» — если к моменту
+        // получения ответа пришёл более новый вызов, текущий результат
+        // тихо отбрасывается вместо создания второго проигрывателя.
+        const myToken = Symbol('tts-request');
+        requestTokenRef.current = myToken;
+
         // OpenAI TTS ограничен 4096 символами на запрос. Если больше — режем.
         const safeText = text.length > 4096 ? text.slice(0, 4096) : text;
 
@@ -104,6 +117,10 @@ export function useOpenAiTts() {
                     speed: opts.speed || 1.0,
                 },
             });
+
+            // Пока шёл fetch, пользователь успел запустить ещё один speak() —
+            // этот ответ уже неактуален, не создаём для него audio.
+            if (requestTokenRef.current !== myToken) return;
 
             const url = URL.createObjectURL(blob);
             urlRef.current = url;
@@ -120,6 +137,7 @@ export function useOpenAiTts() {
             setSpeaking(true);
             await audio.play();
         } catch (e) {
+            if (requestTokenRef.current !== myToken) return;
             setLoading(false);
             // Ошибка лимита — показываем сообщение, не идём в фолбэк
             // (пользователь не должен думать, что «работает» — платный ресурс кончился).

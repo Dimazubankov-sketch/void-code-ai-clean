@@ -47,6 +47,18 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     const [feedback, setFeedback] = useState(null);          // { idx, type }
     const [feedbackMap, setFeedbackMap] = useState({});      // idx -> 'like'|'dislike'
     const [shareToast, setShareToast] = useState('');
+    // Единая точка авто-скрытия тоста: раньше setTimeout стоял только
+    // внутри shareDialog(), поэтому тост «Скопировано» из мини-меню
+    // long-press (onCopied={setShareToast} в UserMessageBubble) вызывал
+    // setShareToast НАПРЯМУЮ без какого-либо таймера и просто висел
+    // бесконечно. Теперь ЛЮБОЕ появление shareToast (из какого угодно
+    // места) автоматически скрывается через 1.1с — быстрее чем раньше
+    // (было 2.2с), по просьбе пользователя.
+    useEffect(() => {
+        if (!shareToast) return;
+        const timer = setTimeout(() => setShareToast(''), 1100);
+        return () => clearTimeout(timer);
+    }, [shareToast]);
 
     const voiceOpts = () => ({
         // OpenAI TTS: голос по имени (alloy/echo/fable/onyx/nova/shimmer),
@@ -77,7 +89,6 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             await navigator.clipboard.writeText(tooLong ? dialogToText(chat) : url);
             setShareToast('Скопировано');
         }
-        setTimeout(() => setShareToast(''), 2200);
     };
 
     const submitFeedback = ({ type }) => {

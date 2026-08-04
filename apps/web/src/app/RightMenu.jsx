@@ -86,7 +86,15 @@ export function RightMenu({ state, updateState }) {
         }
     };
 
-    const { pinned, rest } = sortChats(state.chatSessions);
+    // Пустые чаты (без единого сообщения) не должны засорять историю —
+    // раньше при каждом клике «Новый чат» в списке появлялась пустая
+    // безымянная запись, даже если пользователь так и не написал первое
+    // сообщение и ушёл в другой раздел. ИСКЛЮЧЕНИЕ: если пустой чат сейчас
+    // АКТИВНЫЙ (activeChatId), его всё равно показываем — иначе только что
+    // созданный чат мгновенно исчезает из списка на глазах у пользователя,
+    // хотя он всё ещё находится внутри него.
+    const visibleChats = state.chatSessions.filter(c => (c.messages && c.messages.length > 0) || c.id === state.activeChatId);
+    const { pinned, rest } = sortChats(visibleChats);
 
     // Строка чата в списке (используется и для закреплённых, и для недавних)
     const ChatRow = ({ chat }) => (
