@@ -16,7 +16,6 @@ import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
 import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
-import { useLongPressCopy } from '@/shared/lib/useLongPressCopy';
 import { defaultReasoningFor } from '@/shared/config/models';
 import { getPlanLimits } from '@/shared/config/models';
 import { t } from '@/shared/lib/i18n';
@@ -31,6 +30,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     const [expandedTraceIdx, setExpandedTraceIdx] = useState(null);
     const [showPlusMenu, setShowPlusMenu] = useState(false);
     const cameraInputRef = useRef(null);
+    const editableTextareaRef = useRef(null);
     const currentReasoningLevel = (state.reasoningByModel || {})[state.selectedModelId] || defaultReasoningFor(state.selectedModelId);
 
     // Голосовой ввод (новый UX): запись с анимацией на всём поле,
@@ -197,6 +197,25 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         setWarningDismissed(true);
     };
 
+    // «Редактировать» из мини-меню long-press: кладём текст сообщения в
+    // поле ввода (заменяя текущий черновик, если есть) и сразу фокусируем
+    // textarea с курсором в конце — пользователь может сразу продолжить
+    // печатать или отправить как новое сообщение. Мы намеренно НЕ трогаем
+    // историю чата (не удаляем и не помечаем оригинал) — это простое и
+    // предсказуемое поведение «скопировать текст в инпут для правки»,
+    // а не полноценный edit-and-regenerate с обрезкой истории.
+    const handleEditMessage = (content) => {
+        updateState({ inputValue: content });
+        requestAnimationFrame(() => {
+            const el = editableTextareaRef.current;
+            if (el) {
+                el.focus();
+                const len = content.length;
+                try { el.setSelectionRange(len, len); } catch { /* noop */ }
+            }
+        });
+    };
+
     return (
         <div className="flex flex-col h-full bg-white dark:bg-darkBg relative w-full max-w-full fade-in">
             <TopHeader state={state} updateState={updateState} />
@@ -214,7 +233,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                     {messages.map((msg, idx) => (
                         <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-4xl transition-colors rounded-2xl min-w-0 ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
                             {msg.role === 'user' ? (
-                                <UserMessageBubble msg={msg} onCopied={setShareToast} />
+                                <UserMessageBubble msg={msg} onCopied={setShareToast} onEdit={handleEditMessage} />
                             ) : (
                             <div className={`p-4 md:p-5 rounded-3xl void-selectable min-w-0 max-w-full overflow-hidden break-words bg-white dark:bg-darkBg text-gray-900 dark:text-gray-100 rounded-tl-sm`}>
                                 {msg.image && <img src={msg.image} alt="Upload" className="max-w-full md:max-w-sm rounded-xl mb-3 shadow-sm border border-gray-100 dark:border-gray-800" />}
@@ -415,6 +434,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             </div>
                         )}
                         <textarea 
+                            ref={editableTextareaRef}
                             className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[64px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
                             placeholder={voice.busy ? '' : (state.imageGenMode ? t(lang, 'chat.imagePlaceholder') : t(lang, 'home.inputPlaceholder'))}
                             readOnly={voice.busy}

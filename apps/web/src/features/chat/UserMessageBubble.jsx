@@ -1,33 +1,60 @@
-import { useLongPressCopy } from '@/shared/lib/useLongPressCopy';
+import { useLongPressMenu } from '@/shared/lib/useLongPressMenu';
+import { MessageActionMenu } from '@/features/chat/MessageActionMenu';
+import { copyToCb } from '@/shared/lib/clipboard';
 
 // ==========================================
 // UserMessageBubble — пузырь СВОЕГО (user) сообщения
 // ==========================================
 // Выделен в отдельный компонент, чтобы у каждого экземпляра был свой
-// useLongPressCopy (React hooks нельзя вызывать в .map()). При long-press
-// (>500мс) содержимое msg.content копируется в буфер, срабатывает GSAP
-// анимация «сжатие → пульсация → возврат» и вызывается onCopied для тоста.
+// useLongPressMenu (React hooks нельзя вызывать в .map()).
+//
+// Зажатие (long-press, >450мс) открывает плавающее мини-меню из двух
+// действий — «Скопировать» и «Редактировать» — вместо прежнего мгновенного
+// копирования. Меню появляется с GSAP-анимацией (см. MessageActionMenu).
+//
+// onEdit получает текст сообщения и кладёт его в поле ввода чата (родитель
+// — ChatView — отвечает за то, куда именно положить текст: обычно в
+// state.inputValue с фокусом на textarea).
+export function UserMessageBubble({ msg, onCopied, onEdit }) {
+    const { bind, menuOpen, setMenuOpen } = useLongPressMenu();
 
-export function UserMessageBubble({ msg, onCopied }) {
-    const { bind } = useLongPressCopy(() => msg.content || '', onCopied);
+    const handleCopy = () => {
+        try { copyToCb(msg.content || ''); } catch { /* noop */ }
+        if (onCopied) onCopied('Скопировано');
+        setMenuOpen(false);
+    };
+
+    const handleEdit = () => {
+        if (onEdit) onEdit(msg.content || '');
+        setMenuOpen(false);
+    };
+
     return (
-        <div
-            {...bind}
-            className="p-4 md:p-5 rounded-3xl void-selectable min-w-0 max-w-full overflow-hidden break-words bg-[#5b32d4] text-white rounded-tr-sm shadow-sm cursor-pointer select-none touch-manipulation"
-            style={{ willChange: 'transform' }}
-        >
-            {msg.image && (
-                <img
-                    src={msg.image}
-                    alt="Upload"
-                    className="max-w-full md:max-w-sm rounded-xl mb-3 shadow-sm border border-gray-100 dark:border-gray-800"
-                />
-            )}
-            {msg.content && (
-                <div className="text-[17px] sm:text-[18px] leading-relaxed break-words whitespace-pre-wrap">
-                    {msg.content}
-                </div>
-            )}
+        <div className="relative">
+            <MessageActionMenu
+                open={menuOpen}
+                onCopy={handleCopy}
+                onEdit={handleEdit}
+                onClose={() => setMenuOpen(false)}
+            />
+            <div
+                {...bind}
+                className="p-4 md:p-5 rounded-3xl void-selectable min-w-0 max-w-full overflow-hidden break-words bg-[#5b32d4] text-white rounded-tr-sm shadow-sm cursor-pointer select-none touch-manipulation"
+                style={{ willChange: 'transform' }}
+            >
+                {msg.image && (
+                    <img
+                        src={msg.image}
+                        alt="Upload"
+                        className="max-w-full md:max-w-sm rounded-xl mb-3 shadow-sm border border-gray-100 dark:border-gray-800"
+                    />
+                )}
+                {msg.content && (
+                    <div className="text-[17px] sm:text-[18px] leading-relaxed break-words whitespace-pre-wrap">
+                        {msg.content}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

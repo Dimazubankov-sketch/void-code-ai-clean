@@ -31,6 +31,12 @@ export function useOpenAiTts() {
     const [elapsed, setElapsed] = useState(0);
     const [duration, setDuration] = useState(0);
     const [error, setError] = useState(null);
+    // Дублируем audioRef.current в state: рефы не триггерят ре-рендер,
+    // а VoiceOrb (Web Audio API анимация круга) должен получить именно
+    // СВЕЖИЙ <audio>-элемент через проп, а не устаревший null — иначе
+    // подключение AnalyserNode происходит на несуществующем/старом элементе
+    // и круг не пульсирует при проверке голоса.
+    const [audioEl, setAudioEl] = useState(null);
 
     const audioRef = useRef(null);
     const urlRef = useRef(null);
@@ -48,6 +54,7 @@ export function useOpenAiTts() {
             URL.revokeObjectURL(urlRef.current);
             urlRef.current = null;
         }
+        setAudioEl(null);
     }, []);
 
     const stop = useCallback(() => {
@@ -102,6 +109,7 @@ export function useOpenAiTts() {
             urlRef.current = url;
             const audio = new Audio(url);
             audioRef.current = audio;
+            setAudioEl(audio);
 
             audio.onloadedmetadata = () => setDuration(audio.duration || 0);
             audio.ontimeupdate = () => setElapsed(audio.currentTime || 0);
@@ -144,5 +152,5 @@ export function useOpenAiTts() {
         }
     }, []);
 
-    return { speak, pause, resume, stop, seek, speaking, paused, loading, elapsed, duration, error, supported: true, audioRef };
+    return { speak, pause, resume, stop, seek, speaking, paused, loading, elapsed, duration, error, supported: true, audioRef, audioEl };
 }

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { t } from '@/shared/lib/i18n';
@@ -138,10 +138,20 @@ export function VoiceSettings({ state, updateState, onClose }) {
         const sample = SAMPLE[lang] || SAMPLE.default;
         setTesting(true);
         tts.speak(sample, { voice: preset.id, speed: rate, lang });
-        // Отпускаем «активность» орба через 3с если аудио короче,
-        // а onEnded самой TTS сбросит speaking сам.
-        setTimeout(() => setTesting(false), 3000);
     };
+
+    // Раньше «активность» орба (testing) сбрасывалась жёстким setTimeout
+    // 3с — для длинных фраз анимация обрывалась раньше, чем звук реально
+    // заканчивался. Теперь testing синхронизирован с реальным состоянием
+    // tts.speaking: как только звук по-настоящему закончился (onended) или
+    // упал (onerror) — сбрасываем сразу, без фиксированной задержки.
+    useEffect(() => {
+        if (!testing) return;
+        if (!tts.speaking && !tts.loading) {
+            const t = setTimeout(() => setTesting(false), 200);
+            return () => clearTimeout(t);
+        }
+    }, [testing, tts.speaking, tts.loading]);
 
     return (
         <div data-modal-overlay className="fixed inset-0 z-[100] bg-black/40 flex justify-end sm:items-center sm:justify-center fade-in" onClick={onClose}>
@@ -173,7 +183,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
                                     colorTo={preset.colorTo}
                                     active={testing}
                                     size={128}
-                                    audioElement={testing ? (tts.audioRef?.current || null) : null}
+                                    audioElement={testing ? tts.audioEl : null}
                                 />
                                 <div className="text-center">
                                     <p className="font-extrabold text-lg dark:text-white">{preset.name}</p>

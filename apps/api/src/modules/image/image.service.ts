@@ -6,17 +6,14 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 // Ключ (OPENAI_API_KEY) живёт ТОЛЬКО в окружении сервера — в браузер
 // не попадает. Фронтенд шлёт текстовый промпт, получает URL картинки.
 //
-// В прошлых версиях запрос уходил в OpenAI без таймаута и с обрубленной
-// диагностикой — при 400 пользователь видел «Ошибка генерации: HTTP 400»
-// без конкретной причины. Теперь:
-//  1) AbortController с 60-секундным таймаутом.
-//  2) Полный errorBody (до 2000 символов) логируется в pm2.
-//  3) JSON-ответ OpenAI парсится, error.message пробрасывается на фронт —
-//     теперь пользователь сразу видит конкретную причину (billing_hard_limit,
-//     model_not_found, invalid_request, content_policy_violation и т.п.).
-//  4) Мягкая проверка формата ключа — только для явно битых значений
-//     (пустая строка, "your-api-key-here"), чтобы не отсекать валидные
-//     project-keys (sk-proj-...) или новые форматы ключей.
+// История багов на этом сервисе показала, что OpenAI периодически меняет
+// набор допустимых параметров у /v1/images/generations без предупреждения
+// (сначала отвалился response_format). Чтобы не гоняться за каждым новым
+// «Unknown parameter: X» вручную, сервис теперь УМЕЕТ САМ ВОССТАНАВЛИВАТЬСЯ:
+// если OpenAI вернёт 400 с ошибкой invalid_request_error/unknown_parameter
+// и точно указанным именем параметра (`error.param`), сервис автоматически
+// вырезает именно этот параметр из тела запроса и повторяет попытку РОВНО
+// ОДИН РАЗ. Это защищает от будущих подобных изменений API без деплоя.
 @Injectable()
 export class ImageService {
   private readonly model = 'dall-e-3';
@@ -29,24 +26,39 @@ export class ImageService {
       console.error('[ImageService/DALL-E3] OPENAI_API_KEY пустой или не задан');
       throw new ServiceUnavailableException('Генератор изображений не сконфигурирован (ключ OpenAI не задан)');
     }
-    // Отсекаем только явные плейсхолдеры — реальные ключи бывают разного
-    // формата (sk-, sk-proj-, sk-svcacct- и т.д.), жёсткий regex мог
-    // отсечь валидный ключ и это давало ложное «Ключ неверного формата».
     const key = apiKey.trim();
     if (!key.startsWith('sk-') || key.length < 20) {
       console.error(`[ImageService/DALL-E3] OPENAI_API_KEY похож на плейсхолдер (длина=${key.length})`);
       throw new ServiceUnavailableException('Ключ OpenAI имеет неверный формат (должен начинаться с sk-)');
     }
 
+    const safePrompt = prompt.length > 1500 ? prompt.slice(0, 1500) : prompt;
+    console.log(`[ImageService/DALL-E3] запрос → "${safePrompt.slice(0, 100)}${safePrompt.length > 100 ? '…' : ''}"`);
+
+    // Базовое тело запроса. quality/size/model — самые стабильные параметры
+    // DALL-E 3, но на всякий случай тоже могут попасть под авто-ретрай, если
+    // OpenAI однажды переименует их.
+    const body: Record<string, any> = {
+      model: this.model,
+      prompt: safePrompt,
+      n: 1,
+      size: '1024x1024',
+      quality: 'standard',
+    };
+
+    const result = await this.callOpenAi(key, body, 0);
+    return result;
+  }
+
+  // attempt: 0 — первая попытка, 1 — повтор после удаления «неизвестного» параметра.
+  // Больше одного повтора не делаем — если и вторая попытка падает на другом
+  // параметре, это уже не косметическая проблема API, а что-то более
+  // серьёзное (ключ/доступ/баланс), пользователю нужно показать причину,
+  // а не уходить в бесконечный цикл повторов.
+  private async callOpenAi(key: string, body: Record<string, any>, attempt: number): Promise<string> {
     const started = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-
-    // DALL-E 3 имеет жёсткий лимит на длину промпта (~4000 символов), но
-    // мы обрезаем раньше — на 1500, чтобы влезло с revised_prompt и не
-    // тратить квоту на слишком длинные ассистент-подсказки.
-    const safePrompt = prompt.length > 1500 ? prompt.slice(0, 1500) : prompt;
-    console.log(`[ImageService/DALL-E3] запрос → "${safePrompt.slice(0, 100)}${safePrompt.length > 100 ? '…' : ''}"`);
 
     let response: Response;
     try {
@@ -57,19 +69,7 @@ export class ImageService {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${key}`,
         },
-        body: JSON.stringify({
-          model: this.model,
-          prompt: safePrompt,
-          n: 1,
-          size: '1024x1024',
-          quality: 'standard',
-          // response_format НЕ передаём: с недавних пор OpenAI отдаёт
-          // на DALL-E 3 «Unknown parameter: 'response_format'» — этот
-          // параметр депрекейтнут для gpt-image-1/dall-e-3. URL всё
-          // равно возвращается по умолчанию (data[0].url), а если у
-          // нового API вернётся b64_json — обработчик ответа ниже
-          // справится и с этим (см. `if first.b64_json`).
-        }),
+        body: JSON.stringify(body),
       });
     } catch (e: any) {
       clearTimeout(timer);
@@ -86,24 +86,30 @@ export class ImageService {
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '');
       const took = Date.now() - started;
-      // Пишем в лог полный текст (до 2000 симв) — этого хватит на любую
-      // ошибку OpenAI, включая {"error":{"message":"...","code":"..."}}.
-      console.error(`[ImageService/DALL-E3] HTTP ${response.status} за ${took}мс: ${errorBody.slice(0, 2000)}`);
+      console.error(`[ImageService/DALL-E3] попытка ${attempt + 1} HTTP ${response.status} за ${took}мс: ${errorBody.slice(0, 2000)}`);
 
-      // Пробуем распарсить JSON — OpenAI возвращает { error: { message, code, type } }.
-      // Если получится, показываем именно error.message пользователю — это
-      // максимально конкретное объяснение (billing, model_not_found и т.п.).
       let parsedMessage: string | null = null;
       let parsedCode: string | null = null;
+      let parsedParam: string | null = null;
       try {
         const parsed = JSON.parse(errorBody);
         parsedMessage = parsed?.error?.message || null;
         parsedCode = parsed?.error?.code || parsed?.error?.type || null;
+        parsedParam = parsed?.error?.param || null;
       } catch {
         // errorBody не JSON — оставляем null
       }
 
-      // Специальная обработка типовых кодов ошибок OpenAI.
+      // Авто-восстановление: «Unknown parameter: 'X'» на первой попытке —
+      // убираем X из тела и пробуем ещё раз без него.
+      const isUnknownParam = response.status === 400 && (parsedCode === 'unknown_parameter' || /unknown parameter/i.test(parsedMessage || ''));
+      if (isUnknownParam && parsedParam && attempt === 0 && parsedParam in body) {
+        console.warn(`[ImageService/DALL-E3] авто-ретрай: убираю параметр '${parsedParam}' и пробую снова`);
+        const retryBody = { ...body };
+        delete retryBody[parsedParam];
+        return this.callOpenAi(key, retryBody, attempt + 1);
+      }
+
       const lowerBody = errorBody.toLowerCase();
       if (response.status === 400) {
         if (lowerBody.includes('content_policy') || lowerBody.includes('safety')) {
@@ -118,7 +124,6 @@ export class ImageService {
         if (lowerBody.includes('invalid api key') || lowerBody.includes('incorrect api key')) {
           throw new ServiceUnavailableException('Ключ OpenAI недействителен. Проверь OPENAI_API_KEY в .env.');
         }
-        // Общий случай 400 — берём parsedMessage если есть.
         if (parsedMessage) {
           throw new ServiceUnavailableException(`OpenAI: ${parsedMessage.slice(0, 200)}`);
         }
@@ -129,7 +134,6 @@ export class ImageService {
       if (response.status === 429) throw new ServiceUnavailableException('Слишком много запросов к OpenAI. Попробуй через минуту.');
       if (response.status >= 500) throw new ServiceUnavailableException('OpenAI недоступен, попробуй через минуту');
 
-      // Fallback: пробрасываем распаршенное сообщение или generic текст.
       if (parsedMessage) {
         throw new ServiceUnavailableException(`OpenAI: ${parsedMessage.slice(0, 200)}`);
       }
@@ -142,7 +146,7 @@ export class ImageService {
       console.error('[ImageService/DALL-E3] пустой data в ответе:', JSON.stringify(data).slice(0, 200));
       throw new ServiceUnavailableException('Пустой ответ генератора');
     }
-    console.log(`[ImageService/DALL-E3] ок за ${Date.now() - started}мс`);
+    console.log(`[ImageService/DALL-E3] ок за ${Date.now() - started}мс (попытка ${attempt + 1})`);
     if (typeof first.url === 'string' && first.url) return first.url;
     if (typeof first.b64_json === 'string' && first.b64_json) {
       return `data:image/png;base64,${first.b64_json}`;
