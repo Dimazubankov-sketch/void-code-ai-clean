@@ -26,14 +26,23 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 // Умное восстановление: если один параметр запроса вызывает 400
 // «Unknown parameter: X» — сервис вырезает X и пробует ещё раз (защита
 // от изменения допустимых параметров API без деплоя).
+//
+// Референсные фото (Image-to-Image): когда пользователь прикрепляет
+// фото в режиме «Генерация изображений», они приходят сюда как массив
+// data-URL base64 (images?: string[]). OpenRouter/Grok Imagine принимает
+// референс через поле image_url в теле запроса (data-URL напрямую).
+// Для OpenAI-резерва используем отдельный эндпоинт /v1/images/edits
+// (multipart/form-data с исходным файлом) вместо /v1/images/generations —
+// именно так OpenAI поддерживает img2img у gpt-image-*.
 
 @Injectable()
 export class ImageService {
   private readonly timeoutMs = 60_000;
 
-  async generate(prompt: string): Promise<string> {
+  async generate(prompt: string, images?: string[]): Promise<string> {
     const safePrompt = prompt.length > 1500 ? prompt.slice(0, 1500) : prompt;
-    console.log(`[ImageService] запрос → "${safePrompt.slice(0, 100)}${safePrompt.length > 100 ? '…' : ''}"`);
+    const refs = (images || []).filter((s) => typeof s === 'string' && s.startsWith('data:image/')).slice(0, 4);
+    console.log(`[ImageService] запрос → "${safePrompt.slice(0, 100)}${safePrompt.length > 100 ? '…' : ''}"${refs.length ? ` (+${refs.length} референс(а/ов))` : ''}`);
 
     const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
     const openaiKey = process.env.OPENAI_API_KEY?.trim();
@@ -47,7 +56,7 @@ export class ImageService {
     // 1) OpenRouter / Grok Imagine — основной провайдер
     if (openrouterKey) {
       try {
-        const url = await this.callOpenRouterGrok(openrouterKey, safePrompt);
+        const url = await this.callOpenRouterGrok(openrouterKey, safePrompt, refs);
         return url;
       } catch (e: any) {
         const msg = e?.message || String(e);
@@ -62,7 +71,7 @@ export class ImageService {
         errors.push('OpenAI: ключ имеет неверный формат');
       } else {
         try {
-          return await this.callOpenAiWithModelFallback(openaiKey, safePrompt);
+          return await this.callOpenAiWithModelFallback(openaiKey, safePrompt, refs);
         } catch (e: any) {
           errors.push(`OpenAI: ${e?.message || String(e)}`);
         }
@@ -83,7 +92,7 @@ export class ImageService {
   // него стабильно возвращают 404 "No model found"). Плюс сама модель
   // x-ai/grok-2-image снята с продажи xAI — актуальная замена в той же
   // линейке Grok Imagine — x-ai/grok-imagine-image-quality.
-  private async callOpenRouterGrok(apiKey: string, prompt: string): Promise<string> {
+  private async callOpenRouterGrok(apiKey: string, prompt: string, refs: string[] = []): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const started = Date.now();
@@ -107,6 +116,11 @@ export class ImageService {
           model: 'x-ai/grok-imagine-image-quality',
           prompt,
           n: 1,
+          // Референсные фото (Image-to-Image): Grok Imagine принимает
+          // изображение-референс как data-URL в image_url. При нескольких
+          // референсах передаём первый как основной, остальные —
+          // дополнительным массивом (провайдер сам решает, что использовать).
+          ...(refs.length ? { image_url: refs[0], image_urls: refs } : {}),
         }),
       });
     } catch (e: any) {
@@ -158,7 +172,7 @@ export class ImageService {
     { model: 'gpt-image-1-mini', body: { quality: 'auto', size: '1024x1024' } },
   ];
 
-  private async callOpenAiWithModelFallback(key: string, prompt: string): Promise<string> {
+  private async callOpenAiWithModelFallback(key: string, prompt: string, refs: string[] = []): Promise<string> {
     let lastError: unknown = null;
     for (let i = 0; i < this.openAiConfigs.length; i++) {
       const cfg = this.openAiConfigs[i];
@@ -169,7 +183,7 @@ export class ImageService {
         ...cfg.body,
       };
       try {
-        const url = await this.callOpenAiOnce(key, body, 0);
+        const url = await this.callOpenAiOnce(key, body, 0, refs);
         if (i > 0) console.log(`[ImageService/OpenAI] сработал fallback '${cfg.model}'`);
         return url;
       } catch (e: any) {
@@ -184,23 +198,55 @@ export class ImageService {
     throw lastError instanceof Error ? lastError : new ServiceUnavailableException('OpenAI: все модели недоступны');
   }
 
-  private async callOpenAiOnce(key: string, body: Record<string, any>, attempt: number): Promise<string> {
+  // Разбирает data-URL (data:image/png;base64,...) на MIME-тип и Buffer —
+  // нужно, чтобы приложить референсное фото как файл в multipart-запросе.
+  private parseDataUrl(dataUrl: string): { mediaType: string; buffer: Buffer } {
+    const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+    if (!match) throw new Error('некорректный формат референсного изображения');
+    return { mediaType: match[1], buffer: Buffer.from(match[2], 'base64') };
+  }
+
+  private async callOpenAiOnce(key: string, body: Record<string, any>, attempt: number, refs: string[] = []): Promise<string> {
     const started = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const modelTag = `[ImageService/OpenAI/${body.model}]`;
+    // С референсными фото используем /v1/images/edits (Image-to-Image,
+    // multipart/form-data с приложенным файлом) вместо обычного
+    // /v1/images/generations — так OpenAI поддерживает img2img у gpt-image-*.
+    const useEdits = refs.length > 0;
+    const endpoint = useEdits ? 'https://api.openai.com/v1/images/edits' : 'https://api.openai.com/v1/images/generations';
 
     let response: Response;
     try {
-      response = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify(body),
-      });
+      if (useEdits) {
+        const form = new FormData();
+        for (const [k, v] of Object.entries(body)) {
+          if (v === undefined || v === null) continue;
+          form.append(k, String(v));
+        }
+        refs.forEach((ref, idx) => {
+          const { mediaType, buffer } = this.parseDataUrl(ref);
+          const ext = mediaType.split('/')[1] || 'png';
+          form.append('image[]', new Blob([buffer], { type: mediaType }), `reference-${idx}.${ext}`);
+        });
+        response = await fetch(endpoint, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { Authorization: `Bearer ${key}` },
+          body: form as any,
+        });
+      } else {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${key}`,
+          },
+          body: JSON.stringify(body),
+        });
+      }
     } catch (e: any) {
       clearTimeout(timer);
       if (e?.name === 'AbortError' || e?.code === 'ABORT_ERR') {
@@ -242,7 +288,7 @@ export class ImageService {
         console.warn(`${modelTag} авто-ретрай: убираю '${parsedParam}'`);
         const retryBody = { ...body };
         delete retryBody[parsedParam];
-        return this.callOpenAiOnce(key, retryBody, attempt + 1);
+        return this.callOpenAiOnce(key, retryBody, attempt + 1, refs);
       }
 
       const lowerBody = errorBody.toLowerCase();

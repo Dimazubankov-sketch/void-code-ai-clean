@@ -9,9 +9,11 @@ import { Icons } from '@/shared/ui/Icons';
 // Хореография собрана в единый GSAP-таймлайн (gsap-timeline skill):
 //  1) логотип «влетает» из глубины — scale + rotation + снятие блюра,
 //     затем мягко пружинит (back.out);
-//  2) вокруг разгорается ореол-свечение;
-//  3) название появляется словами с каскадом (stagger);
-//  4) тонкая линия прогресса заполняется, после чего вся сцена уводится.
+//  2) название появляется словами с каскадом (stagger);
+//  3) тонкая линия прогресса заполняется, после чего вся сцена уводится.
+// Фиолетовое свечение (ореол) вокруг логотипа и drop-shadow с самого
+// логотипа убраны по просьбе пользователя — сцена оставлена чистой,
+// без полупрозрачного глоу-эффекта.
 // Пока логотип на сцене — он чуть «дышит» и парит (бесконечный yoyo).
 // Уход (leave) — тоже через таймлайн. Анимируются только transform/opacity/
 // filter (GPU-композитинг, 60fps). prefers-reduced-motion уважается.
@@ -45,9 +47,6 @@ export function Splash({ onDone, dark }) {
                 scale: 0.3, autoAlpha: 0, rotation: -90, filter: 'blur(14px)',
                 duration: 1.0, ease: 'back.out(1.7)',
             })
-            .from('.vc-splash__halo', {
-                scale: 0.4, autoAlpha: 0, duration: 0.9, ease: 'power2.out',
-            }, '-=0.7')
             .from('.vc-splash__word', {
                 y: 26, autoAlpha: 0, duration: 0.5, stagger: 0.12, ease: 'power3.out',
             }, '-=0.5')
@@ -60,10 +59,6 @@ export function Splash({ onDone, dark }) {
         // Лёгкое «дыхание» + парение логотипа, пока сцена на экране
         floatRef.current = gsap.to('.vc-splash__logo', {
             y: -8, scale: 1.03, duration: 1.8, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 1.0,
-        });
-        // Пульс ореола
-        gsap.to('.vc-splash__halo', {
-            scale: 1.12, autoAlpha: 0.85, duration: 2.0, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 1.0,
         });
 
         const safety = setTimeout(leave, 4000);
@@ -79,7 +74,6 @@ export function Splash({ onDone, dark }) {
             title="Нажмите, чтобы пропустить"
         >
             <div className="vc-splash__stage">
-                <div className="vc-splash__halo" aria-hidden="true" />
                 <Icons.VoidLogo className="vc-splash__logo" />
                 <div className="vc-splash__brand">
                     <span className="vc-splash__word void-grad-text">VOID</span>

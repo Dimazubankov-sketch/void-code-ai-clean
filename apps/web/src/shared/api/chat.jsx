@@ -18,10 +18,13 @@ export async function sendBackendMessage(chatId, content, model, systemPrompt, i
 }
 
 // Генерация изображения через backend (DALL-E 3). Возвращает URL/ data-URL.
-export async function generateBackendImage(prompt) {
+// images — опциональные референсные фото (data-URL base64) для режима
+// Image-to-Image, когда пользователь прикрепил фото вместе с промптом
+// в «Генерации изображений» (до 4 штук).
+export async function generateBackendImage(prompt, images = []) {
   const data = await apiFetch('/images/generate', {
     method: 'POST',
-    body: { prompt },
+    body: { prompt, ...(images && images.length ? { images } : {}) },
   });
   return data.url;
 }

@@ -1,5 +1,5 @@
 import { Body, Controller, Post, Req, UseGuards, ForbiddenException } from '@nestjs/common';
-import { IsString, MinLength, MaxLength } from 'class-validator';
+import { IsArray, IsOptional, IsString, MinLength, MaxLength, ArrayMaxSize } from 'class-validator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ImageService } from './image.service';
@@ -17,6 +17,14 @@ class GenerateImageDto {
   @MinLength(1)
   @MaxLength(2000)
   prompt!: string;
+
+  // Референсные фото для Image-to-Image (режим «Генерация изображений» с
+  // прикреплёнными картинками) — data-URL base64, максимум 4 штуки за раз.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(4)
+  @IsString({ each: true })
+  images?: string[];
 }
 
 @Controller('images')
@@ -30,7 +38,7 @@ export class ImageController {
   @Post('generate')
   async generate(@Req() req: any, @Body() dto: GenerateImageDto) {
     await this.consumeImageLimit(req.user.userId);
-    const url = await this.image.generate(dto.prompt);
+    const url = await this.image.generate(dto.prompt, dto.images);
     return { url };
   }
 

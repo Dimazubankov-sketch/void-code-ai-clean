@@ -67,9 +67,41 @@ function isPipeRow(line) {
     return pipes >= 2;
 }
 
-// Разбирает произвольный текст на массив кусков: { type: 'text', text }
-// или { type: 'table', lines: [...] }. Таблица = строка-заголовок +
-// строка-разделитель + одна или более строк с данными.
+// ==========================================
+// Заголовки Markdown (#, ##, ###) внутри обычного текста
+// ==========================================
+// Модель присылает заголовки в стандартном синтаксисе (# Текст, ## Текст,
+// ### Текст) — раньше это выводилось «как есть» (решётки видны прямо в
+// тексте). Строка-заголовок — это строка, начинающаяся с 1-3 символов #,
+// за которыми через пробел идёт текст. Поддерживаем H1-H3 (этого достаточно
+// для структуры ответов ИИ; H4-H6 модель практически не использует).
+const HEADING_RE = /^(#{1,3})\s+(.+)$/;
+
+function isHeadingLine(line) {
+    return HEADING_RE.test(line.trim());
+}
+
+function renderHeadingLine(line, key) {
+    const match = line.trim().match(HEADING_RE);
+    const level = match[1].length;
+    const text = match[2];
+    const classes = {
+        1: 'text-2xl font-bold mt-5 mb-2.5 leading-snug',
+        2: 'text-xl font-bold mt-4 mb-2 leading-snug',
+        3: 'text-lg font-bold mt-3 mb-1.5 leading-snug',
+    }[level];
+    const Tag = `h${level}`;
+    return (
+        <Tag key={key} className={`${classes} text-gray-900 dark:text-white`}>
+            {renderBoldLine(text, `${key}-h`)}
+        </Tag>
+    );
+}
+
+// Разбирает произвольный текст на массив кусков: { type: 'text', text },
+// { type: 'table', lines: [...] } или { type: 'heading', line }. Таблица =
+// строка-заголовок таблицы + строка-разделитель + одна или более строк
+// с данными.
 function splitTextAndTables(text) {
     const lines = text.split('\n');
     const chunks = [];
@@ -97,6 +129,13 @@ function splitTextAndTables(text) {
             i = j;
             continue;
         }
+        // Заголовок Markdown — отдельный кусок, рендерится тегом <h1-3>
+        if (isHeadingLine(line)) {
+            flushText();
+            chunks.push({ type: 'heading', line });
+            i++;
+            continue;
+        }
         buffer.push(line);
         i++;
     }
@@ -104,7 +143,7 @@ function splitTextAndTables(text) {
     return chunks;
 }
 
-// Рендер куска обычного текста (между таблицами) — переиспользуем
+// Рендер куска обычного текста (между таблицами/заголовками) — переиспользуем
 // прежнюю логику с bold и <br>.
 function renderTextChunk(text, keyPrefix) {
     const lines = text.split('\n');
@@ -159,6 +198,9 @@ export function MessageRenderer({ content }) {
                         {chunks.map((chunk, ci) => {
                             if (chunk.type === 'table') {
                                 return <TableBlock key={`${index}-t-${ci}`} rawLines={chunk.lines} />;
+                            }
+                            if (chunk.type === 'heading') {
+                                return renderHeadingLine(chunk.line, `${index}-h-${ci}`);
                             }
                             return renderTextChunk(chunk.text, `${index}-t-${ci}`);
                         })}

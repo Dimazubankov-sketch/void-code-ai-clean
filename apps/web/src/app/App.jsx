@@ -600,7 +600,11 @@ export function App() {
         const prompt = typeof promptOverride === 'string' ? promptOverride : (state.inputValue || '');
         if (!prompt.trim() || state.isGenerating) return;
 
-        const newUserMessage = { role: 'user', content: prompt };
+        // Референсные фото (Image-to-Image): прикреплённые в режиме
+        // «Генерация изображений» через то же поле «+», что и обычные
+        // вложения — используем то же state.selectedImages (задача 6).
+        const referenceImages = state.selectedImages && state.selectedImages.length > 0 ? state.selectedImages : [];
+        const newUserMessage = { role: 'user', content: prompt, image: referenceImages[0] || null, images: referenceImages };
 
         setState(prev => {
             const newSessions = prev.chatSessions.map(session => {
@@ -613,7 +617,7 @@ export function App() {
                 }
                 return session;
             });
-            return { ...prev, chatSessions: newSessions, inputValue: '', isGenerating: true, isGeneratingImage: true, currentView: 'chat' };
+            return { ...prev, chatSessions: newSessions, inputValue: '', selectedImages: [], isGenerating: true, isGeneratingImage: true, currentView: 'chat' };
         });
 
         // Реальная генерация через backend (OpenAI DALL-E 3). Раньше при ошибке
@@ -626,7 +630,7 @@ export function App() {
         let imageUrl = null;
         let errorText = null;
         try {
-            imageUrl = await generateBackendImage(prompt);
+            imageUrl = await generateBackendImage(prompt, referenceImages);
         } catch (e) {
             // ApiError наследует Error → e.message содержит текст с бэкенда
             // (см. image.service — там уже пользовательские формулировки).

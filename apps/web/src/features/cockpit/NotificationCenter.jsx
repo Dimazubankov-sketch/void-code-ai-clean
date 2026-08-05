@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { gsap } from 'gsap';
 import { MailAgentChat } from '@/features/cockpit/MailAgentChat';
 import { switchToAccount } from '@/shared/lib/accounts';
 import { playNotificationSound } from '@/shared/lib/sound';
@@ -43,6 +44,63 @@ const FOLDERS = [
 
 export function NotificationCenter({ state, updateState, onClose }) {
     const [expanded, setExpanded] = useState(false);
+    // ==========================================
+    // GSAP-анимация раскрытия/сворачивания почты на весь экран (ПК)
+    // ==========================================
+    // Раньше ширина панели переключалась чистым Tailwind-классом
+    // (w-[420px]/w-[34vw] ↔ w-full) с CSS transition-all — открытие
+    // выглядело плавно, а вот сворачивание «прыгало»: между
+    // адаптивными width-классами (sm:/md:) при смене на голый w-full нет
+    // единого числового значения, от которого браузер может честно
+    // интерполировать transition. Решение — явно анимировать ширину
+    // числом через GSAP: перед раскрытием запоминаем текущую (узкую)
+    // ширину панели в пикселях, дальше твиним к 100%, а при сворачивании —
+    // твиним обратно к запомненному пиксельному значению и ТОЛЬКО по
+    // onComplete переключаем state `expanded` обратно на false (чтобы не
+    // было резкого скачка раньше, чем анимация реально закончится).
+    const panelRef = useRef(null);
+    const collapsedWidthRef = useRef(null);
+    const expandTweenRef = useRef(null);
+
+    const toggleExpand = () => {
+        const panel = panelRef.current;
+        if (!panel) { setExpanded(v => !v); return; }
+        expandTweenRef.current?.kill();
+
+        if (!expanded) {
+            // Раскрытие: фиксируем текущую узкую ширину как стартовую
+            // точку для будущей обратной анимации, затем растягиваем
+            // панель до 100% ширины экрана.
+            collapsedWidthRef.current = panel.getBoundingClientRect().width;
+            gsap.set(panel, { width: collapsedWidthRef.current });
+            setExpanded(true);
+            requestAnimationFrame(() => {
+                expandTweenRef.current = gsap.to(panel, {
+                    width: '100%',
+                    duration: 0.5,
+                    ease: 'power3.inOut',
+                    onComplete: () => { panel.style.width = ''; },
+                });
+            });
+        } else {
+            // Сворачивание: сначала плавно уезжаем обратно к прежней
+            // (узкой) ширине, и только когда твин реально завершился —
+            // переключаем state, чтобы не срезать анимацию раньше времени.
+            const target = collapsedWidthRef.current || panel.getBoundingClientRect().width * 0.34;
+            expandTweenRef.current = gsap.to(panel, {
+                width: target,
+                duration: 0.5,
+                ease: 'power3.inOut',
+                onComplete: () => {
+                    panel.style.width = '';
+                    setExpanded(false);
+                },
+            });
+        }
+    };
+
+    useEffect(() => () => expandTweenRef.current?.kill(), []);
+
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarClosing, setSidebarClosing] = useState(false);
     // Закрытие с анимацией: панель уезжает влево, потом размонтируется
@@ -400,7 +458,8 @@ export function NotificationCenter({ state, updateState, onClose }) {
     return (
         <div className={`fixed inset-x-0 top-0 h-app-screen z-[90] flex justify-end bg-black/30 backdrop-blur-sm fade-in`} onClick={onClose}>
             <div
-                className={`relative bg-white dark:bg-darkCard shadow-2xl flex flex-col slide-in-right transition-all duration-500 ease-in-out h-full ${expanded ? 'w-full' : 'w-full sm:w-[420px] md:w-[34vw] md:max-w-[560px]'}`}
+                ref={panelRef}
+                className={`relative bg-white dark:bg-darkCard shadow-2xl flex flex-col slide-in-right h-full ${expanded ? 'w-full' : 'w-full sm:w-[420px] md:w-[34vw] md:max-w-[560px]'}`}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Шапка приложения-почты */}
@@ -419,7 +478,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                         />
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                        <button onClick={() => setExpanded(v => !v)} className="hidden sm:flex p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-400" title={expanded ? 'Свернуть' : 'На весь экран'}>
+                        <button onClick={toggleExpand} className="hidden sm:flex p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-400" title={expanded ? 'Свернуть' : 'На весь экран'}>
                             {expanded ? <Icons.Collapse className="w-5 h-5" /> : <Icons.Expand2 className="w-5 h-5" />}
                         </button>
                         <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.X /></button>

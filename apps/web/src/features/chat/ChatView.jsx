@@ -525,8 +525,11 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             окно выбора источника («Медиатека / Файлы / Камера»)
                             вместо того, чтобы сразу открыть галерею. Явный список
                             типов + отсутствие capture почти всегда даёт прямой
-                            переход в галерею с первого тапа. */}
-                        <input type="file" ref={chatFileInputRef} multiple accept="image/png, image/jpeg, image/webp, image/heic" className="hidden" onChange={(e) => {
+                            переход в галерею с первого тапа. Строго
+                            image/jpeg, image/png, image/webp — общая маска
+                            image/* провоцирует iOS/Android показывать
+                            системное меню выбора источника вместо галереи. */}
+                        <input type="file" ref={chatFileInputRef} multiple accept="image/jpeg, image/png, image/webp" className="hidden" onChange={(e) => {
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />

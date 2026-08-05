@@ -38,27 +38,8 @@
 .vc-splash--light { background: #fafbff; }
 .vc-splash--dark  { background: #0b0b12; }
 
-/* Мягкий брендовый ореол позади логотипа — статичный радиальный градиент,
-   «дышит» только opacity (дёшево для GPU) */
-.vc-splash__halo {
-    position: absolute; width: 340px; height: 340px; border-radius: 50%;
-    background: radial-gradient(circle,
-        rgba(91, 50, 212, 0.22) 0%,
-        rgba(91, 50, 212, 0.08) 45%,
-        transparent 70%);
-    pointer-events: none;
-    /* Анимация ореола теперь в GSAP (Splash.jsx) */
-}
-.vc-splash--light .vc-splash__halo {
-    background: radial-gradient(circle,
-        rgba(91, 50, 212, 0.14) 0%,
-        rgba(91, 50, 212, 0.05) 45%,
-        transparent 70%);
-}
-@keyframes vcHaloBreath {
-    0%, 100% { opacity: 0.55; transform: scale(1); }
-    50%      { opacity: 1;    transform: scale(1.06); }
-}
+/* Фиолетовое свечение (ореол) вокруг логотипа убрано по просьбе
+   пользователя — сцена заставки оставлена чистой, без глоу-эффектов. */
 
 .vc-splash__stage {
     position: relative;
@@ -66,17 +47,18 @@
     width: 260px;
 }
 
-/* Такт 1 — логотип проявляется из лёгкого блюра и подрастает до 1:1 */
+/* Такт 1 — логотип проявляется из лёгкого блюра и подрастает до 1:1.
+   Фиолетовый drop-shadow убран по просьбе пользователя — чистый дизайн
+   без свечения. */
 .vc-splash__logo {
     width: 132px; height: 132px;
-    filter: drop-shadow(0 10px 30px rgba(101, 60, 222, 0.35));
     will-change: transform, opacity, filter;
     /* Появление и парение логотипа — в GSAP (Splash.jsx) */
 }
 @keyframes vcLogoIn {
-    0%   { opacity: 0; transform: scale(0.88) translateY(6px); filter: blur(10px) drop-shadow(0 10px 30px rgba(101,60,222,0)); }
-    60%  { opacity: 1; filter: blur(0) drop-shadow(0 10px 30px rgba(101,60,222,0.35)); }
-    100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0) drop-shadow(0 10px 30px rgba(101,60,222,0.35)); }
+    0%   { opacity: 0; transform: scale(0.88) translateY(6px); filter: blur(10px); }
+    60%  { opacity: 1; filter: blur(0); }
+    100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
 }
 
 /* Такт 2 — название поднимается словами, каскадом слева направо */
@@ -142,7 +124,6 @@
     .vc-splash__skip {
         animation: vcSimpleFade 0.4s ease forwards;
     }
-    .vc-splash__halo,
     .vc-splash__progress span { animation: none; }
     .vc-splash__progress { visibility: hidden; }
     @keyframes vcSimpleFade { from { opacity: 0; } to { opacity: 1; } }
