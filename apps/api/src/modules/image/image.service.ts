@@ -228,7 +228,11 @@ export class ImageService {
         refs.forEach((ref, idx) => {
           const { mediaType, buffer } = this.parseDataUrl(ref);
           const ext = mediaType.split('/')[1] || 'png';
-          form.append('image[]', new Blob([buffer], { type: mediaType }), `reference-${idx}.${ext}`);
+          // Buffer.buffer типизирован как ArrayBufferLike (включает
+          // SharedArrayBuffer), а BlobPart требует конкретно ArrayBuffer —
+          // Uint8Array.from(...) создаёт копию с гарантированно свежим
+          // ArrayBuffer, чего достаточно для маленьких референсных фото.
+          form.append('image[]', new Blob([Uint8Array.from(buffer)], { type: mediaType }), `reference-${idx}.${ext}`);
         });
         response = await fetch(endpoint, {
           method: 'POST',
