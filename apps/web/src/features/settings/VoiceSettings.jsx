@@ -162,7 +162,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-5 space-y-8">
-                    {tts.error && (
+                    {tts.error && tts.error !== 'Не удалось воспроизвести аудио' && (
                         <div className="px-4 py-3 rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm">
                             {tts.error}
                         </div>

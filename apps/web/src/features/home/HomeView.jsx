@@ -114,8 +114,10 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
             <div className="fixed top-5 right-4 sm:top-6 sm:right-6 z-30">
                 {state.user ? (
                     <div className="flex items-center gap-2">
-                        {/* Колокольчик — центр уведомлений (почта) */}
-                        <button onClick={() => updateState({showNotifications: true})} className="void-tap-target relative flex-shrink-0 p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder">
+                        {/* Колокольчик — центр уведомлений (почта). Обводка круглая
+                            (rounded-full), как и кнопка меню рядом — раньше была
+                            квадратная rounded-xl. */}
+                        <button onClick={() => updateState({showNotifications: true})} className="void-tap-target relative flex-shrink-0 p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder">
                             <Icons.Bell className="w-6 h-6" />
                             {(Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
                               || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
@@ -123,7 +125,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                                 <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white dark:border-darkCard" />
                             )}
                         </button>
-                        <button onClick={() => updateState({isRightMenuOpen: true})} className="void-tap-target flex-shrink-0 p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder">
+                        <button onClick={() => updateState({isRightMenuOpen: true})} className="void-tap-target flex-shrink-0 p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder">
                             <Icons.TwoLines className="w-6 h-6" />
                         </button>
                     </div>

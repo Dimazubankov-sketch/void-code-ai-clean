@@ -175,6 +175,9 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     {ModelSelectorBlock}
                 </div>
                 <div className="flex items-center gap-2 justify-self-end">
+                    {/* Троеточие (действия с чатом) — сдвинуто левее, чтобы
+                        освободить крайнее правое место под кнопку «Меню»
+                        (см. ниже), которая должна стоять там же, где и в Хабе. */}
                     {onChatMenuAction && (
                         <div className="relative">
                             <IconCircleButton onClick={() => setShowChatMenu(v => !v)} title="Действия с чатом">
@@ -190,6 +193,13 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                             />
                         </div>
                     )}
+                    {/* Кнопка «Меню» (две полоски) — возвращена в шапку чата,
+                        на том же крайнем правом месте, где она стоит в Хабе.
+                        Круглая обводка, непрозрачный белый фон (solid) —
+                        полностью идентична кнопке меню на главном экране. */}
+                    <IconCircleButton onClick={() => updateState({ isRightMenuOpen: true })} title="Меню" solid>
+                        <Icons.TwoLines className="w-5 h-5" />
+                    </IconCircleButton>
                 </div>
             </div>
         );

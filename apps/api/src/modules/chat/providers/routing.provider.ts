@@ -37,7 +37,7 @@ export class RoutingLlmProvider implements LlmProvider {
     // Vision (есть прикреплённые картинки) — ВСЕГДА через OpenRouter,
     // независимо от выбранной модели: наша интеграция с Groq работает
     // только с текстовыми llama-моделями, картинки она не поддерживает.
-    // OpenRouterProvider сам переключится на vision-модель (Grok Vision).
+    // OpenRouterProvider сам переключится на vision-модель (qwen2.5-vl).
     const hasImages = req.messages.some((m) => m.imagesBase64 && m.imagesBase64.length > 0);
     const useGroqFirst = !hasImages && (model === 'flash' || model === 'mini');
 

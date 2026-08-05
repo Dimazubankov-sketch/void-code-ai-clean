@@ -27,7 +27,11 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
     const halo1Ref = useRef(null);
     const halo2Ref = useRef(null);
 
-    // ---- Пассивная анимация «дыхания» и ореолов ----
+    // ---- Пассивная анимация «дыхания» (без затухания ореолов) ----
+    // Раньше ореолы одновременно росли и ТУСКНЕЛИ (autoAlpha 0.4→0.12),
+    // из-за чего в покое казалось, что круг «затухает». По просьбе
+    // пользователя убрали именно это затухание — оставили только плавную
+    // пульсацию масштаба (дыхание) с постоянной прозрачностью ореолов.
     useGSAP(() => {
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (reduce) return;
@@ -38,12 +42,17 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
             .to('.orb-core', { filter: 'brightness(1.15)', duration: 2.4 }, 0)
             .to('.orb-core', { y: -4, duration: 3.0 }, 0);
 
+        // Ореолы: устанавливаем фиксированную (постоянную) прозрачность
+        // один раз, дальше анимируем ТОЛЬКО scale — никакого autoAlpha,
+        // чтобы не создавалось ощущение затухания/угасания.
+        gsap.set('.orb-halo-1', { autoAlpha: 0.28 });
+        gsap.set('.orb-halo-2', { autoAlpha: 0.22 });
         gsap.fromTo('.orb-halo-1',
-            { scale: 0.9, autoAlpha: 0.4 },
-            { scale: 1.3, autoAlpha: 0.12, duration: 2.8, ease: 'sine.inOut', repeat: -1, yoyo: true });
+            { scale: 0.9 },
+            { scale: 1.3, duration: 2.8, ease: 'sine.inOut', repeat: -1, yoyo: true });
         gsap.fromTo('.orb-halo-2',
-            { scale: 0.95, autoAlpha: 0.3 },
-            { scale: 1.45, autoAlpha: 0.1, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.8 });
+            { scale: 0.95 },
+            { scale: 1.45, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.8 });
 
         return () => { breathTl?.kill(); };
     }, { scope });
@@ -129,11 +138,13 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
             for (let i = 0; i < N; i++) sum += data[i];
             const avg = sum / N / 255; // 0..1
             smoothed = smoothed * 0.7 + avg * 0.3;
-            // Масштаб от 1.0 до 1.18 — не более, иначе круг «прыгает».
-            const scale = 1 + smoothed * 0.18;
-            const brightness = 1 + smoothed * 0.35;
-            const haloScale = 1 + smoothed * 0.35;
-            const halo1Alpha = 0.15 + smoothed * 0.45;
+            // Диапазоны заметно увеличены по просьбе пользователя — раньше
+            // реакция на голос была едва заметной (scale макс. 1.18).
+            // Теперь круг ощутимо «дышит» в такт озвучке.
+            const scale = 1 + smoothed * 0.38;
+            const brightness = 1 + smoothed * 0.6;
+            const haloScale = 1 + smoothed * 0.65;
+            const halo1Alpha = 0.28 + smoothed * 0.55;
             setScale(scale);
             setBrightness(brightness);
             setHalo1(haloScale);

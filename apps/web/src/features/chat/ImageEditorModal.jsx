@@ -43,6 +43,18 @@ export function ImageEditorModal({ image, onClose, onApply }) {
     const [activeTextId, setActiveTextId] = useState(null);
     const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
 
+    // ---- История для Undo/Redo ----
+    // Каждый снимок — { canvasData: dataURL рисунка (без учёта текстовых
+    // слоёв, они отдельным массивом) | null, textItems }. Храним в рефах
+    // (не в state), чтобы не тянуть за собой лишние ре-рендеры на каждый
+    // мазок кистью — а видимость кнопок Undo/Redo обновляем через
+    // отдельный лёгкий счётчик historyTick.
+    const historyRef = useRef([]);
+    const historyIndexRef = useRef(-1);
+    const isRestoringRef = useRef(false);
+    const hadMovedRef = useRef(false);
+    const [historyTick, setHistoryTick] = useState(0);
+
     // ---- Открытие модалки: GSAP fade+scale ----
     useEffect(() => {
         const overlay = overlayRef.current;
@@ -84,6 +96,13 @@ export function ImageEditorModal({ image, onClose, onApply }) {
             setImgSize({ w, h });
             canvas.width = w;
             canvas.height = h;
+            // Первый (пустой) снимок истории — точка, к которой можно
+            // вернуться Undo'ом до самого начала.
+            if (historyRef.current.length === 0) {
+                historyRef.current = [{ canvasData: null, textItems: [] }];
+                historyIndexRef.current = 0;
+                setHistoryTick((t) => t + 1);
+            }
         };
         if (img.complete && img.naturalWidth) onLoad();
         img.addEventListener('load', onLoad);
@@ -93,6 +112,64 @@ export function ImageEditorModal({ image, onClose, onApply }) {
             window.removeEventListener('resize', onLoad);
         };
     }, [image.src]);
+
+    // ---- История: снимок + запись/откат/повтор ----
+    const snapshotCanvasData = () => {
+        const canvas = canvasRef.current;
+        if (!canvas || !canvas.width || !canvas.height) return null;
+        try { return canvas.toDataURL('image/png'); } catch { return null; }
+    };
+
+    const pushHistory = useCallback((nextTextItems) => {
+        if (isRestoringRef.current) return;
+        const snapshot = {
+            canvasData: snapshotCanvasData(),
+            textItems: (nextTextItems ?? textItems).map((t) => ({ ...t })),
+        };
+        // Обрезаем «будущее», если перед этим действием был откат назад —
+        // как в любом обычном редакторе (новое действие после Undo стирает
+        // ветку Redo).
+        historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
+        historyRef.current.push(snapshot);
+        historyIndexRef.current = historyRef.current.length - 1;
+        setHistoryTick((t) => t + 1);
+    }, [textItems]);
+
+    const restoreSnapshot = (snapshot) => {
+        isRestoringRef.current = true;
+        setActiveTextId(null);
+        setTextItems(snapshot.textItems.map((t) => ({ ...t })));
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (!canvas || !ctx) { isRestoringRef.current = false; return; }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (snapshot.canvasData) {
+            const im = new Image();
+            im.onload = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(im, 0, 0, canvas.width, canvas.height);
+                isRestoringRef.current = false;
+            };
+            im.src = snapshot.canvasData;
+        } else {
+            isRestoringRef.current = false;
+        }
+    };
+
+    const undo = () => {
+        if (historyIndexRef.current <= 0) return;
+        historyIndexRef.current -= 1;
+        restoreSnapshot(historyRef.current[historyIndexRef.current]);
+        setHistoryTick((t) => t + 1);
+    };
+    const redo = () => {
+        if (historyIndexRef.current >= historyRef.current.length - 1) return;
+        historyIndexRef.current += 1;
+        restoreSnapshot(historyRef.current[historyIndexRef.current]);
+        setHistoryTick((t) => t + 1);
+    };
+    const canUndo = historyIndexRef.current > 0;
+    const canRedo = historyIndexRef.current < historyRef.current.length - 1;
 
     // ---- Рисование на Canvas ----
     const getPos = (e) => {
@@ -107,6 +184,7 @@ export function ImageEditorModal({ image, onClose, onApply }) {
         if (tool !== 'draw') return;
         e.preventDefault();
         drawingRef.current = true;
+        hadMovedRef.current = false;
         lastPointRef.current = getPos(e);
     };
     const moveDraw = (e) => {
@@ -125,8 +203,15 @@ export function ImageEditorModal({ image, onClose, onApply }) {
         ctx.lineTo(pos.x, pos.y);
         ctx.stroke();
         lastPointRef.current = pos;
+        hadMovedRef.current = true;
     };
-    const endDraw = () => { drawingRef.current = false; lastPointRef.current = null; };
+    const endDraw = () => {
+        // Записываем в историю, только если мазок реально что-то нарисовал
+        // (иначе случайный клик/тап плодил бы пустые шаги истории).
+        if (drawingRef.current && hadMovedRef.current) pushHistory();
+        drawingRef.current = false;
+        lastPointRef.current = null;
+    };
 
     // ---- Текст: клик по изображению добавляет текстовое поле ----
     const handleImageClick = (e) => {
@@ -144,6 +229,16 @@ export function ImageEditorModal({ image, onClose, onApply }) {
     };
     const removeEmptyTexts = () => {
         setTextItems((prev) => prev.filter((t) => t.value.trim() !== ''));
+    };
+    // По уходу фокуса с текстового поля — чистим пустые поля и фиксируем
+    // текущее состояние текста в истории (это и есть «шаг» для Undo/Redo
+    // текстового инструмента, аналогично завершению мазка кистью).
+    const commitTextEdits = () => {
+        setTextItems((prev) => {
+            const filtered = prev.filter((t) => t.value.trim() !== '');
+            pushHistory(filtered);
+            return filtered;
+        });
     };
 
     // ---- Применить изменения: рисуем итоговое изображение на отдельном
@@ -205,14 +300,34 @@ export function ImageEditorModal({ image, onClose, onApply }) {
             className="fixed inset-0 z-[200] bg-black flex flex-col"
             style={{ opacity: 0 }}
         >
-            {/* Верхняя панель: крестик слева, галочка справа */}
+            {/* Верхняя панель: крестик + Undo/Redo слева, галочка справа */}
             <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-                <button
-                    onClick={handleClose}
-                    className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md flex items-center justify-center text-white transition-colors"
-                >
-                    <Icons.X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleClose}
+                        className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md flex items-center justify-center text-white transition-colors"
+                    >
+                        <Icons.X className="w-5 h-5" />
+                    </button>
+                    {/* Стрелка «назад» — отменить последнее действие */}
+                    <button
+                        onClick={undo}
+                        disabled={!canUndo}
+                        title="Отменить действие"
+                        className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 disabled:opacity-30 disabled:hover:bg-white/15 backdrop-blur-md flex items-center justify-center text-white transition-colors"
+                    >
+                        <Icons.Undo className="w-5 h-5" />
+                    </button>
+                    {/* Стрелка «вперёд» — вернуть отменённое действие */}
+                    <button
+                        onClick={redo}
+                        disabled={!canRedo}
+                        title="Повторить действие"
+                        className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 disabled:opacity-30 disabled:hover:bg-white/15 backdrop-blur-md flex items-center justify-center text-white transition-colors"
+                    >
+                        <Icons.Redo className="w-5 h-5" />
+                    </button>
+                </div>
                 <button
                     onClick={applyChanges}
                     className="w-10 h-10 rounded-full bg-[#5b32d4] hover:bg-[#4a26b0] flex items-center justify-center text-white transition-colors shadow-lg"
@@ -270,7 +385,7 @@ export function ImageEditorModal({ image, onClose, onApply }) {
                             autoFocus={t.id === activeTextId}
                             value={t.value}
                             onChange={(e) => updateTextItem(t.id, { value: e.target.value })}
-                            onBlur={removeEmptyTexts}
+                            onBlur={commitTextEdits}
                             placeholder="Текст…"
                             className="absolute bg-transparent border-b-2 border-dashed border-white/70 text-white font-bold text-xl outline-none px-1 min-w-[80px]"
                             style={{ left: t.x, top: t.y - 16, color, textShadow: '0 1px 4px rgba(0,0,0,0.7)' }}

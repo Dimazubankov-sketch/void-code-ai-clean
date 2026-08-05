@@ -89,9 +89,12 @@ export class OpenRouterProvider implements LlmProvider {
 
     // При наличии изображений принудительно переключаемся на
     // vision-совместимую модель — qwen-2.5-coder не умеет смотреть
-    // картинки. x-ai/grok-2-vision-1212 — та же линейка xAI, что уже
-    // используется для генерации картинок, доступна через тот же ключ.
-    const chosenModel = hasAnyImages ? 'x-ai/grok-2-vision-1212' : (this.modelMap[req.model] || this.fallbackModel);
+    // картинки. Раньше здесь стояла x-ai/grok-2-vision-1212, но xAI
+    // задепрекейтила её 28.02.2026 (см. deprecation notice), из-за чего
+    // Vision-запросы стабильно падали. qwen2.5-vl-72b-instruct — активная,
+    // хорошо ценированная vision-модель той же линейки Qwen, что уже
+    // используется для текста — не требует нового ключа/аккаунта.
+    const chosenModel = hasAnyImages ? 'qwen/qwen2.5-vl-72b-instruct' : (this.modelMap[req.model] || this.fallbackModel);
     // Void Plus работает на qwen-2.5-coder-32b — модель специализирована
     // на коде, но 6144 токенов на выходе давали 20-30 сек ожидания. Для
     // Plus снижаем до 4096 — этого хватает на полноценный компонент/

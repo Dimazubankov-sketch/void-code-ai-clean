@@ -37,16 +37,16 @@ export function ChatPlusMenu({
 
     return (
         <Sheet title="Добавить в чат" onClose={onClose}>
-            {/* Раньше здесь был grid из 3 БОЛЬШИХ кнопок (BigButton:
-                Камера/Фото/Файлы) — по просьбе пользователя убран как
-                визуально громоздкое «старое меню из трёх кнопок».
-                Теперь Фото и Файлы — компактные строки, которые СРАЗУ
-                (в один клик) открывают системный пикер, без какого-либо
-                промежуточного экрана выбора. */}
-            <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl overflow-hidden mb-3 divide-y divide-gray-100 dark:divide-gray-700/50">
-                <RowButton icon="Camera" label="Камера" onClick={() => { onPickCamera?.(); onClose(); }} />
-                <RowButton icon="Image" label="Фото" onClick={() => { onPickPhoto?.(); onClose(); }} />
-                <RowButton icon="PaperclipThin" label="Файлы" onClick={() => { onPickFile?.(); onClose(); }} />
+            {/* Три большие кнопки — Камера/Фото/Файлы (снова по просьбе
+                пользователя, вернули прежний вид). Каждая кнопка СРАЗУ
+                (в один клик) открывает нужный системный пикер — без
+                какого-либо промежуточного экрана выбора: Камера открывает
+                камеру устройства (capture="environment" на инпуте), Фото —
+                галерею (accept="image/*"), Файлы — обычный проводник. */}
+            <div className="grid grid-cols-3 gap-3 mb-3">
+                <BigButton icon="Camera" label="Камера" onClick={() => { onPickCamera?.(); onClose(); }} />
+                <BigButton icon="Image" label="Фото" onClick={() => { onPickPhoto?.(); onClose(); }} />
+                <BigButton icon="PaperclipThin" label="Файлы" onClick={() => { onPickFile?.(); onClose(); }} />
             </div>
 
             {/* Блок: добавить в проект + скиллы (строго под проектом) */}
@@ -82,6 +82,22 @@ function Sheet({ title, onClose, children }) {
                 <div className="px-4 pb-6 overflow-y-auto">{children}</div>
             </div>
         </div>
+    );
+}
+
+// Большая квадратная кнопка (иконка сверху + подпись снизу, без круглой
+// подложки под иконкой — по референсу пользователя) — используется для
+// Камера/Фото/Файлы в верхней части меню «+».
+function BigButton({ icon, label, onClick }) {
+    const Icon = Icons[icon] || Icons.Plus;
+    return (
+        <button
+            onClick={onClick}
+            className="flex flex-col items-center justify-center gap-2.5 aspect-square rounded-3xl bg-gray-100 dark:bg-gray-800/60 hover:bg-gray-200 dark:hover:bg-gray-800 active:scale-[0.97] transition-all"
+        >
+            <Icon className="w-7 h-7 text-gray-800 dark:text-gray-200" />
+            <span className="text-[15px] font-semibold text-gray-900 dark:text-gray-100">{label}</span>
+        </button>
     );
 }
 
