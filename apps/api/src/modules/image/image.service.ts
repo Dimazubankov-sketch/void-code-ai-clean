@@ -4,18 +4,23 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 // Генерация изображений — OpenRouter (Grok Imagine) → OpenAI fallback
 // ==========================================
 // История: OpenAI Images API у этого аккаунта нестабилен — для доступа к
-// gpt-image-1 нужно потратить $5 (verification tier), к dall-e-3 доступ
-// отваливается по «model_not_found»/policy-подобным ошибкам. Пользователь
-// нашёл выход: использовать OpenRouter (у нас там уже есть работающий
-// ключ для Qwen Coder) с моделью x-ai/grok-2-image как основной, а OpenAI
-// оставить резервом на случай, если Grok сам недоступен.
+// gpt-image-1 нужно потратить $5 (verification tier). DALL-E 2/3 ПОЛНОСТЬЮ
+// отключены OpenAI 12.05.2026 (retired) — раньше стояли первыми в fallback
+// и просто гарантированно падали. x-ai/grok-2-image тоже снят с продажи
+// (актуальная замена — grok-imagine-image-quality), и OpenRouter в июле
+// 2026 перевёл генерацию картинок на отдельный dedicated-эндпоинт
+// /api/v1/images (старый OpenAI-совместимый /images/generations для
+// картинок больше не отвечает). Пользователь нашёл выход: использовать
+// OpenRouter (у нас там уже есть работающий ключ для Qwen Coder) как
+// основной путь, а OpenAI оставить резервом на случай, если Grok сам
+// недоступен.
 //
-// Порядок:
-//   1) OPENROUTER_API_KEY + x-ai/grok-2-image — основной путь. Grok
-//      возвращает картинку по OpenAI-совместимому JSON (data[].url или
-//      data[].b64_json).
-//   2) OPENAI_API_KEY + dall-e-3 → gpt-image-1 → dall-e-2 — fallback,
-//      идёт последовательно с автоматической сменой модели при
+// Порядок (актуально на август 2026):
+//   1) OPENROUTER_API_KEY + x-ai/grok-imagine-image-quality через
+//      POST /api/v1/images — основной путь. Ответ: data[].b64_json +
+//      data[].media_type.
+//   2) OPENAI_API_KEY + gpt-image-1 → gpt-image-2 → gpt-image-1-mini —
+//      fallback, идёт последовательно с автоматической сменой модели при
 //      «недоступности» (model_not_found, verification required и т.п.).
 //
 // Умное восстановление: если один параметр запроса вызывает 400
@@ -72,15 +77,21 @@ export class ImageService {
   // ==========================================
   // OpenRouter — Grok Imagine Image Quality
   // ==========================================
+  // ВАЖНО: OpenRouter в июле 2026 перевёл генерацию картинок на отдельный
+  // dedicated-эндпоинт /api/v1/images (старый OpenAI-совместимый путь
+  // /images/generations для картинок больше не работает — модели через
+  // него стабильно возвращают 404 "No model found"). Плюс сама модель
+  // x-ai/grok-2-image снята с продажи xAI — актуальная замена в той же
+  // линейке Grok Imagine — x-ai/grok-imagine-image-quality.
   private async callOpenRouterGrok(apiKey: string, prompt: string): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const started = Date.now();
-    const modelTag = '[ImageService/OpenRouter/x-ai/grok-2-image]';
+    const modelTag = '[ImageService/OpenRouter/x-ai/grok-imagine-image-quality]';
 
     let response: Response;
     try {
-      response = await fetch('https://openrouter.ai/api/v1/images/generations', {
+      response = await fetch('https://openrouter.ai/api/v1/images', {
         method: 'POST',
         signal: controller.signal,
         headers: {
@@ -90,13 +101,12 @@ export class ImageService {
           'X-Title': 'Void Code AI',
         },
         body: JSON.stringify({
-          // Модель Grok-2 Image — генератор от xAI, доступный через
+          // Grok Imagine Image Quality — актуальный генератор от xAI на
           // OpenRouter. Ключ тот же, что для Qwen — единая биллинг-точка,
           // не требует отдельной верификации организации.
-          model: 'x-ai/grok-2-image',
+          model: 'x-ai/grok-imagine-image-quality',
           prompt,
           n: 1,
-          size: '1024x1024',
         }),
       });
     } catch (e: any) {
@@ -125,8 +135,14 @@ export class ImageService {
     console.log(`${modelTag} ок за ${Date.now() - started}мс`);
     const first = data.data?.[0];
     if (!first) throw new Error('OpenRouter вернул пустой data');
+    // Новый dedicated Image API всегда отдаёт b64_json + media_type (не
+    // url, как раньше в OpenAI-совместимом формате) — но на всякий
+    // случай проверяем оба поля.
+    if (typeof first.b64_json === 'string' && first.b64_json) {
+      const mediaType = typeof first.media_type === 'string' ? first.media_type : 'image/png';
+      return `data:${mediaType};base64,${first.b64_json}`;
+    }
     if (typeof first.url === 'string' && first.url) return first.url;
-    if (typeof first.b64_json === 'string' && first.b64_json) return `data:image/png;base64,${first.b64_json}`;
     throw new Error('неизвестный формат ответа OpenRouter');
   }
 
@@ -134,9 +150,12 @@ export class ImageService {
   // OpenAI fallback — по очереди
   // ==========================================
   private readonly openAiConfigs: Array<{ model: string; body: Record<string, any> }> = [
-    { model: 'dall-e-3', body: { quality: 'standard', size: '1024x1024' } },
+    // DALL-E 2/3 полностью отключены OpenAI 12.05.2026 — заменены на
+    // актуальную линейку GPT Image (gpt-image-1 уже был в списке и
+    // остаётся первым, как ранее подтверждённо рабочий вариант).
     { model: 'gpt-image-1', body: { quality: 'high', size: '1024x1024' } },
-    { model: 'dall-e-2', body: { size: '1024x1024' } },
+    { model: 'gpt-image-2', body: { quality: 'high', size: '1024x1024' } },
+    { model: 'gpt-image-1-mini', body: { quality: 'auto', size: '1024x1024' } },
   ];
 
   private async callOpenAiWithModelFallback(key: string, prompt: string): Promise<string> {

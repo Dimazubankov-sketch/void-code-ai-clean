@@ -11,15 +11,24 @@ export class GeminiProvider implements LlmProvider {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new ServiceUnavailableException('LLM-провайдер не сконфигурирован');
 
-    const contents = req.messages.map((m) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [
-        { text: m.content },
-        ...(m.imageBase64
-          ? [{ inlineData: { mimeType: 'image/jpeg', data: m.imageBase64 } }]
-          : []),
-      ],
-    }));
+    const contents = req.messages.map((m) => {
+      // Vision: imagesBase64 — массив data-URL (data:image/...;base64,...).
+      // Gemini ждёт inlineData БЕЗ префикса "data:...;base64," — только
+      // сырой base64 и отдельно mimeType, поэтому парсим data-URL.
+      const imageParts = (m.imagesBase64 || []).map((dataUrl) => {
+        const match = /^data:(.+?);base64,(.+)$/.exec(dataUrl || '');
+        return {
+          inlineData: {
+            mimeType: match ? match[1] : 'image/jpeg',
+            data: match ? match[2] : dataUrl,
+          },
+        };
+      });
+      return {
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }, ...imageParts],
+      };
+    });
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${req.model}:generateContent`,
