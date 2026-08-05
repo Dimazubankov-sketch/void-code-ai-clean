@@ -276,7 +276,7 @@ export function SkillsPanel({ state, updateState, projectId = null }) {
                 // раскрытие одной вытягивало соседнюю пустым пространством.
                 // Теперь каждая ячейка занимает ровно свою реальную высоту,
                 // соседняя остаётся компактной.
-                <div className="grid sm:grid-cols-2 gap-3" style={{ alignItems: 'start', gridAutoRows: 'min-content' }}>
+                <div className="grid grid-cols-1 gap-3" style={{ alignItems: 'start', gridAutoRows: 'min-content' }}>
                     {SKILLS.map(skill => (
                         <SkillCard
                             key={skill.id}

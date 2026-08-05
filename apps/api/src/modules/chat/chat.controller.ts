@@ -1,5 +1,5 @@
 import { Body, Controller, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsArray, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ChatService } from './chat.service';
@@ -26,6 +26,14 @@ class SendMessageDto {
   @IsString()
   @MaxLength(20000)
   systemPrompt?: string;
+
+  // Vision: массив data-URL картинок (base64), прикреплённых к сообщению.
+  // Пробрасывается провайдеру в OpenAI-совместимом multi-modal формате
+  // (content: [{type:'text'},{type:'image_url'}]), если модель это
+  // поддерживает. См. ChatService.sendMessage.
+  @IsOptional()
+  @IsArray()
+  images?: string[];
 }
 
 @Controller('chats')
@@ -71,7 +79,7 @@ export class ChatController {
     }, 15_000);
 
     try {
-      const result = await this.chat.sendMessage(req.user.userId, chatId, dto.content, dto.model, dto.systemPrompt);
+      const result = await this.chat.sendMessage(req.user.userId, chatId, dto.content, dto.model, dto.systemPrompt, dto.images);
       clearInterval(heartbeat);
       res.end(JSON.stringify(result));
     } catch (e) {

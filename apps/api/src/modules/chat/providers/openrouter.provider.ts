@@ -65,12 +65,33 @@ export class OpenRouterProvider implements LlmProvider {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new ServiceUnavailableException('LLM-провайдер не сконфигурирован');
 
+    // Vision: если у сообщения есть imagesBase64, content нужно превратить
+    // из простой строки в OpenAI-совместимый массив блоков
+    // [{type:'text', text}, {type:'image_url', image_url:{url}}, ...].
+    // Обычные (без картинок) сообщения остаются простыми строками —
+    // так экономим токены и не ломаем провайдеров без Vision-поддержки.
+    const hasAnyImages = req.messages.some((m) => m.imagesBase64 && m.imagesBase64.length > 0);
     const messages = [
       { role: 'system', content: req.systemPrompt },
-      ...req.messages.map((m) => ({ role: m.role, content: m.content })),
+      ...req.messages.map((m) => {
+        if (m.imagesBase64 && m.imagesBase64.length > 0) {
+          return {
+            role: m.role,
+            content: [
+              { type: 'text', text: m.content || ' ' },
+              ...m.imagesBase64.map((url) => ({ type: 'image_url', image_url: { url } })),
+            ],
+          };
+        }
+        return { role: m.role, content: m.content };
+      }),
     ];
 
-    const chosenModel = this.modelMap[req.model] || this.fallbackModel;
+    // При наличии изображений принудительно переключаемся на
+    // vision-совместимую модель — qwen-2.5-coder не умеет смотреть
+    // картинки. x-ai/grok-2-vision-1212 — та же линейка xAI, что уже
+    // используется для генерации картинок, доступна через тот же ключ.
+    const chosenModel = hasAnyImages ? 'x-ai/grok-2-vision-1212' : (this.modelMap[req.model] || this.fallbackModel);
     // Void Plus работает на qwen-2.5-coder-32b — модель специализирована
     // на коде, но 6144 токенов на выходе давали 20-30 сек ожидания. Для
     // Plus снижаем до 4096 — этого хватает на полноценный компонент/

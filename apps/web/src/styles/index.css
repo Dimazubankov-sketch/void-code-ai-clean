@@ -333,3 +333,16 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
 .void-cli-scroll::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(90deg, #7f57ff, #a855f7);
 }
+
+/* void-attach-scroll — тонкий горизонтальный скроллбар для полосы
+   превью вложений в поле ввода чата (несколько фото друг за другом). */
+.void-attach-scroll {
+    scrollbar-width: thin;
+}
+.void-attach-scroll::-webkit-scrollbar {
+    height: 4px;
+}
+.void-attach-scroll::-webkit-scrollbar-thumb {
+    background: rgba(91, 50, 212, 0.35);
+    border-radius: 999px;
+}

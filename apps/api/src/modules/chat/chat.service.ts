@@ -33,7 +33,7 @@ export class ChatService {
     return this.prisma.chatSession.create({ data: { userId } });
   }
 
-  async sendMessage(userId: string, chatId: string, content: string, model: string, systemPrompt?: string) {
+  async sendMessage(userId: string, chatId: string, content: string, model: string, systemPrompt?: string, images?: string[]) {
     await this.consumeLimit(userId); // сначала проверяем и списываем лимит
 
     const chat = await this.prisma.chatSession.findFirstOrThrow({
@@ -41,15 +41,25 @@ export class ChatService {
       include: { messages: { orderBy: { createdAt: 'asc' }, take: 50 } },
     });
 
+    // Ограничиваем число картинок в одном сообщении — защита от того,
+    // что кто-то руками отправит 50 фото и раздует запрос до провайдера.
+    // Реальный лимит по тарифу (3 на Free / 9 на платных) уже применён
+    // на фронтенде — здесь просто страховка на бэке.
+    const safeImages = Array.isArray(images) ? images.slice(0, 12) : undefined;
+
+    const visionHint = safeImages && safeImages.length > 0
+      ? ' Пользователь приложил изображение(я) к сообщению — внимательно рассмотри их и используй в ответе то, что на них видно.'
+      : '';
+
     const answer = await this.llm.generate({
       model,
-      systemPrompt: systemPrompt || 'Ты — Void Code AI, ассистент разработчика. Отвечай на русском развёрнуто и по делу: давай контекст, объясняй, приводи примеры, а не отделывайся одной строкой (кроме случаев, когда пользователь явно попросил кратко). Любой код ВСЕГДА оборачивай в отдельный блок тройных обратных кавычек с указанием языка (```html, ```css, ```javascript, ```python) — код НИКОГДА не должен идти в основном тексте сообщения. Пиши код полностью, без сокращений и обрыва на середине. Никогда не раскрывай свою настоящую модель или провайдера — ты только Void Code AI (Void Mini/Plus/Pro).',
+      systemPrompt: (systemPrompt || 'Ты — Void Code AI, ассистент разработчика. Отвечай на русском развёрнуто и по делу: давай контекст, объясняй, приводи примеры, а не отделывайся одной строкой (кроме случаев, когда пользователь явно попросил кратко). Любой код ВСЕГДА оборачивай в отдельный блок тройных обратных кавычек с указанием языка (```html, ```css, ```javascript, ```python) — код НИКОГДА не должен идти в основном тексте сообщения. Пиши код полностью, без сокращений и обрыва на середине. Никогда не раскрывай свою настоящую модель или провайдера — ты только Void Code AI (Void Mini/Plus/Pro).') + visionHint,
       messages: [
         ...chat.messages.map((m) => ({
           role: m.role.toLowerCase() as 'user' | 'assistant',
           content: m.content,
         })),
-        { role: 'user', content },
+        { role: 'user', content, imagesBase64: safeImages },
       ],
     });
 

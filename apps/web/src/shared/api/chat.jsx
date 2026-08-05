@@ -9,10 +9,10 @@ export async function createBackendChat() {
   return data.id;
 }
 
-export async function sendBackendMessage(chatId, content, model, systemPrompt) {
+export async function sendBackendMessage(chatId, content, model, systemPrompt, images = []) {
   const data = await apiFetch(`/chats/${chatId}/messages`, {
     method: 'POST',
-    body: { content, model: model || 'llama-3.3-70b-versatile', systemPrompt },
+    body: { content, model: model || 'llama-3.3-70b-versatile', systemPrompt, images },
   });
   return data.content;
 }

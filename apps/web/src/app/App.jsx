@@ -80,6 +80,12 @@ export function App() {
             inputValue: '',
             isGenerating: false,
             selectedImage: null,
+            // Массив вложений (до 9 фото на платных тарифах, 3 на Free —
+            // см. getAttachmentLimit). selectedImage (одиночное) оставлен
+            // для обратной совместимости со старыми местами (агенты/
+            // оркестраторы используют одно фото), но основной чат теперь
+            // работает через selectedImages.
+            selectedImages: [],
             authTab: 'login',
             imageGenMode: false,
             activeAgentId: null,
@@ -361,7 +367,8 @@ export function App() {
         }
 
         const textToSend = typeof textOverride === 'string' ? textOverride : (state.inputValue || '');
-        if ((!textToSend.trim() && !state.selectedImage) || state.isGenerating) return;
+        const attachedImages = state.selectedImages && state.selectedImages.length > 0 ? state.selectedImages : (state.selectedImage ? [state.selectedImage] : []);
+        if ((!textToSend.trim() && attachedImages.length === 0) || state.isGenerating) return;
         
         const activeModel = AI_MODELS.find(m => m.id === state.selectedModelId) || AI_MODELS[1];
         const maxLimits = getPlanLimits(state.userPlan);
@@ -372,7 +379,10 @@ export function App() {
             return;
         }
         
-        const newUserMessage = { role: 'user', content: textToSend, image: state.selectedImage };
+        // image — первое вложение (для обратной совместимости со старым
+        // UI сообщения), images — полный массив (используется превью
+        // в несколько картинок и Vision-обогащением запроса к LLM).
+        const newUserMessage = { role: 'user', content: textToSend, image: attachedImages[0] || null, images: attachedImages };
 
         // Определяем ID сессии, в которую пишем, ДО setState — если активной
         // сессии нет (например, сразу после регистрации, когда ни одного
@@ -423,6 +433,7 @@ export function App() {
                 activeChatId: targetChatId,
                 inputValue: '',
                 selectedImage: null,
+                selectedImages: [],
                 isGenerating: true,
                 currentView: 'chat',
                 usedDailyLimits: newUsedDaily,
@@ -511,7 +522,7 @@ export function App() {
                 }
             }
 
-            responseText = await sendBackendMessage(backendChatId, enrichedText, modelForRequest, systemPrompt);
+            responseText = await sendBackendMessage(backendChatId, enrichedText, modelForRequest, systemPrompt, attachedImages);
             // На более тяжёлых уровнях рассуждений даём ИИ «подумать» чуть
             // дольше перед выдачей ответа — пользователь тем временем видит
             // расширенный индикатор размышления (см. ThinkingIndicator).

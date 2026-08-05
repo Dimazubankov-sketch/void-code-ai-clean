@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
+import { ImageEditorModal } from '@/features/chat/ImageEditorModal';
+import { getAttachmentLimit } from '@/shared/config/models';
 import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
 
 
@@ -36,6 +38,30 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
     // false — при первом заходе играет intro-анимация; после клика по логотипу
     // включается отдельная анимация «всплытия».
     const [logoPopped, setLogoPopped] = useState(false);
+    const [editingImage, setEditingImage] = useState(null);
+
+    const addImageFiles = (fileList) => {
+        const files = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
+        if (files.length === 0) return;
+        const limit = getAttachmentLimit(state.userPlan);
+        const current = state.selectedImages || [];
+        const roomLeft = Math.max(0, limit - current.length);
+        if (roomLeft === 0) {
+            alert(`Лимит вложений на вашем тарифе — ${limit} фото за раз.`);
+            return;
+        }
+        const toAdd = files.slice(0, roomLeft);
+        if (files.length > roomLeft) {
+            alert(`Можно приложить не больше ${limit} фото. Добавлены первые ${roomLeft}.`);
+        }
+        Promise.all(toAdd.map(f => new Promise((resolve) => {
+            const r = new FileReader();
+            r.onloadend = () => resolve(r.result);
+            r.readAsDataURL(f);
+        }))).then((results) => {
+            updateState({ selectedImages: [...current, ...results] });
+        });
+    };
     // Плейсхолдер поля ввода вместо статичного текста "печатается" сам по себе.
     const placeholderFull = t(lang, 'home.inputPlaceholder');
     const [typedPlaceholder, setTypedPlaceholder] = useState('');
@@ -120,20 +146,31 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                 </div>
 
                 <div className="void-input-rise relative max-w-4xl mx-auto pointer-events-auto mb-10">
-                    {state.selectedImage && (
-                        <div className="absolute -top-16 left-4 bg-white dark:bg-darkCard p-1 rounded-xl shadow-lg border border-gray-200 dark:border-darkBorder fade-in group z-10">
-                            <img src={state.selectedImage} className="h-14 w-14 object-cover rounded-lg" />
-                            <button onClick={() => updateState({selectedImage: null})} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Icons.X /></button>
+                    {(state.selectedImages && state.selectedImages.length > 0) && (
+                        <div className="absolute -top-20 left-4 right-4 flex gap-2 overflow-x-auto pb-1 fade-in void-attach-scroll">
+                            {state.selectedImages.map((img, i) => (
+                                <div key={i} className="relative shrink-0 bg-white dark:bg-darkCard p-1 rounded-xl shadow-lg border border-gray-200 dark:border-darkBorder group">
+                                    <img
+                                        src={img}
+                                        onClick={() => setEditingImage({ src: img, index: i, source: 'attachment' })}
+                                        className="h-14 w-14 object-cover rounded-lg cursor-pointer"
+                                        alt=""
+                                    />
+                                    <button
+                                        onClick={() => updateState({ selectedImages: state.selectedImages.filter((_, idx) => idx !== i) })}
+                                        className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 shadow-md"
+                                    >
+                                        <Icons.X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     )}
                     <div className="flex items-end bg-white dark:bg-darkCard rounded-3xl border border-gray-200 dark:border-darkBorder shadow-md focus-within:ring-4 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4] transition-all relative">
-                        <input type="file" ref={chatFileInputRef} onChange={(e) => {
-                            if(e.target.files[0]) {
-                                const r = new FileReader();
-                                r.onloadend = () => updateState({selectedImage: r.result});
-                                r.readAsDataURL(e.target.files[0]);
-                            }
-                        }} accept="image/*" className="hidden" />
+                        <input type="file" ref={chatFileInputRef} multiple accept="image/*" className="hidden" onChange={(e) => {
+                            addImageFiles(e.target.files);
+                            e.target.value = '';
+                        }} />
                         {/* «+» слева: при записи переворачивается в «×» (отмена записи) */}
                         <button
                             onClick={() => voice.recording ? voice.cancel() : chatFileInputRef.current?.click()}
@@ -194,7 +231,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                                 {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
                             </button>
                         )}
-                        <button onClick={() => handleSendMessage()} disabled={(!state.inputValue.trim() && !state.selectedImage) || state.isGenerating || voice.busy} className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-2xl flex items-center justify-center transition-all shadow-md z-20">
+                        <button onClick={() => handleSendMessage()} disabled={(!state.inputValue.trim() && !(state.selectedImages && state.selectedImages.length > 0)) || state.isGenerating || voice.busy} className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-2xl flex items-center justify-center transition-all shadow-md z-20">
                             <Icons.ArrowUp />
                         </button>
                     </div>
@@ -236,6 +273,20 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                     <Icons.Help className="w-5 h-5" />
                     <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-bold group-hover:max-w-[80px] group-hover:pr-1 transition-all duration-300">{t(lang, 'home.help')}</span>
                 </button>
+            )}
+            {editingImage && (
+                <ImageEditorModal
+                    image={editingImage}
+                    onClose={() => setEditingImage(null)}
+                    onApply={(newSrc) => {
+                        if (editingImage.source === 'attachment') {
+                            const next = [...(state.selectedImages || [])];
+                            next[editingImage.index] = newSrc;
+                            updateState({ selectedImages: next });
+                        }
+                        setEditingImage(null);
+                    }}
+                />
             )}
         </div>
     );

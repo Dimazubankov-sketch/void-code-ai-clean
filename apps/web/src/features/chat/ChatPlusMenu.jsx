@@ -37,11 +37,16 @@ export function ChatPlusMenu({
 
     return (
         <Sheet title="Добавить в чат" onClose={onClose}>
-            {/* Три большие кнопки. Фото/Файлы сразу вызывают системный диалог. */}
-            <div className="grid grid-cols-3 gap-2.5 mb-4">
-                <BigButton icon="Camera" label="Камера" onClick={() => { onPickCamera?.(); onClose(); }} />
-                <BigButton icon="Image" label="Фото" onClick={() => { onPickPhoto?.(); onClose(); }} />
-                <BigButton icon="PaperclipThin" label="Файлы" onClick={() => { onPickFile?.(); onClose(); }} />
+            {/* Раньше здесь был grid из 3 БОЛЬШИХ кнопок (BigButton:
+                Камера/Фото/Файлы) — по просьбе пользователя убран как
+                визуально громоздкое «старое меню из трёх кнопок».
+                Теперь Фото и Файлы — компактные строки, которые СРАЗУ
+                (в один клик) открывают системный пикер, без какого-либо
+                промежуточного экрана выбора. */}
+            <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl overflow-hidden mb-3 divide-y divide-gray-100 dark:divide-gray-700/50">
+                <RowButton icon="Camera" label="Камера" onClick={() => { onPickCamera?.(); onClose(); }} />
+                <RowButton icon="Image" label="Фото" onClick={() => { onPickPhoto?.(); onClose(); }} />
+                <RowButton icon="PaperclipThin" label="Файлы" onClick={() => { onPickFile?.(); onClose(); }} />
             </div>
 
             {/* Блок: добавить в проект + скиллы (строго под проектом) */}
@@ -77,16 +82,6 @@ function Sheet({ title, onClose, children }) {
                 <div className="px-4 pb-6 overflow-y-auto">{children}</div>
             </div>
         </div>
-    );
-}
-
-function BigButton({ icon, label, onClick }) {
-    const Icon = Icons[icon] || Icons.Plus;
-    return (
-        <button onClick={onClick} className="flex flex-col items-center justify-center gap-2 py-5 rounded-2xl bg-gray-50 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <Icon className="w-6 h-6 text-gray-700 dark:text-gray-200" />
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</span>
-        </button>
     );
 }
 

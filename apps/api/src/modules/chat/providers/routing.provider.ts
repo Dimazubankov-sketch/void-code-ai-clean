@@ -34,10 +34,21 @@ export class RoutingLlmProvider implements LlmProvider {
     //     provider.sort='throughput' + разумный max_tokens=4096 в
     //     самом OpenRouterProvider (не сменой модели на Groq).
     //   Void Pro → OpenRouter/qwen3-coder.
-    const useGroqFirst = model === 'flash' || model === 'mini';
+    // Vision (есть прикреплённые картинки) — ВСЕГДА через OpenRouter,
+    // независимо от выбранной модели: наша интеграция с Groq работает
+    // только с текстовыми llama-моделями, картинки она не поддерживает.
+    // OpenRouterProvider сам переключится на vision-модель (Grok Vision).
+    const hasImages = req.messages.some((m) => m.imagesBase64 && m.imagesBase64.length > 0);
+    const useGroqFirst = !hasImages && (model === 'flash' || model === 'mini');
 
     const primary = useGroqFirst ? this.groq : this.openrouter;
     const fallback = useGroqFirst ? this.openrouter : this.groq;
+
+    // Fallback на Groq бессмысленен для Vision-запроса — там всё равно
+    // нет поддержки картинок, лучше сразу вернуть внятную ошибку.
+    if (hasImages) {
+      return this.openrouter.generate(req);
+    }
 
     try {
       return await primary.generate(req);

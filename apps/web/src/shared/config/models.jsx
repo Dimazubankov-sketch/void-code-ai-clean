@@ -89,6 +89,10 @@ export const getPlanLimits = (plan) => PLAN_LIMITS[plan] || PLAN_LIMITS.free;
 // Оставлено для обратной совместимости: возвращает только дневной лимит.
 export const getMaxLimits = (plan) => getPlanLimits(plan).daily;
 
+// Лимит одновременных вложений (фото) к одному сообщению в чате.
+// Free — 3 фото, любой платный тариф (Plus/Pro/Ultra) — 9 фото.
+export const getAttachmentLimit = (plan) => (plan && plan !== 'free' ? 9 : 3);
+
 // ==========================================
 // УРОВНИ РАССУЖДЕНИЙ (reasoning effort)
 // ==========================================

@@ -71,7 +71,7 @@ async function shareImage(url, prompt) {
     try { await navigator.clipboard.writeText(url); return true; } catch { return false; }
 }
 
-export function GeneratedImage({ url, prompt = '', idx = 0 }) {
+export function GeneratedImage({ url, prompt = '', idx = 0, onEdit }) {
     const [menuOpen, setMenuOpen] = useState(false);
     const [toast, setToast] = useState('');
     const wrapRef = useRef(null);
@@ -155,14 +155,14 @@ export function GeneratedImage({ url, prompt = '', idx = 0 }) {
                     setMenuOpen(true);
                 }}
             >
-                <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+                <button type="button" onClick={() => onEdit?.(url)} className="block w-full">
                     <img
                         src={url}
                         alt={prompt || 'Сгенерированное изображение'}
                         className="block w-full max-w-[560px] h-auto"
                         draggable={false}
                     />
-                </a>
+                </button>
                 {/* Кнопка «скачать» — в левом нижнем углу картинки */}
                 <button
                     onClick={handleDownload}

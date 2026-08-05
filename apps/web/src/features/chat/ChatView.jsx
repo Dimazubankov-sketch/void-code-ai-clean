@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
 import { AudioPlayer } from '@/features/chat/AudioPlayer';
 import { ChatToolbar } from '@/features/chat/ChatToolbar';
 import { CodeViewerModal } from '@/features/chat/CodeViewerModal';
@@ -13,12 +14,13 @@ import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
 import { Toast } from '@/shared/ui/Toast';
 import { UserMessageBubble } from '@/features/chat/UserMessageBubble';
 import { ChatPlusMenu } from '@/features/chat/ChatPlusMenu';
+import { ImageEditorModal } from '@/features/chat/ImageEditorModal';
 import { TopHeader } from '@/features/home/TopHeader';
 import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
 import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
-import { defaultReasoningFor } from '@/shared/config/models';
+import { defaultReasoningFor, getAttachmentLimit } from '@/shared/config/models';
 import { getPlanLimits } from '@/shared/config/models';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
@@ -32,6 +34,37 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     const [expandedTraceIdx, setExpandedTraceIdx] = useState(null);
     const [showPlusMenu, setShowPlusMenu] = useState(false);
     const cameraInputRef = useRef(null);
+    const anyFileInputRef = useRef(null);
+    const [editingImage, setEditingImage] = useState(null); // { src, index, source } | null
+
+    // Добавляет выбранные файлы (из галереи, камеры или файлового менеджера)
+    // в state.selectedImages, соблюдая лимит по тарифу (задача 2-4:
+    // 3 фото на Free, 9 на любом платном тарифе). Не-картинки (например,
+    // выбранные через «Файлы») пока тоже читаются как data-URL — Vision
+    // на бэкенде смотрит только image_url блоки, остальные типы будущая
+    // доработка (сейчас достаточно фото).
+    const addImageFiles = (fileList) => {
+        const files = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
+        if (files.length === 0) return;
+        const limit = getAttachmentLimit(state.userPlan);
+        const current = state.selectedImages || [];
+        const roomLeft = Math.max(0, limit - current.length);
+        if (roomLeft === 0) {
+            alert(`Лимит вложений на вашем тарифе — ${limit} фото за раз.`);
+            return;
+        }
+        const toAdd = files.slice(0, roomLeft);
+        if (files.length > roomLeft) {
+            alert(`Можно приложить не больше ${limit} фото. Добавлены первые ${roomLeft}.`);
+        }
+        Promise.all(toAdd.map(f => new Promise((resolve) => {
+            const r = new FileReader();
+            r.onloadend = () => resolve(r.result);
+            r.readAsDataURL(f);
+        }))).then((results) => {
+            updateState({ selectedImages: [...current, ...results] });
+        });
+    };
     const editableTextareaRef = useRef(null);
     const currentReasoningLevel = (state.reasoningByModel || {})[state.selectedModelId] || defaultReasoningFor(state.selectedModelId);
 
@@ -261,6 +294,12 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     // историю чата (не удаляем и не помечаем оригинал) — это простое и
     // предсказуемое поведение «скопировать текст в инпут для правки»,
     // а не полноценный edit-and-regenerate с обрезкой истории.
+    // Раньше при «Редактировать» текст программно клался в state.inputValue,
+    // но textarea не пересчитывала высоту — событие onChange (где висит
+    // GSAP auto-resize) срабатывает только на РУЧНОЙ печати, не на
+    // programmatic updateState(). Теперь после вставки текста вручную
+    // считаем нужную высоту и анимируем её тем же способом, что и обычная
+    // печать (GSAP, а не резкий скачок).
     const handleEditMessage = (content) => {
         updateState({ inputValue: content });
         requestAnimationFrame(() => {
@@ -269,6 +308,11 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 el.focus();
                 const len = content.length;
                 try { el.setSelectionRange(len, len); } catch { /* noop */ }
+                const prevH = el.offsetHeight;
+                el.style.height = 'auto';
+                const nextH = Math.min(el.scrollHeight, 220);
+                el.style.height = prevH + 'px';
+                gsap.to(el, { height: Math.max(nextH, 64), duration: 0.22, ease: 'power2.out', overwrite: true });
             }
         });
     };
@@ -307,6 +351,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                             url={msg.generatedImage}
                                             prompt={msg.imagePrompt || msg.content}
                                             idx={idx}
+                                            onEdit={(src) => setEditingImage({ src, source: 'generated', onSave: null })}
                                         />
                                     </div>
                                 ) : (
@@ -444,26 +489,49 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             })()}
                         </div>
                     )}
-                    {state.selectedImage && (
-                        <div className="absolute -top-16 left-4 bg-white dark:bg-darkCard p-1 rounded-xl shadow-lg border border-gray-200 dark:border-darkBorder fade-in group z-10">
-                            <img src={state.selectedImage} className="h-14 w-14 object-cover rounded-lg" />
-                            <button onClick={() => updateState({selectedImage: null})} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Icons.X /></button>
+                    {(state.selectedImages && state.selectedImages.length > 0) && (
+                        // Превью вложений: горизонтальная прокрутка, фото
+                        // идут в ширину друг за другом (задача 8). Крестик
+                        // в правом верхнем углу каждого превью удаляет его.
+                        // Клик по самому превью открывает полноэкранный
+                        // редактор (см. ImageEditorModal).
+                        <div className="absolute -top-20 left-4 right-4 flex gap-2 overflow-x-auto pb-1 fade-in void-attach-scroll">
+                            {state.selectedImages.map((img, i) => (
+                                <div key={i} className="relative shrink-0 bg-white dark:bg-darkCard p-1 rounded-xl shadow-lg border border-gray-200 dark:border-darkBorder group">
+                                    <img
+                                        src={img}
+                                        onClick={() => setEditingImage({ src: img, index: i, source: 'attachment' })}
+                                        className="h-14 w-14 object-cover rounded-lg cursor-pointer"
+                                        alt=""
+                                    />
+                                    <button
+                                        onClick={() => updateState({ selectedImages: state.selectedImages.filter((_, idx) => idx !== i) })}
+                                        className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 shadow-md"
+                                    >
+                                        <Icons.X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     )}
                     <div className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border shadow-2xl focus-within:ring-4 transition-all relative ${state.imageGenMode ? 'border-[#5b32d4]/40 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]' : 'border-gray-200 dark:border-darkBorder focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]'}`}>
-                        <input type="file" ref={chatFileInputRef} onChange={(e) => {
-                            if(e.target.files[0]) {
-                                const r = new FileReader();
-                                r.onloadend = () => updateState({selectedImage: r.result});
-                                r.readAsDataURL(e.target.files[0]);
-                            }
-                        }} accept="image/*" className="hidden" />
+                        {/* multiple — нативный мультивыбор из галереи: пользователь
+                            отмечает галочками несколько фото за один заход системного
+                            пикера (задача 2-4). Лимит по тарифу применяется в
+                            addImageFiles ниже (3 фото Free / 9 на платных). */}
+                        <input type="file" ref={chatFileInputRef} multiple accept="image/*" className="hidden" onChange={(e) => {
+                            addImageFiles(e.target.files);
+                            e.target.value = '';
+                        }} />
                         <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => {
-                            if(e.target.files[0]) {
-                                const r = new FileReader();
-                                r.onloadend = () => updateState({selectedImage: r.result});
-                                r.readAsDataURL(e.target.files[0]);
-                            }
+                            addImageFiles(e.target.files);
+                            e.target.value = '';
+                        }} />
+                        {/* Универсальный файловый инпут — открывает системный
+                            файловый менеджер (не только картинки). */}
+                        <input type="file" ref={anyFileInputRef} multiple className="hidden" onChange={(e) => {
+                            addImageFiles(e.target.files);
+                            e.target.value = '';
                         }} />
                         {/* «+» слева: при записи переворачивается в «×» (отмена записи),
                             иначе открывает меню действий (проект/изображение/агенты/…) */}
@@ -541,7 +609,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
                             </button>
                         )}
-                        <button onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()} disabled={(!state.inputValue.trim() && !state.selectedImage) || state.isGenerating || voice.busy} className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-2xl flex items-center justify-center transition-all shadow-md z-20"><Icons.ArrowUp /></button>
+                        <button onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()} disabled={(!state.inputValue.trim() && !(state.selectedImages && state.selectedImages.length > 0)) || state.isGenerating || voice.busy} className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-2xl flex items-center justify-center transition-all shadow-md z-20"><Icons.ArrowUp /></button>
                     </div>
                 </div>
             </div>
@@ -554,9 +622,25 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                     onClose={() => setShowPlusMenu(false)}
                     onPickCamera={() => cameraInputRef.current?.click()}
                     onPickPhoto={() => chatFileInputRef.current?.click()}
-                    onPickFile={() => chatFileInputRef.current?.click()}
+                    onPickFile={() => anyFileInputRef.current?.click()}
                     onEnableImage={() => updateState({ imageGenMode: true, activeAgentId: null })}
                     onPickAgent={(agent) => updateState({ activeAgentId: agent.id, imageGenMode: false })}
+                />
+            )}
+            {editingImage && (
+                <ImageEditorModal
+                    image={editingImage}
+                    onClose={() => setEditingImage(null)}
+                    onApply={(newSrc) => {
+                        if (editingImage.source === 'attachment') {
+                            const next = [...(state.selectedImages || [])];
+                            next[editingImage.index] = newSrc;
+                            updateState({ selectedImages: next });
+                        } else if (editingImage.source === 'generated' && editingImage.onSave) {
+                            editingImage.onSave(newSrc);
+                        }
+                        setEditingImage(null);
+                    }}
                 />
             )}
             {feedback && (

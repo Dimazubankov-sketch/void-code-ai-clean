@@ -192,8 +192,8 @@ export function RightMenu({ state, updateState }) {
                 <div className="p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden">
                     {/* Шапка: слева лупа, «Меню» по центру, справа крестик */}
                     <div className="flex items-center mb-6 mt-2 shrink-0 relative h-8">
-                        <button onClick={() => setSearchOpen(true)} className="void-tap-target absolute left-0 p-2 -ml-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors" title={t(lang, 'menu.search')}>
-                            <Icons.Search className="w-5 h-5" />
+                        <button onClick={() => setSearchOpen(true)} className="void-tap-target absolute left-0 p-2 -ml-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors" title={t(lang, 'menu.search')}>
+                            <Icons.Search className="w-6 h-6" />
                         </button>
                         <span className="font-extrabold text-xl dark:text-white mx-auto">{t(lang, 'menu.title')}</span>
                         <button onClick={() => updateState({ isRightMenuOpen: false })} className="void-tap-target absolute right-0 p-2 -mr-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
