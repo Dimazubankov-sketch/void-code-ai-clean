@@ -5,21 +5,21 @@ import { useGSAP } from '@gsap/react';
 // ==========================================
 // VoiceOrb — большой «живой» круг во вкладке Голос
 // ==========================================
-// Анимация построена на GSAP: круг мягко «дышит» и переливается яркостью,
-// а вокруг пульсируют два ореола. Уважаем prefers-reduced-motion.
-//
-// (Ранее пробовали заменить «дыхание» на вращающуюся сферу со спутниками,
-// но пользователю не понравилось — вернулись к оригинальному «дыханию»
-// с двумя пульсирующими ореолами вокруг ядра.)
+// Анимация построена ТОЛЬКО на масштабе (scale) — простое плавное «дыхание»
+// без каких-либо изменений прозрачности/яркости. Раньше круг параллельно
+// «дышал» (scale) и «затухал» (opacity/brightness падали), из-за чего
+// казалось, что он тускнеет и почти чернеет в паузах — это убрано
+// полностью и намеренно: круг должен оставаться ярким и чётким в любой
+// момент времени, в покое и во время озвучки. Уважаем
+// prefers-reduced-motion.
 //
 // Активная (audio-reactive) часть: если передан audioElement
 // (HTMLAudioElement), подключаем Web Audio API (AudioContext +
-// AnalyserNode) и синхронизируем масштаб/opacity круга с реальной
-// ГРОМКОСТЬЮ речи в реальном времени. Пока звук играет — круг
-// реагирует на амплитуду (тихий момент → маленький и приглушённый,
-// громкий → больше и ярче). GSAP используется для плавной интерполяции
-// значений через quickTo (см. gsap-performance skill: quickTo избегает
-// создания нового tween на каждый requestAnimationFrame).
+// AnalyserNode) и синхронизируем ТОЛЬКО масштаб круга и ореолов с реальной
+// громкостью речи в реальном времени (без изменения прозрачности/яркости).
+// GSAP используется для плавной интерполяции значений через quickTo (см.
+// gsap-performance skill: quickTo избегает создания нового tween на
+// каждый requestAnimationFrame).
 
 export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audioElement = null }) {
     const scope = useRef(null);
@@ -27,34 +27,31 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
     const halo1Ref = useRef(null);
     const halo2Ref = useRef(null);
 
-    // ---- Пассивная анимация «дыхания» (без затухания ореолов) ----
-    // Раньше ореолы одновременно росли и ТУСКНЕЛИ (autoAlpha 0.4→0.12),
-    // из-за чего в покое казалось, что круг «затухает». По просьбе
-    // пользователя убрали именно это затухание — оставили только плавную
-    // пульсацию масштаба (дыхание) с постоянной прозрачностью ореолов.
+    // ---- Пассивная анимация «дыхания» — только scale ----
     useGSAP(() => {
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (reduce) return;
 
-        // Дыхание ядра — бесконечный yoyo-таймлайн
-        const breathTl = gsap.timeline({ repeat: -1, yoyo: true, defaults: { ease: 'sine.inOut' } })
-            .to('.orb-core', { scale: 1.06, duration: 2.4 }, 0)
-            .to('.orb-core', { filter: 'brightness(1.15)', duration: 2.4 }, 0)
-            .to('.orb-core', { y: -4, duration: 3.0 }, 0);
+        // Ядро: простое плавное дыхание, как и просили — только scale,
+        // без brightness/opacity/сдвигов по Y.
+        const coreTween = gsap.to('.orb-core', {
+            scale: 1.06,
+            duration: 2.2,
+            ease: 'sine.inOut',
+            yoyo: true,
+            repeat: -1,
+        });
 
-        // Ореолы: устанавливаем фиксированную (постоянную) прозрачность
-        // один раз, дальше анимируем ТОЛЬКО scale — никакого autoAlpha,
-        // чтобы не создавалось ощущение затухания/угасания.
+        // Ореолы держим на ПОСТОЯННОЙ прозрачности (задаётся один раз,
+        // дальше никогда не меняется) — анимируем только их scale, слегка
+        // асинхронно с ядром, чтобы дыхание выглядело живым, а не
+        // механическим.
         gsap.set('.orb-halo-1', { autoAlpha: 0.28 });
         gsap.set('.orb-halo-2', { autoAlpha: 0.22 });
-        gsap.fromTo('.orb-halo-1',
-            { scale: 0.9 },
-            { scale: 1.3, duration: 2.8, ease: 'sine.inOut', repeat: -1, yoyo: true });
-        gsap.fromTo('.orb-halo-2',
-            { scale: 0.95 },
-            { scale: 1.45, duration: 3.2, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.8 });
+        const halo1Tween = gsap.to('.orb-halo-1', { scale: 1.15, duration: 2.6, ease: 'sine.inOut', yoyo: true, repeat: -1 });
+        const halo2Tween = gsap.to('.orb-halo-2', { scale: 1.22, duration: 3.0, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.6 });
 
-        return () => { breathTl?.kill(); };
+        return () => { coreTween?.kill(); halo1Tween?.kill(); halo2Tween?.kill(); };
     }, { scope });
 
     // ---- Плавная смена цвета голоса ----
@@ -71,12 +68,14 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
         });
     }, { scope, dependencies: [colorFrom, colorTo] });
 
-    // ---- Реакция на «active» (запись/проигрыш) — усиливаем ореолы ----
+    // ---- Реакция на «active» (запись/проигрыш) — только масштаб ореолов ----
     useGSAP(() => {
         gsap.to('.orb-halo-1, .orb-halo-2', { scale: active ? 1.1 : 1, duration: 0.4 });
     }, { scope, dependencies: [active] });
 
     // ---- Web Audio API: пульсация круга под реальную громкость речи ----
+    // Только масштаб (ядро + ореолы) — НИКАКИХ изменений прозрачности или
+    // brightness, чтобы круг оставался одинаково ярким на любой громкости.
     useEffect(() => {
         if (!audioElement) return;
 
@@ -90,17 +89,8 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
         // подряд (см. gsap-performance skill). Внутренне GSAP переиспользует
         // один и тот же твин, а не создаёт новый на каждый rAF.
         const setScale = gsap.quickTo(coreRef.current, 'scale', { duration: 0.15, ease: 'power2.out' });
-        const setBrightness = gsap.quickTo(coreRef.current, 'filter', {
-            duration: 0.15,
-            ease: 'power2.out',
-            // filter не число — используем строковую интерполяцию через set
-            modifiers: {
-                filter: (v) => `brightness(${v})`,
-            },
-        });
         const setHalo1 = gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.15, ease: 'power2.out' });
         const setHalo2 = gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.15, ease: 'power2.out' });
-        const setHalo1Alpha = gsap.quickTo(halo1Ref.current, 'autoAlpha', { duration: 0.15, ease: 'power2.out' });
 
         try {
             // AudioContext создаём внутри try — некоторые браузеры
@@ -138,18 +128,14 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
             for (let i = 0; i < N; i++) sum += data[i];
             const avg = sum / N / 255; // 0..1
             smoothed = smoothed * 0.7 + avg * 0.3;
-            // Диапазоны заметно увеличены по просьбе пользователя — раньше
-            // реакция на голос была едва заметной (scale макс. 1.18).
-            // Теперь круг ощутимо «дышит» в такт озвучке.
+            // Диапазоны заметно увеличены — круг ощутимо «дышит» в такт
+            // озвучке, но только по масштабу (никакого потемнения/
+            // затухания).
             const scale = 1 + smoothed * 0.38;
-            const brightness = 1 + smoothed * 0.6;
             const haloScale = 1 + smoothed * 0.65;
-            const halo1Alpha = 0.28 + smoothed * 0.55;
             setScale(scale);
-            setBrightness(brightness);
             setHalo1(haloScale);
             setHalo2(haloScale * 1.06);
-            setHalo1Alpha(halo1Alpha);
             rafId = requestAnimationFrame(tick);
         };
         rafId = requestAnimationFrame(tick);

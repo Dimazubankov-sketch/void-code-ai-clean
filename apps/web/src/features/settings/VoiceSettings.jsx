@@ -209,12 +209,6 @@ export function VoiceSettings({ state, updateState, onClose }) {
                             {langLabel} <Icons.ChevronRight className="w-4 h-4" />
                         </span>
                     </button>
-
-                    {/* Скорость */}
-                    <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Скорость: {rate.toFixed(1)}x</p>
-                        <input type="range" min="0.6" max="1.6" step="0.1" value={rate} onChange={e => updateState({ voiceRate: parseFloat(e.target.value) })} className="w-full accent-[#5b32d4]" />
-                    </div>
                 </div>
 
                 <div className="p-4 border-t border-gray-100 dark:border-darkBorder shrink-0">

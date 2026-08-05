@@ -68,6 +68,12 @@ pm2 save
         proxy_read_timeout 180s;
         proxy_send_timeout 180s;
         proxy_connect_timeout 30s;
+        # ВАЖНО: дефолтный лимит nginx на тело запроса — 1MB. Vision-запросы
+        # с приложенными фото (base64 data-URL) легко превышают это даже
+        # после клиентского сжатия, и nginx обрежет запрос с HTTP 413 ещё
+        # ДО того, как он дойдёт до Node/Express (у которого лимит поднят
+        # до 50mb в apps/api/src/main.ts). Синхронизировано с тем лимитом.
+        client_max_body_size 50m;
     }
 ```
 

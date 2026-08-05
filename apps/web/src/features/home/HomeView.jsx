@@ -5,6 +5,7 @@ import { Icons } from '@/shared/ui/Icons';
 import { ImageEditorModal } from '@/features/chat/ImageEditorModal';
 import { getAttachmentLimit } from '@/shared/config/models';
 import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
+import { compressImageFiles } from '@/shared/lib/imageCompress';
 
 
 // ==========================================
@@ -40,6 +41,9 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
     const [logoPopped, setLogoPopped] = useState(false);
     const [editingImage, setEditingImage] = useState(null);
 
+    // Сжимаем перед конвертацией в data-URL — см. подробный комментарий
+    // в ChatView.jsx (addImageFiles): без этого фото с телефона в base64
+    // легко превышало лимит тела запроса и Vision падал с HTTP 413.
     const addImageFiles = (fileList) => {
         const files = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
         if (files.length === 0) return;
@@ -54,11 +58,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
         if (files.length > roomLeft) {
             alert(`Можно приложить не больше ${limit} фото. Добавлены первые ${roomLeft}.`);
         }
-        Promise.all(toAdd.map(f => new Promise((resolve) => {
-            const r = new FileReader();
-            r.onloadend = () => resolve(r.result);
-            r.readAsDataURL(f);
-        }))).then((results) => {
+        compressImageFiles(toAdd).then((results) => {
             updateState({ selectedImages: [...current, ...results] });
         });
     };
@@ -169,7 +169,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         </div>
                     )}
                     <div className="flex items-end bg-white dark:bg-darkCard rounded-3xl border border-gray-200 dark:border-darkBorder shadow-md focus-within:ring-4 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4] transition-all relative">
-                        <input type="file" ref={chatFileInputRef} multiple accept="image/*" className="hidden" onChange={(e) => {
+                        <input type="file" ref={chatFileInputRef} multiple accept="image/png, image/jpeg, image/webp, image/heic" className="hidden" onChange={(e) => {
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />

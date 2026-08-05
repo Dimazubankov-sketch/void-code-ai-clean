@@ -24,6 +24,7 @@ import { defaultReasoningFor, getAttachmentLimit } from '@/shared/config/models'
 import { getPlanLimits } from '@/shared/config/models';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
+import { compressImageFiles } from '@/shared/lib/imageCompress';
 
 
 export function ChatView({ state, updateState, handleSendMessage, handleGenerateImage, messagesEndRef, chatFileInputRef }) {
@@ -39,10 +40,13 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
 
     // Добавляет выбранные файлы (из галереи, камеры или файлового менеджера)
     // в state.selectedImages, соблюдая лимит по тарифу (задача 2-4:
-    // 3 фото на Free, 9 на любом платном тарифе). Не-картинки (например,
-    // выбранные через «Файлы») пока тоже читаются как data-URL — Vision
-    // на бэкенде смотрит только image_url блоки, остальные типы будущая
-    // доработка (сейчас достаточно фото).
+    // 3 фото на Free, 9 на любом платном тарифе). Перед конвертацией в
+    // data-URL каждое фото СЖИМАЕТСЯ (большая сторона до 1600px, JPEG
+    // качество 0.8) — иначе фото с телефона (3000-4000px, несколько МБ)
+    // в base64 легко превышало лимит тела запроса и Vision-запрос падал
+    // с «Ошибка сервера (HTTP 413)». Не-картинки (например, выбранные
+    // через «Файлы») пока не поддерживаются в Vision — на бэкенде
+    // смотрятся только image_url блоки.
     const addImageFiles = (fileList) => {
         const files = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
         if (files.length === 0) return;
@@ -57,11 +61,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         if (files.length > roomLeft) {
             alert(`Можно приложить не больше ${limit} фото. Добавлены первые ${roomLeft}.`);
         }
-        Promise.all(toAdd.map(f => new Promise((resolve) => {
-            const r = new FileReader();
-            r.onloadend = () => resolve(r.result);
-            r.readAsDataURL(f);
-        }))).then((results) => {
+        compressImageFiles(toAdd).then((results) => {
             updateState({ selectedImages: [...current, ...results] });
         });
     };
@@ -518,8 +518,15 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         {/* multiple — нативный мультивыбор из галереи: пользователь
                             отмечает галочками несколько фото за один заход системного
                             пикера (задача 2-4). Лимит по тарифу применяется в
-                            addImageFiles ниже (3 фото Free / 9 на платных). */}
-                        <input type="file" ref={chatFileInputRef} multiple accept="image/*" className="hidden" onChange={(e) => {
+                            addImageFiles ниже (3 фото Free / 9 на платных).
+                            accept — СТРОГО перечисленные MIME-типы картинок, а не
+                            общий "image/*": на iOS/Android общий image/* иногда
+                            заставляет браузер показывать промежуточное системное
+                            окно выбора источника («Медиатека / Файлы / Камера»)
+                            вместо того, чтобы сразу открыть галерею. Явный список
+                            типов + отсутствие capture почти всегда даёт прямой
+                            переход в галерею с первого тапа. */}
+                        <input type="file" ref={chatFileInputRef} multiple accept="image/png, image/jpeg, image/webp, image/heic" className="hidden" onChange={(e) => {
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
@@ -527,9 +534,12 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
-                        {/* Универсальный файловый инпут — открывает системный
-                            файловый менеджер (не только картинки). */}
-                        <input type="file" ref={anyFileInputRef} multiple className="hidden" onChange={(e) => {
+                        {/* Инпут для «Файлы» — намеренно исключает image/* из accept,
+                            чтобы на мобильных браузер сразу открывал файловый
+                            менеджер, а не то же окно «Медиатека/Файлы/Камера», что
+                            и для «Фото» (когда accept допускает картинки, система
+                            не может понять, что открыть по умолчанию). */}
+                        <input type="file" ref={anyFileInputRef} multiple accept=".pdf,.doc,.docx,.txt,.csv,.json" className="hidden" onChange={(e) => {
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
