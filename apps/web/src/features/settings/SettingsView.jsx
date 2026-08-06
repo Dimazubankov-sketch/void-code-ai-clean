@@ -64,6 +64,7 @@ export function SettingsView({ state, updateState }) {
                             <div className={`w-12 h-7 rounded-full p-1 transition-colors flex items-center ${state.isDarkMode ? 'bg-[#5b32d4]' : 'bg-gray-200 dark:bg-gray-700'}`}><div className={`w-5 h-5 bg-white rounded-full transition-transform ${state.isDarkMode ? 'translate-x-5' : 'translate-x-0'}`}></div></div>
                         </div>
                         <ListItem icon={Icons.Globe} label={t(lang, 'settings.language')} extra={<span className="text-sm font-bold text-gray-400">{langLabel}</span>} onClick={() => setShowLang(true)} />
+                        <ListItem icon={Icons.Compass} label="Сведения" onClick={() => updateState({ currentView: 'info' })} />
                         <ListItem icon={Icons.Info} label={t(lang, 'settings.version')} extra={<span className="text-sm font-bold text-gray-400">v1.2.0</span>} />
                     </div>
 
@@ -71,12 +72,6 @@ export function SettingsView({ state, updateState }) {
                         <button onClick={() => { logoutAccount(state, updateState); updateState({ currentView: 'home', isRightMenuOpen: false }); }} className="font-bold text-red-500 hover:text-red-600 transition-colors p-4 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 w-full flex justify-center items-center gap-2 border border-red-100 dark:border-red-900/30">
                             <Icons.Logout /> {t(lang, 'settings.logout')}
                         </button>
-                        {/* Мелкая, ненавязчивая ссылка на публичную страницу реквизитов —
-                            открывается в новом окне, т.к. это отдельный статический
-                            маршрут вне SPA-стейта (см. main.jsx). */}
-                        <a href="/requisites" target="_blank" rel="noopener noreferrer" className="block mt-5 text-xs text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-400 transition-colors">
-                            Реквизиты
-                        </a>
                     </div>
                 </div>
             </div>

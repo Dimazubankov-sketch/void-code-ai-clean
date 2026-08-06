@@ -13,6 +13,7 @@ import { GuideView } from '@/features/guide/GuideView';
 import { HomeView } from '@/features/home/HomeView';
 import { LibraryView } from '@/features/library/LibraryView';
 import { LimitsView } from '@/features/settings/LimitsView';
+import { InfoView } from '@/features/settings/InfoView';
 import { ProfileEditView } from '@/features/settings/ProfileEditView';
 import { SecurityView } from '@/features/settings/SecurityView';
 import { SettingsView } from '@/features/settings/SettingsView';
@@ -679,6 +680,7 @@ export function App() {
                 {state.currentView === 'profile-edit' && <ProfileEditView state={state} updateState={updateState} />}
                 {state.currentView === 'security' && <SecurityView state={state} updateState={updateState} />}
                 {state.currentView === 'limits' && <LimitsView state={state} updateState={updateState} />}
+                {state.currentView === 'info' && <InfoView state={state} updateState={updateState} />}
                 {state.currentView === 'projects' && <ProjectsView state={state} updateState={updateState} />}
                 {state.currentView === 'skills' && <SkillsView state={state} updateState={updateState} />}
                 {state.currentView === 'plugins' && <PluginsView state={state} updateState={updateState} />}
