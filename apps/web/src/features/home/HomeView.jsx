@@ -40,6 +40,16 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
     // включается отдельная анимация «всплытия».
     const [logoPopped, setLogoPopped] = useState(false);
     const [editingImage, setEditingImage] = useState(null);
+    const homeTextareaRef = useRef(null);
+
+    // Тот же баг-фикс, что и в ChatView.jsx: сброс инлайновой высоты
+    // textarea при опустошении поля (после отправки кликом по кнопке
+    // высота раньше «застревала» растянутой под длинный текст).
+    useEffect(() => {
+        if (state.inputValue === '' && homeTextareaRef.current) {
+            homeTextareaRef.current.style.height = '';
+        }
+    }, [state.inputValue]);
 
     // Сжимаем перед конвертацией в data-URL — см. подробный комментарий
     // в ChatView.jsx (addImageFiles): без этого фото с телефона в base64
@@ -204,6 +214,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             </div>
                         )}
                         <textarea 
+                            ref={homeTextareaRef}
                             className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none max-h-32 min-h-[64px] text-[16px] ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
                             placeholder=""
                             value={state.inputValue}

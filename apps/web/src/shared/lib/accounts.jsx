@@ -9,7 +9,7 @@
 import { registerAccount, loginAccount, logoutAccount as clearBackendToken } from '@/shared/api/auth';
 import { generateUniqueAgentName } from '@/shared/lib/agent-naming';
 
-export const DOMAIN = '@voidops.com';
+export const DOMAIN = '@voidops.ru';
 
 // Поля, которые принадлежат конкретному аккаунту (его личная история).
 // Всё, чего здесь нет (тема, настройки интерфейса и т.п.) — общее для устройства.
@@ -54,10 +54,10 @@ const welcomeInbox = (giftAgentName = null) => ({
         { id: 'upd_cockpit', title: 'Новинка: Cockpit', body: 'Панель управления агентами и оркестраторами. Ставьте задачи оркестратору — он раздаёт их агентам с вашего подтверждения.', at: Date.now() },
     ],
     personal: [
-        { id: 'pm_welcome', from: 'team@voidops.com', subject: 'Добро пожаловать в Void Code AI', preview: 'Спасибо, что присоединились к закрытому тесту. Здесь появятся письма от внешних компаний и пользователей.', at: Date.now() },
+        { id: 'pm_welcome', from: 'team@voidops.ru', subject: 'Добро пожаловать в Void Code AI', preview: 'Спасибо, что присоединились к закрытому тесту. Здесь появятся письма от внешних компаний и пользователей.', at: Date.now() },
         ...(giftAgentName ? [{
             id: 'pm_gift_agent',
-            from: 'team@voidops.com',
+            from: 'team@voidops.ru',
             subject: '🎁 Ваш первый агент — подарок от нас',
             preview: `Мы подарили вам агента «${giftAgentName}» — он уже ждёт вас в Cockpit. Загляните туда, чтобы включить ему задачи и подключить коннекторы.`,
             at: Date.now(),

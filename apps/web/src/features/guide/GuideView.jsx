@@ -291,6 +291,17 @@ export function GuideView({ state, updateState }) {
                     </div>
                 </div>
             </div>
+
+            {/* Круглая полупрозрачная кнопка входа в чат с ИИ-техподдержкой —
+                та же точка входа, что и в «Сведения → Справочный центр». */}
+            <button
+                onClick={() => updateState({ currentView: 'support-chat' })}
+                title="Написать в техподдержку"
+                aria-label="Написать в техподдержку"
+                className="fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-30 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#5b32d4]/80 hover:bg-[#5b32d4]/95 backdrop-blur-lg text-white shadow-lg flex items-center justify-center transition-colors"
+            >
+                <Icons.MessageSquare className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
         </div>
     );
 }

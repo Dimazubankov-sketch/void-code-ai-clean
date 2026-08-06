@@ -104,7 +104,7 @@ sudo systemctl restart nginx
 ```bash
 curl -X POST http://127.0.0.1:3000/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@voidops.com","password":"testpass123"}'
+  -d '{"email":"test@voidops.ru","password":"testpass123"}'
 ```
 
 Должен вернуться JSON вида `{"accessToken":"..."}`. Если ошибка про

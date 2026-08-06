@@ -68,6 +68,24 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     const editableTextareaRef = useRef(null);
     const currentReasoningLevel = (state.reasoningByModel || {})[state.selectedModelId] || defaultReasoningFor(state.selectedModelId);
 
+    // ==========================================
+    // Баг-фикс: сброс высоты textarea после отправки
+    // ==========================================
+    // GSAP-анимация авто-высоты (onChange ниже) напрямую пишет px в
+    // el.style.height. Раньше сброс происходил ТОЛЬКО в onKeyDown при
+    // отправке по Enter — если сообщение отправлялось кликом по кнопке
+    // (самый частый способ на мобильных, где Enter не сабмитит), инлайновая
+    // высота так и оставалась «растянутой» под длинный текст, хотя
+    // state.inputValue уже пустой. Общий и надёжный фикс — реагировать на
+    // сам факт опустошения поля, откуда бы оно ни было очищено (кнопка,
+    // Enter, голосовой ввод, программный clear), и снимать инлайн-стиль,
+    // возвращая контроль CSS (min-h-[64px] из класса textarea).
+    useEffect(() => {
+        if (state.inputValue === '' && editableTextareaRef.current) {
+            editableTextareaRef.current.style.height = '';
+        }
+    }, [state.inputValue]);
+
     // Голосовой ввод (новый UX): запись с анимацией на всём поле,
     // «+» → «×» (отмена), микрофон → квадрат (стоп) → индикатор загрузки,
     // затем «Преобразование в текст» и распознанное дописывается к тексту.

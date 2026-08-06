@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { goBack } from '@/shared/lib/navigation';
+import { LanguagePicker, APP_LANGUAGES } from '@/features/settings/LanguagePicker';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -39,7 +40,6 @@ export function InfoView({ state, updateState, onClose }) {
     }, { dependencies: [section] });
 
     const handleClose = () => { if (onClose) onClose(); else goBack(state, updateState, 'settings'); };
-    const openRequisites = () => window.open('/requisites', '_blank', 'noopener,noreferrer');
 
     return (
         <div className="flex flex-col h-full bg-[#f8f9fc] dark:bg-darkBg void-view-enter w-full">
@@ -75,15 +75,10 @@ export function InfoView({ state, updateState, onClose }) {
                         {section === 'about' && <AboutSection />}
                         {section === 'terms' && <TermsSection />}
                         {section === 'privacy' && <PrivacySection />}
-                        {section === 'faq' && <FaqSection />}
+                        {section === 'faq' && <FaqSection onOpenSupport={() => updateState({ currentView: 'support-chat' })} />}
                     </div>
 
-                    {/* Реквизиты — в самом низу «Сведений», как и попросили */}
-                    <div className="mt-8 pt-2 text-center">
-                        <button onClick={openRequisites} className="inline-flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-[#5b32d4] dark:text-gray-500 dark:hover:text-purple-300 transition-colors py-2 px-4">
-                            <Icons.Receipt className="w-4 h-4" /> Реквизиты
-                        </button>
-                    </div>
+                    <InfoFooter state={state} updateState={updateState} />
                 </div>
             </div>
         </div>
@@ -317,14 +312,30 @@ const FAQ_ITEMS = [
     },
     {
         q: 'Как связаться с поддержкой?',
-        a: 'Через email, указанный в разделе «Реквизиты» — ответим в ближайшее время.',
+        a: 'Быстрее всего — через ИИ-агента техподдержки прямо здесь (кнопка выше). Если вопрос сложный, агент попросит email и передаст его профильным специалистам.',
     },
 ];
 
-function FaqSection() {
+function FaqSection({ onOpenSupport }) {
     const [openIdx, setOpenIdx] = useState(0);
     return (
         <div>
+            {/* Вход в чат с ИИ-техподдержкой — круглая полупрозрачная кнопка
+                с иконкой сообщения, как и просили. */}
+            <div className="flex items-center justify-between gap-4 mb-5 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/40">
+                <div className="min-w-0">
+                    <p className="font-bold text-sm dark:text-white">Не нашли ответ?</p>
+                    <p className="text-xs text-gray-400">Напишите ИИ-агенту техподдержки — отвечает почти мгновенно</p>
+                </div>
+                <button
+                    onClick={onOpenSupport}
+                    title="Написать в техподдержку"
+                    className="shrink-0 w-12 h-12 rounded-full bg-[#5b32d4]/10 dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300 flex items-center justify-center hover:bg-[#5b32d4]/20 dark:hover:bg-purple-900/30 transition-colors"
+                >
+                    <Icons.MessageSquare className="w-5 h-5" />
+                </button>
+            </div>
+
             <div className="space-y-2">
                 {FAQ_ITEMS.map((item, i) => {
                     const open = openIdx === i;
@@ -346,6 +357,74 @@ function FaqSection() {
                     );
                 })}
             </div>
+        </div>
+    );
+}
+
+// ==========================================
+// Подвал «Сведений»
+// ==========================================
+// Сверху вниз, как в ТЗ: соцсети (чёрно-белые «стикеры») → копирайт →
+// селектор языка (открывает тот же LanguagePicker, что и в Настройках) →
+// юридические реквизиты самым мелким и полупрозрачным шрифтом внизу.
+function InfoFooter({ state, updateState }) {
+    const [showLang, setShowLang] = useState(false);
+    const iconsRef = useRef(null);
+    const lang = state.lang || 'ru';
+    const langLabel = (APP_LANGUAGES.find((l) => l.id === lang) || APP_LANGUAGES[0]).native;
+
+    // Лёгкий GSAP-«bounce» иконки соцсети при наведении/тапе — простая,
+    // ненавязчивая обратная связь вместо голого CSS-hover.
+    const bump = (e) => {
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce) return;
+        gsap.fromTo(e.currentTarget, { scale: 1 }, { scale: 1.12, duration: 0.18, ease: 'power2.out', yoyo: true, repeat: 1 });
+    };
+
+    return (
+        <div className="mt-10 pt-8 border-t border-gray-100 dark:border-gray-800 flex flex-col items-center gap-5 pb-4">
+            {/* Соцсети */}
+            <div ref={iconsRef} className="flex items-center gap-3">
+                <a
+                    href="https://t.me/voidcodeoffical"
+                    target="_blank" rel="noopener noreferrer" title="Telegram"
+                    onMouseEnter={bump}
+                    className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 flex items-center justify-center hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900 transition-colors"
+                >
+                    <Icons.Telegram className="w-5 h-5" />
+                </a>
+                <a
+                    href="https://www.tiktok.com/@voidcode.ru?_r=1&_d=eld46g800c81be&sec_uid=MS4wLjABAAAAL_zwYuCWtLz3ACZmiVrzg919Gubj2cfYFLOstS9ZoT2y5edGxbJhPxGF7oVQWGYP&share_author_id=7658971784893744142&sharer_language=ru&source=h5_m&u_code=f4b6l75fdb96g7&item_author_type=1&utm_source=copy&tt_from=copy&enable_checksum=1&utm_medium=ios&share_link_id=894FDF04-A75A-4274-8DE0-78D28D5D1648&user_id=7658971784893744142&sec_user_id=MS4wLjABAAAAL_zwYuCWtLz3ACZmiVrzg919Gubj2cfYFLOstS9ZoT2y5edGxbJhPxGF7oVQWGYP&social_share_type=4&ug_btm=b8727,b0&utm_campaign=client_share&share_app_id=1233"
+                    target="_blank" rel="noopener noreferrer" title="TikTok"
+                    onMouseEnter={bump}
+                    className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 flex items-center justify-center hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900 transition-colors"
+                >
+                    <Icons.TikTok className="w-5 h-5" />
+                </a>
+            </div>
+
+            {/* Копирайт */}
+            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500">Void code © 2026</p>
+
+            {/* Язык — текущий, кликабельный */}
+            <button
+                onClick={() => setShowLang(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+            >
+                <Icons.Globe className="w-3.5 h-3.5" /> {langLabel}
+            </button>
+
+            {/* Реквизиты — самым мелким и полупрозрачным шрифтом, но физически
+                присутствуют на странице; ссылка на полную карточку /requisites */}
+            <a
+                href="/requisites"
+                target="_blank" rel="noopener noreferrer"
+                className="text-xs opacity-50 hover:opacity-80 text-gray-500 dark:text-gray-400 transition-opacity text-center px-6 leading-relaxed"
+            >
+                Зубанков Дмитрий Алексеевич · Самозанятый (плательщик НПД) · ИНН 711811074307
+            </a>
+
+            {showLang && <LanguagePicker state={state} updateState={updateState} onClose={() => setShowLang(false)} />}
         </div>
     );
 }

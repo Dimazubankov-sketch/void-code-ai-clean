@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { applyAccountLogin } from '@/shared/lib/accounts';
+import { applyAccountLogin, DOMAIN } from '@/shared/lib/accounts';
 import { ApiError } from '@/shared/api/client';
 import { Icons } from '@/shared/ui/Icons';
 
@@ -50,7 +50,7 @@ export function AuthModal({ state, updateState }) {
                 
                 <div className="flex justify-center mb-6"><div className="flex items-center gap-2.5 font-extrabold text-2xl dark:text-white"><Icons.VoidLogo /><span><span className="void-grad-text">VOID</span> CODE AI</span></div></div>
                 <h2 className="text-2xl font-extrabold text-center mb-2 dark:text-white">Регистрация / Вход</h2>
-                <p className="text-center text-gray-500 mb-8 text-sm">Доступ только по корпоративной почте <span className="font-bold text-[#5b32d4]">@voidops.com</span></p>
+                <p className="text-center text-gray-500 mb-8 text-sm">Доступ только по корпоративной почте <span className="font-bold text-[#5b32d4]">{DOMAIN}</span></p>
                 
                 <div className="flex gap-2 p-1.5 bg-gray-50 dark:bg-[#23232f] rounded-2xl mb-6">
                     <button onClick={()=>updateState({authTab: 'login'})} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-colors ${state.authTab==='login'?'bg-white dark:bg-darkCard text-[#5b32d4] shadow-sm':'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>Войти</button>
@@ -73,7 +73,7 @@ export function AuthModal({ state, updateState }) {
                                 className="flex-1 min-w-0 p-4 bg-transparent focus:outline-none dark:text-white" 
                                 placeholder="name" 
                             />
-                            <span className="flex items-center px-4 bg-gray-100 dark:bg-[#2c2c3a] text-gray-500 dark:text-gray-400 font-bold text-sm select-none border-l border-gray-200 dark:border-gray-700">@voidops.com</span>
+                            <span className="flex items-center px-4 bg-gray-100 dark:bg-[#2c2c3a] text-gray-500 dark:text-gray-400 font-bold text-sm select-none border-l border-gray-200 dark:border-gray-700">{DOMAIN}</span>
                         </div>
                     </div>
                     <div>

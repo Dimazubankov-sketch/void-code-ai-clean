@@ -56,3 +56,18 @@ export async function fetchTtsUsage() {
     return { used: 0, limit: 0, remaining: 0 };
   }
 }
+
+// ==========================================
+// ИИ-техподдержка (Void Mini, жёсткий системный промпт на сервере)
+// ==========================================
+// Отдельный эндпоинт: не создаёт ChatSession и не расходует дневной/
+// недельный лимит запросов — см. SupportController на бэкенде.
+// history — [{role:'user'|'assistant', content}], без системного
+// сообщения (оно всегда фиксировано сервером).
+export async function sendSupportMessage(message, history = [], images = []) {
+  const data = await apiFetch('/support/message', {
+    method: 'POST',
+    body: { message, history, ...(images && images.length ? { images } : {}) },
+  });
+  return data.content;
+}

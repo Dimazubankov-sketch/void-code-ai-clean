@@ -14,6 +14,7 @@ import { HomeView } from '@/features/home/HomeView';
 import { LibraryView } from '@/features/library/LibraryView';
 import { LimitsView } from '@/features/settings/LimitsView';
 import { InfoView } from '@/features/settings/InfoView';
+import { SupportChatView } from '@/features/support/SupportChatView';
 import { ProfileEditView } from '@/features/settings/ProfileEditView';
 import { SecurityView } from '@/features/settings/SecurityView';
 import { SettingsView } from '@/features/settings/SettingsView';
@@ -122,7 +123,7 @@ export function App() {
                     { id: 'upd_cockpit', title: 'Новинка: Cockpit', body: 'Панель управления агентами и оркестраторами. Ставьте задачи оркестратору — он раздаёт их агентам с вашего подтверждения.', at: Date.now() },
                 ],
                 personal: [
-                    { id: 'pm_welcome', from: 'team@voidops.com', subject: 'Добро пожаловать в Void Code AI', preview: 'Спасибо, что присоединились к закрытому тесту. Здесь появятся письма от внешних компаний и пользователей.', at: Date.now() },
+                    { id: 'pm_welcome', from: 'team@voidops.ru', subject: 'Добро пожаловать в Void Code AI', preview: 'Спасибо, что присоединились к закрытому тесту. Здесь появятся письма от внешних компаний и пользователей.', at: Date.now() },
                 ],
                 sent: [],
                 drafts: [],
@@ -681,6 +682,7 @@ export function App() {
                 {state.currentView === 'security' && <SecurityView state={state} updateState={updateState} />}
                 {state.currentView === 'limits' && <LimitsView state={state} updateState={updateState} />}
                 {state.currentView === 'info' && <InfoView state={state} updateState={updateState} />}
+                {state.currentView === 'support-chat' && <SupportChatView state={state} updateState={updateState} />}
                 {state.currentView === 'projects' && <ProjectsView state={state} updateState={updateState} />}
                 {state.currentView === 'skills' && <SkillsView state={state} updateState={updateState} />}
                 {state.currentView === 'plugins' && <PluginsView state={state} updateState={updateState} />}
