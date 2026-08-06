@@ -556,18 +556,17 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             отмечает галочками несколько фото за один заход системного
                             пикера (задача 2-4). Лимит по тарифу применяется в
                             addImageFiles ниже (3 фото Free / 9 на платных).
-                            accept="image/*" — ИМЕННО эта строка (а не список
-                            конкретных MIME-типов вроде "image/jpeg, image/png,
-                            image/webp") заставляет iOS Safari/WebKit-браузеры
-                            (Safari, Yandex, Chrome на iOS — все на WebKit)
-                            пропустить системное меню выбора источника
-                            («Медиатека / Сделать снимок / Выбрать файлы») и
-                            сразу открыть галерею. Предыдущая версия этого
-                            комментария ошибочно утверждала обратное — по факту
-                            перечисление конкретных MIME-типов вместо общей
-                            маски "image/*" и было причиной лишнего экрана
-                            выбора источника (см. скриншоты бага). */}
-                        <input type="file" ref={chatFileInputRef} multiple accept="image/*" className="hidden" onChange={(e) => {
+                            ПОПЫТКА №6: предыдущий комментарий утверждал, что
+                            accept="image/*" убирает системное меню-разветвитель
+                            («Медиатека / Сделать снимок / Выбрать файлы») на
+                            iOS — по факту (см. скриншоты) это не так, меню
+                            всё равно показывается. Переходим на явный список
+                            MIME-типов без wildcard — по отчётам это чаще
+                            приводит к прямому открытию галереи на WebKit.
+                            Полной гарантии от самой iOS на это нет (см. итоговое
+                            сообщение), но это самый близкий к нативному
+                            поведению вариант, который можно настроить через HTML. */}
+                        <input type="file" ref={chatFileInputRef} multiple accept="image/jpeg, image/png, image/webp, image/heic" className="hidden" onChange={(e) => {
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
