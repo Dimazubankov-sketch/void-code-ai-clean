@@ -71,6 +71,12 @@ export function SettingsView({ state, updateState }) {
                         <button onClick={() => { logoutAccount(state, updateState); updateState({ currentView: 'home', isRightMenuOpen: false }); }} className="font-bold text-red-500 hover:text-red-600 transition-colors p-4 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 w-full flex justify-center items-center gap-2 border border-red-100 dark:border-red-900/30">
                             <Icons.Logout /> {t(lang, 'settings.logout')}
                         </button>
+                        {/* Мелкая, ненавязчивая ссылка на публичную страницу реквизитов —
+                            открывается в новом окне, т.к. это отдельный статический
+                            маршрут вне SPA-стейта (см. main.jsx). */}
+                        <a href="/requisites" target="_blank" rel="noopener noreferrer" className="block mt-5 text-xs text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-400 transition-colors">
+                            Реквизиты
+                        </a>
                     </div>
                 </div>
             </div>

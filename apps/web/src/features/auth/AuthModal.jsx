@@ -109,6 +109,11 @@ export function AuthModal({ state, updateState }) {
                     <button onClick={handleAuth} disabled={loading} className="w-full bg-[#5b32d4] hover:bg-[#4a26b0] disabled:opacity-60 text-white font-bold py-4 rounded-2xl shadow-lg transition-colors mt-4">
                         {loading ? 'Проверяем…' : 'Продолжить'}
                     </button>
+                    {/* Мелкая ссылка на публичные реквизиты — доступна ещё до
+                        регистрации/входа, отдельный статический маршрут (см. main.jsx). */}
+                    <a href="/requisites" target="_blank" rel="noopener noreferrer" className="block text-center text-xs text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-400 transition-colors pt-1">
+                        Реквизиты
+                    </a>
                 </div>
             </div>
         </div>
