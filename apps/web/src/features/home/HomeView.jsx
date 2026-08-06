@@ -179,7 +179,11 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         </div>
                     )}
                     <div className="flex items-end bg-white dark:bg-darkCard rounded-3xl border border-gray-200 dark:border-darkBorder shadow-md focus-within:ring-4 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4] transition-all relative">
-                        <input type="file" ref={chatFileInputRef} multiple accept="image/jpeg, image/png, image/webp" className="hidden" onChange={(e) => {
+                        {/* accept="image/*" (не список конкретных MIME) — именно
+                            эта маска даёт iOS Safari/WebKit сразу открыть
+                            галерею, минуя системное меню «Медиатека/Снимок/
+                            Файлы» (см. тот же инпут в ChatView.jsx). */}
+                        <input type="file" ref={chatFileInputRef} multiple accept="image/*" className="hidden" onChange={(e) => {
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />

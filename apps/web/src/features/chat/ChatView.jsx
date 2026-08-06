@@ -36,6 +36,25 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     const [showPlusMenu, setShowPlusMenu] = useState(false);
     const cameraInputRef = useRef(null);
     const anyFileInputRef = useRef(null);
+
+    // ЗАДАЧА 1 (фикс галереи на мобильных, попытка №5 — теперь по делу):
+    // клик по системному пикеру (input[type=file].click()) вызываем ПЕРВОЙ
+    // строкой, СИНХРОННО, прямо внутри обработчика реального тапа
+    // пользователя — это и есть тот самый user-gesture, без которого iOS
+    // Safari/Chrome молча отказываются показывать галерею. Никаких await/
+    // setTimeout ПЕРЕД click() быть не должно.
+    // Закрытие меню «+» (setShowPlusMenu(false) → React убирает оверлей
+    // ChatPlusMenu из DOM) сознательно откладываем на следующий кадр через
+    // requestAnimationFrame. Если снести DOM оверлея СИНХРОННО сразу после
+    // click(), WKWebView/Safari иногда отменяет ещё не отрисованный
+    // системный пикер — именно это раньше выглядело как «галерея не
+    // открывается». requestAnimationFrame — не таймер ожидания, а лишь
+    // перенос неблокирующей DOM-мутации на следующий кадр отрисовки, сам
+    // click() при этом уже отработал синхронно.
+    const openFilePicker = (ref) => {
+        ref?.current?.click();
+        requestAnimationFrame(() => setShowPlusMenu(false));
+    };
     const [editingImage, setEditingImage] = useState(null); // { src, index, source } | null
 
     // Добавляет выбранные файлы (из галереи, камеры или файлового менеджера)
@@ -537,17 +556,18 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             отмечает галочками несколько фото за один заход системного
                             пикера (задача 2-4). Лимит по тарифу применяется в
                             addImageFiles ниже (3 фото Free / 9 на платных).
-                            accept — СТРОГО перечисленные MIME-типы картинок, а не
-                            общий "image/*": на iOS/Android общий image/* иногда
-                            заставляет браузер показывать промежуточное системное
-                            окно выбора источника («Медиатека / Файлы / Камера»)
-                            вместо того, чтобы сразу открыть галерею. Явный список
-                            типов + отсутствие capture почти всегда даёт прямой
-                            переход в галерею с первого тапа. Строго
-                            image/jpeg, image/png, image/webp — общая маска
-                            image/* провоцирует iOS/Android показывать
-                            системное меню выбора источника вместо галереи. */}
-                        <input type="file" ref={chatFileInputRef} multiple accept="image/jpeg, image/png, image/webp" className="hidden" onChange={(e) => {
+                            accept="image/*" — ИМЕННО эта строка (а не список
+                            конкретных MIME-типов вроде "image/jpeg, image/png,
+                            image/webp") заставляет iOS Safari/WebKit-браузеры
+                            (Safari, Yandex, Chrome на iOS — все на WebKit)
+                            пропустить системное меню выбора источника
+                            («Медиатека / Сделать снимок / Выбрать файлы») и
+                            сразу открыть галерею. Предыдущая версия этого
+                            комментария ошибочно утверждала обратное — по факту
+                            перечисление конкретных MIME-типов вместо общей
+                            маски "image/*" и было причиной лишнего экрана
+                            выбора источника (см. скриншоты бага). */}
+                        <input type="file" ref={chatFileInputRef} multiple accept="image/*" className="hidden" onChange={(e) => {
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
@@ -651,9 +671,9 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                     state={state}
                     updateState={updateState}
                     onClose={() => setShowPlusMenu(false)}
-                    onPickCamera={() => cameraInputRef.current?.click()}
-                    onPickPhoto={() => chatFileInputRef.current?.click()}
-                    onPickFile={() => anyFileInputRef.current?.click()}
+                    onPickCamera={() => openFilePicker(cameraInputRef)}
+                    onPickPhoto={() => openFilePicker(chatFileInputRef)}
+                    onPickFile={() => openFilePicker(anyFileInputRef)}
                     onEnableImage={() => updateState({ imageGenMode: true, activeAgentId: null })}
                     onPickAgent={(agent) => updateState({ activeAgentId: agent.id, imageGenMode: false })}
                 />

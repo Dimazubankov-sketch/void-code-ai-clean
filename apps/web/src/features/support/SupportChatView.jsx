@@ -44,7 +44,12 @@ function looksLikeEnding(text) {
 }
 
 export function SupportChatView({ state, updateState, onClose }) {
-    const [topic, setTopic] = useState(null); // null → экран выбора темы
+    // ЗАДАЧА 6: topic больше НЕ управляет отдельным «экраном выбора темы» —
+    // пользователь сразу попадает в интерфейс чата. topic === null теперь
+    // означает лишь «чипсы с темами ещё видны над полем ввода»; как
+    // только выбрана тема (или нажато «Другое», или отправлено первое
+    // сообщение) — topic получает значение, и чипсы скрываются.
+    const [topic, setTopic] = useState(null);
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [images, setImages] = useState([]);
@@ -81,7 +86,12 @@ export function SupportChatView({ state, updateState, onClose }) {
     };
 
     const pickTopic = (t) => { setTopic(t.id); pushAndSend(t.label, []); };
-    const pickCustom = () => { setTopic('custom'); };
+    const pickCustom = () => {
+        setTopic('custom');
+        // Фокус в поле ввода, чтобы пользователь сразу мог печатать
+        // свою проблему — без чипсов, но и без лишнего тапа по textarea.
+        requestAnimationFrame(() => textareaRef.current?.focus());
+    };
 
     const addFiles = (fileList) => {
         const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/')).slice(0, 4 - images.length);
@@ -89,9 +99,11 @@ export function SupportChatView({ state, updateState, onClose }) {
         compressImageFiles(files).then((results) => setImages((prev) => [...prev, ...results]));
     };
 
-    if (!topic) {
-        return <SupportTopicScreen onBack={handleBack} onPick={pickTopic} onCustom={pickCustom} />;
-    }
+    // Чипсы (темы + «Другое») видны, пока пользователь ещё ничего не
+    // выбрал и не начал печатать сам — сразу над полем ввода, как
+    // сагджесты в современных мессенджерах (задача 6), а не отдельным
+    // экраном перед чатом.
+    const showTopicChips = !topic && messages.length === 0;
 
     const statusText = generating ? 'Агент пишет…' : ended ? 'Агент покинул диалог' : (messages.length === 0 ? 'Агент вступил в диалог' : null);
 
@@ -113,6 +125,14 @@ export function SupportChatView({ state, updateState, onClose }) {
             {/* Сообщения */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6">
                 <div className="max-w-2xl mx-auto space-y-5">
+                    {messages.length === 0 && (
+                        <div className="flex justify-start">
+                            <div className="max-w-[85%] p-4 rounded-3xl rounded-tl-sm bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder">
+                                <p className="text-sm text-gray-700 dark:text-gray-200 font-medium">Здравствуйте! Я — агент поддержки Void Code AI. С чем помочь?</p>
+                                <p className="text-xs text-gray-400 mt-1">Выберите тему ниже или опишите проблему своими словами.</p>
+                            </div>
+                        </div>
+                    )}
                     {messages.map((msg, i) => (
                         <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {msg.role === 'user' ? (
@@ -135,6 +155,34 @@ export function SupportChatView({ state, updateState, onClose }) {
             {/* Поле ввода */}
             <div className="shrink-0 p-3 sm:p-4 border-t border-gray-100 dark:border-darkBorder bg-[#f8f9fc]/95 dark:bg-darkBg/95 backdrop-blur-md">
                 <div className="max-w-2xl mx-auto">
+                    {/* Задача 6: чипсы с готовыми темами — прямо в чате, над
+                        полем ввода, а не отдельным экраном до него. Тап по
+                        теме сразу отправляет её как первое сообщение,
+                        «Другое» просто убирает чипсы и даёт написать
+                        свободный текст. */}
+                    {showTopicChips && (
+                        <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide fade-in">
+                            {TOPICS.map((t) => {
+                                const IconComp = Icons[t.icon] || Icons.Help;
+                                return (
+                                    <button
+                                        key={t.id}
+                                        onClick={() => pickTopic(t)}
+                                        className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder text-xs font-bold text-gray-700 dark:text-gray-200 hover:border-[#5b32d4]/50 hover:bg-[#faf9ff] dark:hover:bg-purple-900/10 transition-colors whitespace-nowrap"
+                                    >
+                                        <IconComp className="w-3.5 h-3.5 text-[#5b32d4] dark:text-purple-400 shrink-0" />
+                                        {t.label}
+                                    </button>
+                                );
+                            })}
+                            <button
+                                onClick={pickCustom}
+                                className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-700 text-xs font-bold text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors whitespace-nowrap"
+                            >
+                                <Icons.Pencil className="w-3.5 h-3.5 shrink-0" /> Другое
+                            </button>
+                        </div>
+                    )}
                     {images.length > 0 && (
                         <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
                             {images.map((src, i) => (
@@ -145,7 +193,10 @@ export function SupportChatView({ state, updateState, onClose }) {
                             ))}
                         </div>
                     )}
-                    <input type="file" ref={fileInputRef} multiple accept="image/jpeg, image/png, image/webp" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+                    {/* accept="image/*" — та же маска, что и в основном чате
+                        (ChatView.jsx): именно она даёт iOS сразу открыть
+                        галерею вместо системного меню выбора источника. */}
+                    <input type="file" ref={fileInputRef} multiple accept="image/*" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
                     <div className="flex items-end bg-white dark:bg-darkCard rounded-3xl border border-gray-200 dark:border-darkBorder shadow-md focus-within:ring-4 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4] transition-all relative min-h-[52px]">
                         <button
                             onClick={() => fileInputRef.current?.click()}
@@ -182,45 +233,6 @@ export function SupportChatView({ state, updateState, onClose }) {
                             Начать новый диалог
                         </button>
                     )}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ==========================================
-// Экран выбора темы — показывается ДО начала чата
-// ==========================================
-function SupportTopicScreen({ onBack, onPick, onCustom }) {
-    return (
-        <div className="flex flex-col h-full bg-[#f8f9fc] dark:bg-darkBg void-view-enter w-full">
-            <div className="shrink-0 flex items-center gap-3 px-4 pt-6 pb-3">
-                <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft /></button>
-                <h2 className="text-lg font-extrabold dark:text-white">Техподдержка</h2>
-            </div>
-            <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-8">
-                <div className="max-w-lg mx-auto pt-4">
-                    <div className="w-14 h-14 rounded-2xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center mb-4">
-                        <Icons.MessageSquare className="w-7 h-7" />
-                    </div>
-                    <h3 className="text-xl font-extrabold dark:text-white mb-1">С чем помочь?</h3>
-                    <p className="text-sm text-gray-400 mb-6">Выберите ближайшую по смыслу тему — так агент быстрее разберётся в проблеме.</p>
-
-                    <div className="space-y-2">
-                        {TOPICS.map((t) => {
-                            const IconComp = Icons[t.icon] || Icons.Help;
-                            return (
-                                <button key={t.id} onClick={() => onPick(t)} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder text-left hover:border-[#5b32d4]/40 hover:bg-[#faf9ff] dark:hover:bg-purple-900/10 transition-colors">
-                                    <IconComp className="w-5 h-5 text-[#5b32d4] dark:text-purple-400 shrink-0" />
-                                    <span className="flex-1 text-sm font-bold text-gray-800 dark:text-gray-100">{t.label}</span>
-                                    <Icons.ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-                                </button>
-                            );
-                        })}
-                        <button onClick={onCustom} className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-[#5b32d4] dark:text-purple-400 font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors mt-3">
-                            <Icons.Pencil className="w-4 h-4" /> Другое — опишу проблему сам
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>

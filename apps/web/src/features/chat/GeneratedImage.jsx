@@ -155,11 +155,17 @@ export function GeneratedImage({ url, prompt = '', idx = 0, onEdit }) {
                     setMenuOpen(true);
                 }}
             >
-                <button type="button" onClick={() => onEdit?.(url)} className="block w-full">
+                {/* Задача 5: ограничиваем максимальный размер картинки
+                    (max-w-sm) и держим строго квадратные пропорции
+                    (aspect-square + object-cover) — ТОЧНО тот же размер и
+                    те же классы использует «холст»-скелетон в
+                    ImageGenLoader, поэтому в момент появления готовой
+                    картинки макет не «прыгает». */}
+                <button type="button" onClick={() => onEdit?.(url)} className="block w-full max-w-sm">
                     <img
                         src={url}
                         alt={prompt || 'Сгенерированное изображение'}
-                        className="block w-full max-w-[560px] h-auto"
+                        className="block w-full aspect-square object-cover"
                         draggable={false}
                     />
                 </button>

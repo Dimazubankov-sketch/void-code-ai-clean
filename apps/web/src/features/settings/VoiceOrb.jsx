@@ -26,14 +26,21 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
     const coreRef = useRef(null);
     const halo1Ref = useRef(null);
     const halo2Ref = useRef(null);
+    // Твины «дыхания» покоя храним в рефе, чтобы можно было ставить их на
+    // паузу извне (когда включается аудио-реактивная анимация озвучки) и
+    // плавно возобновлять — без этого они «спорили» за scale с quickTo из
+    // Web Audio блока ниже, из-за чего круг дёргался/подвисал во время
+    // проверки голоса (задача 4 — «анимация отвалилась при тестировании»).
+    const idleTweensRef = useRef([]);
 
     // ---- Пассивная анимация «дыхания» — только scale ----
     useGSAP(() => {
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (reduce) return;
 
-        // Ядро: простое плавное дыхание, как и просили — только scale,
-        // без brightness/opacity/сдвигов по Y.
+        // Ядро: простое плавное дыхание — заметно выраженнее, чем раньше
+        // (scale 1.06 вместо едва заметного 1.02), но по-прежнему только
+        // scale, без brightness/opacity/сдвигов по Y.
         const coreTween = gsap.to('.orb-core', {
             scale: 1.06,
             duration: 2.2,
@@ -51,7 +58,8 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
         const halo1Tween = gsap.to('.orb-halo-1', { scale: 1.15, duration: 2.6, ease: 'sine.inOut', yoyo: true, repeat: -1 });
         const halo2Tween = gsap.to('.orb-halo-2', { scale: 1.22, duration: 3.0, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.6 });
 
-        return () => { coreTween?.kill(); halo1Tween?.kill(); halo2Tween?.kill(); };
+        idleTweensRef.current = [coreTween, halo1Tween, halo2Tween];
+        return () => { coreTween?.kill(); halo1Tween?.kill(); halo2Tween?.kill(); idleTweensRef.current = []; };
     }, { scope });
 
     // ---- Плавная смена цвета голоса ----
@@ -79,11 +87,33 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
     useEffect(() => {
         if (!audioElement) return;
 
+        // На время активной (аудио-реактивной) анимации ставим твины
+        // дыхания покоя на паузу — GSAP останавливает их ровно в текущей
+        // фазе, ничего не сбрасывая. Иначе они продолжали бы писать в тот
+        // же scale параллельно с quickTo ниже, и круг «дёргался» между
+        // двумя конкурирующими анимациями.
+        idleTweensRef.current.forEach((tw) => tw?.pause());
+
         let ctx = null;
         let analyser = null;
         let source = null;
         let rafId = 0;
         let stopped = false;
+
+        // Плавно (GSAP, без скачка) возвращаем ядро и ореолы к scale:1, а
+        // затем аккуратно возобновляем твины дыхания покоя — они
+        // продолжат ровно с той фазы, на которой были поставлены на
+        // паузу, так что переход получается непрерывным, без «прыжков» и
+        // обрывов.
+        const returnToIdle = () => {
+            gsap.to([coreRef.current, halo1Ref.current, halo2Ref.current], {
+                scale: 1,
+                duration: 0.35,
+                ease: 'power2.out',
+                overwrite: 'auto',
+                onComplete: () => { idleTweensRef.current.forEach((tw) => tw?.resume()); },
+            });
+        };
 
         // quickTo — оптимальный способ анимировать одно свойство много раз
         // подряд (см. gsap-performance skill). Внутренне GSAP переиспользует
@@ -107,9 +137,12 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
         } catch (e) {
             // Если MediaElementSource уже был создан для этого <audio>
             // (повторный useEffect), createMediaElementSource кинет
-            // InvalidStateError — просто выходим без анимации громкости.
+            // InvalidStateError — просто выходим без анимации громкости, но
+            // обязательно возвращаем круг к дыханию покоя, иначе он
+            // «замирает» в статике до конца озвучки.
             // eslint-disable-next-line no-console
             console.debug('[VoiceOrb] Web Audio недоступен:', e?.message);
+            returnToIdle();
             return;
         }
 
@@ -146,6 +179,7 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
             try { source?.disconnect(); } catch { /* ignore */ }
             try { analyser?.disconnect(); } catch { /* ignore */ }
             try { ctx?.close(); } catch { /* ignore */ }
+            returnToIdle();
         };
     }, [audioElement]);
 

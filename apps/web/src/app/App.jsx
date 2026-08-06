@@ -371,7 +371,22 @@ export function App() {
         const textToSend = typeof textOverride === 'string' ? textOverride : (state.inputValue || '');
         const attachedImages = state.selectedImages && state.selectedImages.length > 0 ? state.selectedImages : (state.selectedImage ? [state.selectedImage] : []);
         if ((!textToSend.trim() && attachedImages.length === 0) || state.isGenerating) return;
-        
+
+        // ЗАДАЧА 2: автоопределение команды на генерацию изображения прямо
+        // из текста обычного чата. Если сообщение начинается со слов
+        // «создай изображение…», «нарисуй…» или «сгенерируй…» — не уходим
+        // в обычную текстовую LLM, а сразу передаём запрос в тот же путь,
+        // что и при ручном выборе режима «Создать изображение» через «+»
+        // (handleGenerateImage: DALL-E/DeepInfra на бэкенде). Уже включённый
+        // ручной imageGenMode или режим агента не переопределяем — считаем,
+        // что пользователь там осознанно выбрал другой путь ввода.
+        const IMAGE_COMMAND_REGEX = /^\s*(создай\s+изображение|нарисуй|сгенерируй)\b[\s:,\-—]*/i;
+        if (!state.imageGenMode && !state.activeAgentId && IMAGE_COMMAND_REGEX.test(textToSend)) {
+            const imagePrompt = textToSend.replace(IMAGE_COMMAND_REGEX, '').trim() || textToSend.trim();
+            await handleGenerateImage(imagePrompt);
+            return;
+        }
+
         const activeModel = AI_MODELS.find(m => m.id === state.selectedModelId) || AI_MODELS[1];
         const maxLimits = getPlanLimits(state.userPlan);
         

@@ -43,10 +43,15 @@ export function ChatPlusMenu({
                 какого-либо промежуточного экрана выбора: Камера открывает
                 камеру устройства (capture="environment" на инпуте), Фото —
                 галерею (accept="image/*"), Файлы — обычный проводник. */}
+            {/* Задача 1: onPickCamera/onPickPhoto/onPickFile (см. ChatView)
+                сами синхронно дёргают .click() у скрытого инпута И сами
+                же закрывают меню на следующем кадре — здесь НЕ вызываем
+                onClose() дополнительно, чтобы не убрать оверлей из DOM
+                синхронно раньше, чем системный пикер успеет открыться. */}
             <div className="grid grid-cols-3 gap-3 mb-3">
-                <BigButton icon="Camera" label="Камера" onClick={() => { onPickCamera?.(); onClose(); }} />
-                <BigButton icon="Image" label="Фото" onClick={() => { onPickPhoto?.(); onClose(); }} />
-                <BigButton icon="PaperclipThin" label="Файлы" onClick={() => { onPickFile?.(); onClose(); }} />
+                <BigButton icon="Camera" label="Камера" onClick={() => onPickCamera?.()} />
+                <BigButton icon="Image" label="Фото" onClick={() => onPickPhoto?.()} />
+                <BigButton icon="PaperclipThin" label="Файлы" onClick={() => onPickFile?.()} />
             </div>
 
             {/* Блок: добавить в проект + скиллы (строго под проектом) */}

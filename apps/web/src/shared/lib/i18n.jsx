@@ -53,7 +53,7 @@ const RU = {
     'chat.sendMessage': 'Отправьте сообщение',
     'chat.text': 'Текст',
     'chat.image': 'Изображение',
-    'chat.imagePlaceholder': 'Опишите изображение, которое хотите создать...',
+    'chat.imagePlaceholder': 'Опишите изображение',
     'chat.listening': 'Слушаю…',
     'chat.transcribing': 'Преобразование в текст',
     'chat.cancelRecording': 'Отменить запись',
