@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -28,6 +29,23 @@ import { Icons } from '@/shared/ui/Icons';
 export function ScrollDownButton({ visible, bottomPad, onClick, title }) {
     const btnRef = useRef(null);
     const tweenRef = useRef(null);
+    const pressTweenRef = useRef(null);
+
+    // Задача 1: интерактивный отклик при нажатии — мягкое сжатие на
+    // pointerdown и упругий отскок обратно на pointerup/pointerleave/
+    // pointercancel (единый Pointer Events API покрывает и мышь, и тач).
+    // Отдельный tween (pressTweenRef) от того, что управляет
+    // появлением/исчезновением кнопки (tweenRef) — чтобы они не мешали
+    // друг другу и не обрывали анимацию видимости на середине.
+    const { contextSafe } = useGSAP({ scope: btnRef });
+    const pressIn = contextSafe(() => {
+        pressTweenRef.current?.kill();
+        pressTweenRef.current = gsap.to(btnRef.current, { scale: 0.82, duration: 0.12, ease: 'power2.out' });
+    });
+    const pressOut = contextSafe(() => {
+        pressTweenRef.current?.kill();
+        pressTweenRef.current = gsap.to(btnRef.current, { scale: 1, duration: 0.35, ease: 'back.out(2.5)' });
+    });
 
     useEffect(() => {
         const el = btnRef.current;
@@ -65,6 +83,10 @@ export function ScrollDownButton({ visible, bottomPad, onClick, title }) {
         <button
             ref={btnRef}
             onClick={onClick}
+            onPointerDown={pressIn}
+            onPointerUp={pressOut}
+            onPointerLeave={pressOut}
+            onPointerCancel={pressOut}
             title={title}
             style={{
                 bottom: `${bottomPad + 8}px`,

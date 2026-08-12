@@ -75,12 +75,27 @@ export function InfoView({ state, updateState, onClose }) {
                         {section === 'about' && <AboutSection />}
                         {section === 'terms' && <TermsSection />}
                         {section === 'privacy' && <PrivacySection />}
-                        {section === 'faq' && <FaqSection onOpenSupport={() => updateState({ currentView: 'support-chat' })} />}
+                        {section === 'faq' && <FaqSection />}
                     </div>
 
                     <InfoFooter state={state} updateState={updateState} />
                 </div>
             </div>
+
+            {/* Задача 4: круглая полупрозрачная кнопка входа в чат с
+                ИИ-техподдержкой — 1:1 та же реализация, что и в
+                «Гид по возможностям» (GuideView.jsx), показываем только
+                на разделе «Справочный центр». */}
+            {section === 'faq' && (
+                <button
+                    onClick={() => updateState({ currentView: 'support-chat' })}
+                    title="Написать в техподдержку"
+                    aria-label="Написать в техподдержку"
+                    className="fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-30 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#5b32d4]/80 hover:bg-[#5b32d4]/95 backdrop-blur-lg text-white shadow-lg flex items-center justify-center transition-colors"
+                >
+                    <Icons.MessageSquare className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+            )}
         </div>
     );
 }
@@ -316,26 +331,15 @@ const FAQ_ITEMS = [
     },
 ];
 
-function FaqSection({ onOpenSupport }) {
+function FaqSection() {
     const [openIdx, setOpenIdx] = useState(0);
     return (
         <div>
-            {/* Вход в чат с ИИ-техподдержкой — круглая полупрозрачная кнопка
-                с иконкой сообщения, как и просили. */}
-            <div className="flex items-center justify-between gap-4 mb-5 p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/40">
-                <div className="min-w-0">
-                    <p className="font-bold text-sm dark:text-white">Не нашли ответ?</p>
-                    <p className="text-xs text-gray-400">Напишите ИИ-агенту техподдержки — отвечает почти мгновенно</p>
-                </div>
-                <button
-                    onClick={onOpenSupport}
-                    title="Написать в техподдержку"
-                    className="shrink-0 w-12 h-12 rounded-full bg-[#5b32d4]/10 dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300 flex items-center justify-center hover:bg-[#5b32d4]/20 dark:hover:bg-purple-900/30 transition-colors"
-                >
-                    <Icons.MessageSquare className="w-5 h-5" />
-                </button>
-            </div>
-
+            {/* Задача 4: верхний текстовый блок «Не нашли ответ? / Напишите
+                ИИ-агенту…» убран — вход в техподдержку теперь через ту же
+                плавающую круглую кнопку в правом нижнем углу экрана, что
+                и во вкладке «Гид по возможностям» (см. floating-кнопку
+                в конце InfoView, рендерится только при section === 'faq'). */}
             <div className="space-y-2">
                 {FAQ_ITEMS.map((item, i) => {
                     const open = openIdx === i;

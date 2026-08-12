@@ -1,10 +1,16 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useLayoutEffect } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useLongPressMenu } from '@/shared/lib/useLongPressMenu';
 import { MessageActionMenu } from '@/features/chat/MessageActionMenu';
 import { copyToCb } from '@/shared/lib/clipboard';
 import { Icons } from '@/shared/ui/Icons';
+
+// Порог сворачивания длинных сообщений (задача 2): если натуральная высота
+// текста превышает это значение (px) — сообщение сворачивается, показывая
+// только верхнюю часть с градиентным затуханием снизу и кнопкой-стрелкой
+// для разворачивания. ~7 строк текста при 17-18px шрифте.
+const COLLAPSE_HEIGHT = 190;
 
 // ==========================================
 // UserMessageBubble — пузырь СВОЕГО (user) сообщения
@@ -54,23 +60,124 @@ export function UserMessageBubble({ msg, onCopied, onEdit }) {
             {images.length > 0 && <UserImageStrip images={images} large={!hasText} />}
 
             {hasText && (
-                <div
-                    {...bind}
-                    // Специально БЕЗ void-selectable: пользователь попросил
-                    // убрать ручное выделение и копирование СВОИХ сообщений —
-                    // теперь единственный способ скопировать текст своего
-                    // сообщения это open-меню и кнопка «Скопировать». user-select-none
-                    // отключает системное выделение (на desktop и iOS long-press
-                    // тоже перестанет вызывать системное меню Copy). Сообщения
-                    // ИИ по-прежнему остаются выделяемыми — их отдельный
-                    // рендер в MessageRenderer.
-                    className="p-4 md:p-5 rounded-3xl min-w-0 max-w-full overflow-hidden break-words bg-[#5b32d4] text-white rounded-tr-sm shadow-sm cursor-pointer select-none touch-manipulation"
-                    style={{ willChange: 'transform', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
-                >
-                    <div className="text-[17px] sm:text-[18px] leading-relaxed break-words whitespace-pre-wrap">
-                        {msg.content}
-                    </div>
+                <CollapsibleUserText bind={bind} content={msg.content} />
+            )}
+        </div>
+    );
+}
+
+// ==========================================
+// CollapsibleUserText — текстовый пузырь с автосворачиванием (задача 2)
+// ==========================================
+// Полный текст всегда лежит в DOM (contentRef) — ничего не обрезается на
+// уровне данных, обрезка чисто визуальная через maxHeight на wrapperRef.
+// После монтирования/смены текста меряем реальную высоту контента: если
+// она больше COLLAPSE_HEIGHT — считаем сообщение «длинным», ставим
+// wrapper в свёрнутое состояние (maxHeight: COLLAPSE_HEIGHT) и показываем
+// градиентную «дымку» снизу + кнопку-стрелку в правом нижнем углу пузыря.
+// Клик по стрелке — GSAP-твин maxHeight между COLLAPSE_HEIGHT и полной
+// scrollHeight (ease power2.inOut), стрелка синхронно вращается на 180°.
+// При разворачивании по завершении твина снимаем инлайновый maxHeight
+// (clearProps), чтобы контент корректно реагировал на ресайз окна/шрифта;
+// при сворачивании обратно — снова фиксируем px-значение перед стартом.
+function CollapsibleUserText({ bind, content }) {
+    const wrapperRef = useRef(null);
+    const contentRef = useRef(null);
+    const arrowRef = useRef(null);
+    const fadeRef = useRef(null);
+    const [isLong, setIsLong] = useState(false);
+    const [expanded, setExpanded] = useState(false);
+
+    // Измеряем один раз при монтировании/смене текста — является ли
+    // сообщение длинным. Пересчёт при ресайзе не нужен: сообщения в
+    // истории чата не меняют ширину контейнера динамически после отправки.
+    useLayoutEffect(() => {
+        const contentEl = contentRef.current;
+        const wrapperEl = wrapperRef.current;
+        if (!contentEl || !wrapperEl) return;
+        const full = contentEl.scrollHeight;
+        const long = full > COLLAPSE_HEIGHT + 24; // небольшой запас, чтобы не сворачивать сообщения «впритык»
+        setIsLong(long);
+        if (long) {
+            gsap.set(wrapperEl, { height: COLLAPSE_HEIGHT });
+        } else {
+            gsap.set(wrapperEl, { height: 'auto' });
+        }
+        setExpanded(false);
+    }, [content]);
+
+    const { contextSafe } = useGSAP({ scope: wrapperRef });
+
+    const toggle = contextSafe(() => {
+        const wrapperEl = wrapperRef.current;
+        const contentEl = contentRef.current;
+        const arrowEl = arrowRef.current;
+        if (!wrapperEl || !contentEl) return;
+        const nextExpanded = !expanded;
+        const targetHeight = nextExpanded ? contentEl.scrollHeight : COLLAPSE_HEIGHT;
+
+        gsap.to(wrapperEl, {
+            height: targetHeight,
+            duration: 0.4,
+            ease: 'power2.inOut',
+            onComplete: () => {
+                // Разворот полностью завершён — снимаем фиксированную высоту,
+                // чтобы контент дальше вёл себя как обычный блок (auto).
+                if (nextExpanded && wrapperRef.current) {
+                    gsap.set(wrapperRef.current, { height: 'auto' });
+                }
+            },
+        });
+        if (arrowEl) {
+            gsap.to(arrowEl, { rotation: nextExpanded ? 180 : 0, duration: 0.4, ease: 'power2.inOut' });
+        }
+        if (fadeRef.current) {
+            gsap.to(fadeRef.current, { autoAlpha: nextExpanded ? 0 : 1, duration: 0.3, ease: 'power2.out' });
+        }
+        setExpanded(nextExpanded);
+    });
+
+    return (
+        <div className="relative max-w-full">
+            <div
+                {...bind}
+                ref={wrapperRef}
+                // Специально БЕЗ void-selectable: пользователь попросил
+                // убрать ручное выделение и копирование СВОИХ сообщений —
+                // теперь единственный способ скопировать текст своего
+                // сообщения это open-меню и кнопка «Скопировать». user-select-none
+                // отключает системное выделение (на desktop и iOS long-press
+                // тоже перестанет вызывать системное меню Copy). Сообщения
+                // ИИ по-прежнему остаются выделяемыми — их отдельный
+                // рендер в MessageRenderer.
+                className="p-4 md:p-5 rounded-3xl min-w-0 max-w-full overflow-hidden break-words bg-[#5b32d4] text-white rounded-tr-sm shadow-sm cursor-pointer select-none touch-manipulation"
+                style={{ willChange: 'transform, height', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+            >
+                <div ref={contentRef} className={`text-[17px] sm:text-[18px] leading-relaxed break-words whitespace-pre-wrap ${isLong ? 'pb-6' : ''}`}>
+                    {content}
                 </div>
+            </div>
+
+            {isLong && (
+                <>
+                    {/* Градиентная дымка снизу — сигнал, что текст обрезан.
+                        Цвет совпадает с фоном пузыря (#5b32d4), скрывается
+                        полностью при развороте. */}
+                    <div
+                        ref={fadeRef}
+                        className="pointer-events-none absolute left-0 right-0 bottom-0 h-12 rounded-b-3xl"
+                        style={{ background: 'linear-gradient(to bottom, rgba(91,50,212,0), rgba(91,50,212,1))' }}
+                    />
+                    <button
+                        onClick={toggle}
+                        title={expanded ? 'Свернуть' : 'Развернуть сообщение'}
+                        className="void-tap-target absolute right-2.5 bottom-2 z-10 w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
+                    >
+                        <span ref={arrowRef} className="flex items-center justify-center">
+                            <Icons.ChevronDown className="w-4 h-4" />
+                        </span>
+                    </button>
+                </>
             )}
         </div>
     );
