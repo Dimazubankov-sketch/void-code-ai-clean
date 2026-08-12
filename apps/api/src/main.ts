@@ -24,6 +24,10 @@ function logEnvChecklist() {
     { name: 'OPENROUTER_API_KEY', required: false, note: 'Void Plus/Pro + fallback для Mini + основной провайдер генерации картинок' },
     { name: 'OPENAI_API_KEY', required: false, note: 'озвучка (TTS) + fallback генерации картинок' },
     { name: 'DEEPINFRA_API_KEY', required: false, note: 'доп. провайдер картинок' },
+    { name: 'MIGADU_ADMIN_EMAIL', required: false, note: 'почта @voidops.ru — без него не создаются ящики при регистрации' },
+    { name: 'MIGADU_API_KEY', required: false, note: 'почта @voidops.ru — мастер-ключ Migadu (провижининг ящиков)' },
+    { name: 'MIGADU_DOMAIN', required: false, note: 'почта @voidops.ru — домен для новых ящиков (по умолчанию voidops.ru, если не задан)' },
+    { name: 'ENCRYPTION_KEY', required: false, note: 'почта @voidops.ru — без него нельзя расшифровать пароль ящика для SMTP/IMAP' },
   ];
   // eslint-disable-next-line no-console
   console.log('\n[ENV CHECK] ================================================');
