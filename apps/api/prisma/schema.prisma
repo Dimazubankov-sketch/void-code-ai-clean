@@ -61,6 +61,15 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // Персональный почтовый ящик на voidops.ru (Migadu), создаётся
+  // автоматически при регистрации — см. MailProvisioningService.
+  // Пароль от самого ящика (нужен для SMTP/IMAP при отправке/чтении
+  // писем от имени пользователя) хранится ТОЛЬКО в зашифрованном виде
+  // (AES-256-GCM, см. common/crypto.util.ts) — сырой пароль ящика на
+  // сервере нигде не логируется и клиенту не возвращается.
+  mailboxAddress     String? @unique
+  mailboxPasswordEnc String?
+
   subscriptions Subscription[]
   transactions  WalletTransaction[]
   chats         ChatSession[]

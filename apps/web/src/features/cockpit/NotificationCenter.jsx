@@ -3,6 +3,8 @@ import { gsap } from 'gsap';
 import { MailAgentChat } from '@/features/cockpit/MailAgentChat';
 import { switchToAccount } from '@/shared/lib/accounts';
 import { playNotificationSound } from '@/shared/lib/sound';
+import { fetchInbox, fetchMailMessage, sendMail } from '@/shared/api/mail';
+import { ApiError } from '@/shared/api/client';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -133,6 +135,60 @@ export function NotificationCenter({ state, updateState, onClose }) {
     const readPersonal = state.readPersonalIds || [];
     const starred = state.starredIds || [];
 
+    // ==========================================
+    // Реальная почта (задача 2) — Migadu через наш бэкенд
+    // ==========================================
+    // «Личная почта» больше не локальная имитация: inbox.personal
+    // заполняется из реального IMAP-инбокса @voidops.ru. Список из
+    // /mail/inbox содержит только заголовки (без текста письма — дорого
+    // тянуть тело каждого письма при каждом обновлении списка), полный
+    // текст подгружается лениво при открытии письма (см. openPersonal).
+    const [mailLoading, setMailLoading] = useState(false);
+    const [mailError, setMailError] = useState(null);
+    const [mailAddress, setMailAddress] = useState(null);
+
+    const refreshInbox = async () => {
+        setMailLoading(true);
+        setMailError(null);
+        try {
+            const { address, messages } = await fetchInbox();
+            setMailAddress(address);
+            const mapped = messages.map(m => ({
+                id: `mail_${m.uid}`,
+                uid: m.uid,
+                subject: m.subject,
+                from: m.from,
+                at: new Date(m.at).getTime(),
+                preview: m.preview || '',
+            }));
+            updateState({ inbox: { ...inbox, personal: mapped } });
+        } catch (e) {
+            // 403 здесь означает «ящик ещё не создан» (см. MailController) —
+            // это не сбой сети, а ожидаемое состояние для части аккаунтов
+            // (например, зарегистрированных до подключения почты, или если
+            // Migadu был временно недоступен в момент регистрации).
+            if (e instanceof ApiError && e.status === 403) {
+                setMailError('Персональный ящик ещё не создан. Попробуйте обновить чуть позже.');
+            } else {
+                setMailError(e instanceof ApiError ? e.message : 'Не удалось загрузить входящие письма');
+            }
+        } finally {
+            setMailLoading(false);
+        }
+    };
+
+    // Загружаем инбокс один раз при открытии почты и дальше — каждый раз
+    // при переключении на вкладку «Личная почта» (не грузим фоном, пока
+    // человек смотрит другие папки — незачем держать лишние IMAP-сессии).
+    // Плюс лёгкий фоновый поллинг (раз в 60с) ТОЛЬКО пока вкладка активна,
+    // чтобы новые письма появлялись без ручного обновления.
+    useEffect(() => {
+        if (activeFolder !== 'personal') return;
+        refreshInbox();
+        const interval = setInterval(refreshInbox, 60_000);
+        return () => clearInterval(interval);
+    }, [activeFolder]);
+
     const unreadUpdates = inbox.updates.filter(u => !readUpdates.includes(u.id)).length;
     const unreadPersonal = inbox.personal.filter(m => !readPersonal.includes(m.id)).length;
     const pendingReports = Object.values(reports).reduce((n, l) => n + l.filter(r => r.status === 'pending').length, 0);
@@ -190,8 +246,20 @@ export function NotificationCenter({ state, updateState, onClose }) {
         if (!readUpdates.includes(u.id)) updateState({ readUpdateIds: [...readUpdates, u.id] });
     };
     const openPersonal = (m) => {
-        setOpenLetter({ id: m.id, kind: 'personal', title: m.subject, from: m.from, body: m.preview, at: m.at });
+        // Показываем письмо сразу с тем, что уже есть (тема/отправитель/дата),
+        // а полный текст подтягиваем асинхронно — так открытие ощущается
+        // мгновенным, а не «зависает» на сетевой запрос.
+        setOpenLetter({ id: m.id, kind: 'personal', title: m.subject, from: m.from, body: 'Загрузка письма…', at: m.at, uid: m.uid });
         if (!readPersonal.includes(m.id)) updateState({ readPersonalIds: [...readPersonal, m.id] });
+        if (m.uid == null) return;
+        fetchMailMessage(m.uid)
+            .then(({ message }) => {
+                if (!message) return;
+                setOpenLetter(prev => (prev && prev.id === m.id ? { ...prev, body: message.body || '(пустое письмо)' } : prev));
+            })
+            .catch((e) => {
+                setOpenLetter(prev => (prev && prev.id === m.id ? { ...prev, body: e instanceof ApiError ? `Не удалось загрузить письмо: ${e.message}` : 'Не удалось загрузить письмо' } : prev));
+            });
     };
     const openSent = (m) => setOpenLetter({ id: m.id, kind: 'sent', title: m.subject, from: `Кому: ${m.to}`, body: m.body, at: m.at });
 
@@ -236,14 +304,31 @@ export function NotificationCenter({ state, updateState, onClose }) {
         if (hasDraftContent()) saveDraft();
         setComposing(false);
     };
-    const sendLetter = () => {
-        if (!draft.to.trim() || !draft.subject.trim()) return;
-        const now = Date.now();
-        const sent = { id: `sent_${now}`, to: draft.to.trim(), subject: draft.subject.trim(), body: draft.body.trim() || '(без текста)', attachments: draft.attachments, at: now };
-        const nextDrafts = draft.id ? inbox.drafts.filter(d => d.id !== draft.id) : inbox.drafts;
-        updateState({ inbox: { ...inbox, sent: [sent, ...inbox.sent], drafts: nextDrafts } });
-        setDraft({ id: null, to: '', subject: '', body: '', attachments: [] });
-        setComposing(false);
+    const [sending, setSending] = useState(false);
+    const [sendError, setSendError] = useState(null);
+    const sendLetter = async () => {
+        if (!draft.to.trim() || !draft.subject.trim() || sending) return;
+        setSending(true);
+        setSendError(null);
+        const to = draft.to.trim();
+        const subject = draft.subject.trim();
+        const body = draft.body.trim() || '(без текста)';
+        try {
+            await sendMail(to, subject, body);
+            const now = Date.now();
+            const sent = { id: `sent_${now}`, to, subject, body, attachments: draft.attachments, at: now };
+            const nextDrafts = draft.id ? inbox.drafts.filter(d => d.id !== draft.id) : inbox.drafts;
+            updateState({ inbox: { ...inbox, sent: [sent, ...inbox.sent], drafts: nextDrafts } });
+            setDraft({ id: null, to: '', subject: '', body: '', attachments: [] });
+            setComposing(false);
+        } catch (e) {
+            // Письмо НЕ отмечаем отправленным и не закрываем композер —
+            // черновик остаётся на экране, чтобы не потерять текст при
+            // сетевой ошибке/лимите/недоступности почтового сервера.
+            setSendError(e instanceof ApiError ? e.message : 'Не удалось отправить письмо — проверьте соединение и попробуйте ещё раз');
+        } finally {
+            setSending(false);
+        }
     };
 
     // Автосохранение черновика, если приложение свернули или переключили вкладку,
@@ -383,11 +468,20 @@ export function NotificationCenter({ state, updateState, onClose }) {
                             </button>
                             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Уведомления</span>
                         </div>
-                        <button onClick={() => openCompose(null)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5b32d4] hover:bg-[#4a26b0] text-white text-xs font-bold transition-colors">
-                            <Icons.Plus className="w-4 h-4" /> Написать
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button onClick={refreshInbox} disabled={mailLoading} title="Обновить" className="p-2 rounded-lg text-gray-400 hover:text-[#5b32d4] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-40">
+                                <Icons.RefreshCw className={`w-4 h-4 ${mailLoading ? 'animate-spin' : ''}`} />
+                            </button>
+                            <button onClick={() => openCompose(null)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5b32d4] hover:bg-[#4a26b0] text-white text-xs font-bold transition-colors">
+                                <Icons.Plus className="w-4 h-4" /> Написать
+                            </button>
+                        </div>
                     </div>
-                    {inbox.personal.length === 0 ? <EmptyState icon={Icons.Mail} text="Писем нет" /> : <div className="py-1">{inbox.personal.map(m => <LetterRow key={m.id} item={{ ...m, kind: 'personal' }} />)}</div>}
+                    {mailAddress && <p className="px-5 py-2 text-[11px] text-gray-400 border-b border-gray-100 dark:border-darkBorder">Ящик: {mailAddress}</p>}
+                    {mailError && <p className="px-5 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10">{mailError}</p>}
+                    {mailLoading && inbox.personal.length === 0
+                        ? <EmptyState icon={Icons.Mail} text="Загружаем письма…" />
+                        : (inbox.personal.length === 0 ? <EmptyState icon={Icons.Mail} text="Писем нет" /> : <div className="py-1">{inbox.personal.map(m => <LetterRow key={m.id} item={{ ...m, kind: 'personal' }} />)}</div>)}
                 </>
             );
         }
@@ -524,9 +618,12 @@ export function NotificationCenter({ state, updateState, onClose }) {
                                     </div>
                                 )}
                             </div>
-                            <div className="p-4 border-t border-gray-100 dark:border-darkBorder shrink-0 flex gap-2">
-                                <button onClick={saveDraft} className="px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-sm transition-colors">Сохранить</button>
-                                <button onClick={sendLetter} disabled={!draft.to.trim() || !draft.subject.trim()} className="flex-1 py-3 rounded-xl bg-[#5b32d4] hover:bg-[#4a26b0] disabled:opacity-40 text-white font-bold text-sm transition-colors">Отправить</button>
+                            <div className="p-4 border-t border-gray-100 dark:border-darkBorder shrink-0 flex flex-col gap-2">
+                                {sendError && <p className="text-xs text-red-500 px-1">{sendError}</p>}
+                                <div className="flex gap-2">
+                                    <button onClick={saveDraft} className="px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-bold text-sm transition-colors">Сохранить</button>
+                                    <button onClick={sendLetter} disabled={!draft.to.trim() || !draft.subject.trim() || sending} className="flex-1 py-3 rounded-xl bg-[#5b32d4] hover:bg-[#4a26b0] disabled:opacity-40 text-white font-bold text-sm transition-colors">{sending ? 'Отправка…' : 'Отправить'}</button>
+                                </div>
                             </div>
                         </div>
                     )}

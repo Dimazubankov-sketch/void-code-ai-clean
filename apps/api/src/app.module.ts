@@ -11,6 +11,7 @@ import { WebFetchModule } from './modules/webfetch/webfetch.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { SupportModule } from './modules/support/support.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { SupportModule } from './modules/support/support.module';
     BillingModule,
     AgentsModule,
     SupportModule,
+    MailModule,
   ],
 })
 export class AppModule {}

@@ -23,7 +23,7 @@ import { SkillsView, buildSkillsInstruction } from '@/features/skills/SkillsView
 import { PluginsView } from '@/features/plugins/PluginsView';
 import { WalletView } from '@/features/wallet/WalletView';
 import { createBackendChat, sendBackendMessage, generateBackendImage, fetchWebPage } from '@/shared/api/chat';
-import { ApiError } from '@/shared/api/client';
+import { ApiError, onSessionExpired } from '@/shared/api/client';
 import { AI_MODELS, getPlanLimits, defaultReasoningFor } from '@/shared/config/models';
 import { buildReasoningScript, levelDelayMs } from '@/shared/config/reasoningScript';
 import { buildAgentSystemPrompt } from '@/shared/lib/agentPrompt';
@@ -215,6 +215,19 @@ export function App() {
             currentView: 'chat',
         }));
         clearShareHash();
+    }, []);
+
+    // Задача 3: единая реакция на «сессия истекла» для ЛЮБОГО запроса к
+    // бэкенду (чат, TTS, генерация картинок, почта и т.д.), а не только
+    // для отправки сообщения в чат, как было раньше. client.jsx сам чистит
+    // невалидный токен и шлёт это DOM-событие при любом 401 с auth=true.
+    // Здесь — единственная точка реакции: показываем модалку входа с
+    // понятным статусом вместо того, чтобы каждая фича сама разбиралась
+    // с истёкшим токеном по-своему (или вовсе никак).
+    useEffect(() => {
+        return onSessionExpired(() => {
+            updateState({ showAuthModal: true, sessionExpiredNotice: true, user: null });
+        });
     }, []);
 
     // Автоматическое восстановление дневного лимита через 8 часов после

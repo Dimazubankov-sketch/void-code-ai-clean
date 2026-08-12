@@ -15,6 +15,8 @@ export function AuthModal({ state, updateState }) {
 
     if (!state.showAuthModal) return null;
 
+    const handleClose = () => updateState({ showAuthModal: false, sessionExpiredNotice: false });
+
     const handleAuth = async () => {
         const username = email.trim().toLowerCase();
         const isRegister = state.authTab === 'register';
@@ -33,6 +35,7 @@ export function AuthModal({ state, updateState }) {
         setLoading(true);
         try {
             await applyAccountLogin(state, updateState, { username, password, isNewAccount: isRegister });
+            updateState({ sessionExpiredNotice: false });
         } catch (err) {
             setHasError(true);
             // Ошибка от сервера (неверный пароль, email уже занят и т.п.),
@@ -46,10 +49,16 @@ export function AuthModal({ state, updateState }) {
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto fade-in">
             <div className="bg-white dark:bg-darkCard w-full max-w-md rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-darkBorder relative slide-in-right my-6 sm:my-0 mb-[40vh] sm:mb-0">
-                <button onClick={() => updateState({showAuthModal: false})} className="void-tap-target absolute top-3 right-3 sm:top-4 sm:right-4 p-2 text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-full transition-colors flex items-center justify-center"><Icons.X /></button>
-                
+                <button onClick={handleClose} className="void-tap-target absolute top-3 right-3 sm:top-4 sm:right-4 p-2 text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-full transition-colors flex items-center justify-center"><Icons.X /></button>
+
                 <div className="flex justify-center mb-6"><div className="flex items-center gap-2.5 font-extrabold text-2xl dark:text-white"><Icons.VoidLogo /><span><span className="void-grad-text">VOID</span> CODE AI</span></div></div>
-                <h2 className="text-2xl font-extrabold text-center mb-2 dark:text-white">Регистрация / Вход</h2>
+                {state.sessionExpiredNotice ? (
+                    <div className="mb-6 px-4 py-3 rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm text-center">
+                        Сессия истекла — войдите заново, чтобы продолжить работу.
+                    </div>
+                ) : (
+                    <h2 className="text-2xl font-extrabold text-center mb-2 dark:text-white">Регистрация / Вход</h2>
+                )}
                 <p className="text-center text-gray-500 mb-8 text-sm">Доступ только по корпоративной почте <span className="font-bold text-[#5b32d4]">{DOMAIN}</span></p>
                 
                 <div className="flex gap-2 p-1.5 bg-gray-50 dark:bg-[#23232f] rounded-2xl mb-6">

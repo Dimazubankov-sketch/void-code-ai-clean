@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { MailProvisioningService } from '../mail/mail-provisioning.service';
 
 // Текст ошибки при попытке зарегистрировать уже занятый email — задан
 // точной формулировкой по ТЗ.
@@ -14,6 +15,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly mailProvisioning: MailProvisioningService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -24,11 +26,11 @@ export class AuthService {
     if (exists) throw new ConflictException(EMAIL_TAKEN_MESSAGE);
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
+    let user;
     try {
-      const user = await this.prisma.user.create({
+      user = await this.prisma.user.create({
         data: { email, passwordHash, name: email.split('@')[0] },
       });
-      return this.issueToken(user.id, user.email);
     } catch (e: any) {
       // Страховка от гонки: если два запроса регистрации с одним и тем же
       // email прошли findUnique одновременно (до записи в БД), уникальный
@@ -38,6 +40,16 @@ export class AuthService {
       if (e?.code === 'P2002') throw new ConflictException(EMAIL_TAKEN_MESSAGE);
       throw e;
     }
+
+    // Задача 1: автоматическое создание персонального почтового ящика
+    // username@voidops.ru при регистрации. Намеренно ПОСЛЕ выдачи JWT не
+    // блокируем ответ пользователю — ждём создание ящика синхронно здесь
+    // (это быстро, обычно <1с), но если Migadu недоступен — регистрация
+    // всё равно успешно завершается (см. комментарий в
+    // MailProvisioningService о том, почему это не блокирующая операция).
+    await this.mailProvisioning.provisionForUser(user.id, user.email, user.name || undefined);
+
+    return this.issueToken(user.id, user.email);
   }
 
   async login(dto: LoginDto) {
