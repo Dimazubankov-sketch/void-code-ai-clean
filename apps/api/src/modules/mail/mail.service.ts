@@ -53,12 +53,19 @@ export class MailService {
   async sendMail(creds: MailboxCredentials, to: string, subject: string, text: string): Promise<void> {
     try {
       const transport = this.transporter(creds);
-      await transport.sendMail({
+      // Диагностика (найденный баг): раньше при успехе не логировалось
+      // вообще ничего, только при ошибке — из-за этого при расследовании
+      // «письмо ушло в приложении, но не пришло на самом деле» не было
+      // никакого следа реального ответа SMTP-сервера Migadu. Логируем
+      // messageId + response (реальную строку ответа сервера, например
+      // "250 2.0.0 OK ...") при каждой успешной отправке.
+      const info = await transport.sendMail({
         from: creds.address,
         to,
         subject,
         text,
       });
+      this.logger.log(`SMTP отправка от ${creds.address} к ${to}: messageId=${info.messageId}, response="${info.response}", accepted=${JSON.stringify(info.accepted)}, rejected=${JSON.stringify(info.rejected)}`);
     } catch (e: any) {
       this.logger.error(`SMTP отправка не удалась для ${creds.address}: ${e?.message || e}`);
       throw new ServiceUnavailableException('Не удалось отправить письмо — почтовый сервер недоступен или отклонил запрос');
@@ -84,6 +91,10 @@ export class MailService {
       try {
         const status = await client.status('INBOX', { messages: true });
         const total = status.messages || 0;
+        // Диагностика: сколько писем IMAP реально видит в INBOX на
+        // сервере — если тут 0, значит либо письмо правда не долетело до
+        // Migadu, либо мы читаем не тот ящик/папку.
+        this.logger.log(`IMAP INBOX для ${creds.address}: всего писем = ${total}`);
         if (total === 0) return [];
 
         const from = Math.max(1, total - limit + 1);
