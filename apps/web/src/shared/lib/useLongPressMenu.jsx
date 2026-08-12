@@ -19,6 +19,7 @@ import { gsap } from 'gsap';
 export function useLongPressMenu(delayMs = 450) {
     const targetRef = useRef(null);
     const timerRef = useRef(null);
+    const startPosRef = useRef(null);
     const [menuOpen, setMenuOpen] = useState(false);
 
     const cancel = useCallback(() => {
@@ -26,12 +27,19 @@ export function useLongPressMenu(delayMs = 450) {
             clearTimeout(timerRef.current);
             timerRef.current = null;
         }
+        startPosRef.current = null;
     }, []);
 
     const start = useCallback((e) => {
         const t = e.target;
         // Не перехватывать зажатие на интерактивных элементах внутри сообщения
         if (t && (t.closest('button') || t.closest('a') || t.closest('input') || t.closest('textarea'))) return;
+
+        // Запоминаем стартовую точку касания — нужна для порога сдвига
+        // ниже (см. move). Для мыши не критично (там нет дрожания), но
+        // не мешает — тот же код работает единообразно для обоих.
+        const point = e.touches && e.touches[0] ? e.touches[0] : e;
+        startPosRef.current = { x: point.clientX, y: point.clientY };
 
         cancel();
         timerRef.current = setTimeout(() => {
@@ -48,7 +56,24 @@ export function useLongPressMenu(delayMs = 450) {
         }, delayMs);
     }, [delayMs, cancel]);
 
-    const move = useCallback(() => cancel(), [cancel]);
+    // ПОРОГ СДВИГА (баг-фикс): раньше ЛЮБОЕ touchmove-событие (даже на
+    // долю пикселя — обычное дрожание пальца при удержании на месте, а
+    // не жест скролла) мгновенно отменяло таймер зажатия через cancel().
+    // На реальных телефонах палец физически никогда не стоит абсолютно
+    // неподвижно, поэтому таймер обрывался практически сразу после
+    // touchstart и long-press НИКОГДА не успевал сработать — по факту
+    // функциональность была недостижима на touch-устройствах. Теперь
+    // отменяем зажатие только при заметном сдвиге (>10px) — это уже
+    // явно жест скролла/свайпа, а не дрожание руки в покое.
+    const MOVE_CANCEL_THRESHOLD = 10;
+    const move = useCallback((e) => {
+        const start = startPosRef.current;
+        if (!start) return;
+        const point = e.touches && e.touches[0] ? e.touches[0] : e;
+        const dx = point.clientX - start.x;
+        const dy = point.clientY - start.y;
+        if (Math.sqrt(dx * dx + dy * dy) > MOVE_CANCEL_THRESHOLD) cancel();
+    }, [cancel]);
     const end = useCallback(() => cancel(), [cancel]);
 
     const bind = {

@@ -42,7 +42,20 @@ export class ImageService {
   async generate(prompt: string, images?: string[]): Promise<string> {
     const safePrompt = prompt.length > 1500 ? prompt.slice(0, 1500) : prompt;
     const refs = (images || []).filter((s) => typeof s === 'string' && s.startsWith('data:image/')).slice(0, 4);
-    console.log(`[ImageService] запрос → "${safePrompt.slice(0, 100)}${safePrompt.length > 100 ? '…' : ''}"${refs.length ? ` (+${refs.length} референс(а/ов))` : ''}`);
+    // Задача 4: раньше при наличии референсных фото (пользователь просит
+    // «добавь на моё фото...», «измени это фото...») промпт уходил
+    // провайдеру БЕЗ явного указания, что это именно РЕДАКТИРОВАНИЕ
+    // присланного изображения. Генеративные модели (особенно Grok Imagine
+    // через image_url) без такой инструкции нередко трактуют референс
+    // как смутное «вдохновение для стиля» и рисуют новое, лишь похожее
+    // изображение — то есть теряют исходное фото пользователя вместо
+    // того чтобы дополнить/видоизменить именно его. Явно проговариваем
+    // задачу редактирования только когда референсы реально есть — если
+    // пользователь просит просто «нарисуй...» без фото, промпт не трогаем.
+    const finalPrompt = refs.length > 0
+      ? `Отредактируй приложенное изображение (это референс, а НЕ вдохновение для нового рисунка): сохрани композицию, объект(ы), пропорции, ракурс и общий стиль исходного фото без изменений, и внеси ТОЛЬКО то, что просит пользователь ниже. Результат должен быть узнаваемо тем же фото/объектом, а не новым похожим изображением. Запрос пользователя: ${safePrompt}`
+      : safePrompt;
+    console.log(`[ImageService] запрос → "${safePrompt.slice(0, 100)}${safePrompt.length > 100 ? '…' : ''}"${refs.length ? ` (+${refs.length} референс(а/ов), режим редактирования)` : ''}`);
 
     const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
     const openaiKey = process.env.OPENAI_API_KEY?.trim();
@@ -56,7 +69,7 @@ export class ImageService {
     // 1) OpenRouter / Grok Imagine — основной провайдер
     if (openrouterKey) {
       try {
-        const url = await this.callOpenRouterGrok(openrouterKey, safePrompt, refs);
+        const url = await this.callOpenRouterGrok(openrouterKey, finalPrompt, refs);
         return url;
       } catch (e: any) {
         const msg = e?.message || String(e);
@@ -71,7 +84,7 @@ export class ImageService {
         errors.push('OpenAI: ключ имеет неверный формат');
       } else {
         try {
-          return await this.callOpenAiWithModelFallback(openaiKey, safePrompt, refs);
+          return await this.callOpenAiWithModelFallback(openaiKey, finalPrompt, refs);
         } catch (e: any) {
           errors.push(`OpenAI: ${e?.message || String(e)}`);
         }

@@ -4,7 +4,41 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import * as express from 'express';
 import { AppModule } from './app.module';
 
+// ==========================================
+// Диагностика окружения при старте (задачи по багам с Void Mini / TTS)
+// ==========================================
+// Раньше отсутствие/неверность любого из этих ключей проявлялось только
+// косвенно — как ошибка глубоко внутри конкретного провайдера при первом
+// реальном запросе пользователя (например «Void Mini не отвечает» или
+// «озвучка не воспроизводится»), и разобраться, что именно не так на
+// сервере, можно было только гадая. Теперь при каждом старте/рестарте
+// (pm2 restart void-code-api) сразу в лог выводится чёткий чек-лист:
+// какие переменные заданы, а какие — нет. Ничего не блокирует запуск
+// (сервер всё равно поднимется — часть функций может работать без
+// какого-то одного провайдера), это только диагностика.
+function logEnvChecklist() {
+  const checks: Array<{ name: string; required: boolean; note: string }> = [
+    { name: 'JWT_SECRET', required: true, note: 'без него ВСЕ запросы к API будут получать 401 (в т.ч. видимое как "сессия истекла")' },
+    { name: 'DATABASE_URL', required: true, note: 'подключение к PostgreSQL' },
+    { name: 'GROQ_API_KEY', required: false, note: 'Void Mini — без него Mini падает на OpenRouter (если он тоже не настроен — Mini не отвечает вообще)' },
+    { name: 'OPENROUTER_API_KEY', required: false, note: 'Void Plus/Pro + fallback для Mini + основной провайдер генерации картинок' },
+    { name: 'OPENAI_API_KEY', required: false, note: 'озвучка (TTS) + fallback генерации картинок' },
+    { name: 'DEEPINFRA_API_KEY', required: false, note: 'доп. провайдер картинок' },
+  ];
+  // eslint-disable-next-line no-console
+  console.log('\n[ENV CHECK] ================================================');
+  for (const c of checks) {
+    const val = process.env[c.name];
+    const set = typeof val === 'string' && val.trim().length > 0;
+    const mark = set ? '✅' : (c.required ? '❌ ОТСУТСТВУЕТ (обязательно)' : '⚠️  отсутствует (опционально)');
+    // eslint-disable-next-line no-console
+    console.log(`[ENV CHECK] ${c.name.padEnd(20)} ${mark}${!set ? ` — ${c.note}` : ''}`);
+  }
+  console.log('[ENV CHECK] ================================================\n');
+}
+
 async function bootstrap() {
+  logEnvChecklist();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   // Дефолтный лимит body-parser у Express — 100kb. Этого категорически не
   // хватает для запросов с приложенными фото (Vision): изображение,

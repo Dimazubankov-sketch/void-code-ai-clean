@@ -153,16 +153,36 @@ export function RightMenu({ state, updateState }) {
             <div className="relative">
                 <div
                     {...bind}
-                    className={`group w-full flex items-center gap-2 px-1 py-0.5 rounded-xl transition-colors ${state.activeChatId === chat.id ? 'bg-[#efecf9] dark:bg-purple-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800'} touch-manipulation`}
+                    // ВАЖНО (баг-фикс задачи 2): раньше кликабельная область
+                    // строки была настоящим <button>, а bind (обработчики
+                    // long-press) висел на родительском <div>. useLongPressMenu
+                    // намеренно игнорирует touchstart/mousedown, если
+                    // e.target.closest('button') находит button — это защита
+                    // от того, чтобы зажатие не перехватывало нажатия на
+                    // ДРУГИЕ кнопки внутри строки. Но здесь сама кликабельная
+                    // область И БЫЛА этим button на всю строку — в итоге
+                    // e.target ВСЕГДА попадал внутрь button, защита срабатывала
+                    // всегда, и таймер long-press не запускался НИКОГДА на
+                    // touch-устройствах (на ПК спасал отдельный путь через
+                    // правый клик — oncontextmenu не проверяет target).
+                    // Теперь это div с role="button" — визуально и по
+                    // доступности ведёт себя как кнопка (клик, Enter/Space),
+                    // но не является настоящим <button>, поэтому больше не
+                    // блокирует long-press.
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false })}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false });
+                        }
+                    }}
+                    className={`group w-full flex items-center gap-3 p-2 rounded-xl text-left transition-colors cursor-pointer ${state.activeChatId === chat.id ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'} touch-manipulation`}
                     style={{ WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                 >
-                    <button
-                        onClick={() => updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false })}
-                        className={`flex-1 min-w-0 flex items-center gap-3 p-2 rounded-lg text-left ${state.activeChatId === chat.id ? 'text-[#5b32d4] dark:text-purple-400' : 'text-gray-700 dark:text-gray-300'}`}
-                    >
-                        {chat.pinnedAt ? <Icons.PinFilled className="w-4 h-4 flex-shrink-0 text-[#5b32d4]" /> : <Icons.MessageSquare className="w-5 h-5 flex-shrink-0" />}
-                        <span className="font-semibold text-[15px] truncate">{chat.title}</span>
-                    </button>
+                    {chat.pinnedAt ? <Icons.PinFilled className="w-4 h-4 flex-shrink-0 text-[#5b32d4]" /> : <Icons.MessageSquare className="w-5 h-5 flex-shrink-0" />}
+                    <span className="font-semibold text-[15px] truncate">{chat.title}</span>
                 </div>
                 <ChatActionsMenu
                     open={menuOpen}

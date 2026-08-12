@@ -77,14 +77,53 @@ export function useOpenAiTts() {
     const speakWithFallback = useCallback((text, opts = {}) => {
         if (!window.speechSynthesis) { setError('Озвучка недоступна'); return; }
         try { window.speechSynthesis.cancel(); } catch { /* noop */ }
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = opts.lang || 'ru-RU';
-        u.rate = opts.speed || 1.0;
-        u.onend = () => { fallbackUtterRef.current = null; setSpeaking(false); };
-        u.onerror = () => { fallbackUtterRef.current = null; setSpeaking(false); setError('Ошибка озвучки'); };
-        fallbackUtterRef.current = u;
-        window.speechSynthesis.speak(u);
-        setSpeaking(true);
+
+        const doSpeak = () => {
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = opts.lang || 'ru-RU';
+            u.rate = opts.speed || 1.0;
+            u.onend = () => { fallbackUtterRef.current = null; setSpeaking(false); };
+            u.onerror = () => { fallbackUtterRef.current = null; setSpeaking(false); setError('Ошибка озвучки'); };
+            fallbackUtterRef.current = u;
+            window.speechSynthesis.speak(u);
+            setSpeaking(true);
+
+            // Сторож (баг-фикс): на части мобильных браузеров (особенно
+            // WebView/встроенные браузеры типа Яндекс.Браузера внутри
+            // приложения) speechSynthesis.speak() иногда молча не
+            // запускается — ни onstart, ни onerror не срабатывают, речь
+            // просто никогда не звучит, а UI остаётся в состоянии
+            // «озвучиваю» бесконечно. Через 1.2с проверяем реальный флаг
+            // window.speechSynthesis.speaking — если движок так и не начал
+            // говорить, считаем это ошибкой и показываем понятное
+            // сообщение вместо вечного зависания.
+            setTimeout(() => {
+                if (fallbackUtterRef.current === u && !window.speechSynthesis.speaking) {
+                    fallbackUtterRef.current = null;
+                    setSpeaking(false);
+                    setError('Не удалось воспроизвести озвучку на этом устройстве');
+                }
+            }, 1200);
+        };
+
+        // Голоса speechSynthesis грузятся АСИНХРОННО и на первом обращении
+        // к странице список может быть ещё пуст (особенно на iOS/Chrome) —
+        // speak() в этот момент либо молчит, либо использует голос по
+        // умолчанию без нужного языка. Ждём onvoiceschanged перед стартом,
+        // но не дольше 800мс, чтобы не задерживать реальную озвучку.
+        if (window.speechSynthesis.getVoices().length === 0) {
+            let started = false;
+            const onVoices = () => {
+                if (started) return;
+                started = true;
+                window.speechSynthesis.onvoiceschanged = null;
+                doSpeak();
+            };
+            window.speechSynthesis.onvoiceschanged = onVoices;
+            setTimeout(onVoices, 800);
+        } else {
+            doSpeak();
+        }
     }, []);
 
     const speak = useCallback(async (text, opts = {}) => {
