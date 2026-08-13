@@ -9,13 +9,16 @@ import { Resend } from 'resend';
 // аналога) — в отличие от Migadu, здесь не нужно ничего "создавать" для
 // пользователя при регистрации: один общий RESEND_API_KEY отправляет
 // письма от имени любого адреса на ВЕРИФИЦИРОВАННОМ в Resend домене.
+// Этим пользуемся: каждый пользователь отправляет письма от СВОЕГО
+// личного адреса (username@voidops.ru, см. mail.controller.ts), а не с
+// одного общего noreply@ — Resend это разрешает без каких-либо
+// дополнительных действий, т.к. верификация в Resend идёт на уровне
+// домена целиком, а не отдельных адресов.
 //
 // ВАЖНО (нужно сделать один раз в панели Resend, иначе отправка будет
 // падать): домен voidops.ru должен быть добавлен и верифицирован в
 // resend.com/domains (SPF/DKIM DNS-записи) — без этого Resend отклонит
 // письма с адресов вида ...@voidops.ru.
-
-const DEFAULT_FROM = 'Void Code <noreply@voidops.ru>';
 
 // Простое и безопасное превращение обычного текста в HTML: экранируем
 // спецсимволы (защита от HTML-инъекции через тему/текст письма) и
@@ -47,20 +50,36 @@ export class MailService {
     }
   }
 
+  // fromAddress — личный адрес отправителя (username@voidops.ru), берётся
+  // контроллером из авторизованного пользователя (req.user), а не задаётся
+  // здесь константой. fromName — отображаемое имя ("Иван" <ivan@voidops.ru>),
+  // необязательно.
   // html/text опциональны — если вызывающая сторона прислала только
   // обычный текст (как сейчас делает фронтенд, см. mail.controller.ts),
   // html генерируется автоматически из text.
-  async sendEmail(to: string, subject: string, html?: string, text?: string): Promise<{ id: string | null }> {
+  async sendEmail(
+    to: string,
+    subject: string,
+    fromAddress: string,
+    fromName?: string,
+    html?: string,
+    text?: string,
+  ): Promise<{ id: string | null }> {
     if (!this.resend) {
       throw new ServiceUnavailableException('Почта не настроена на сервере — отсутствует RESEND_API_KEY');
+    }
+    if (!fromAddress) {
+      throw new ServiceUnavailableException('Не удалось определить адрес отправителя');
     }
     if (!html && !text) {
       throw new ServiceUnavailableException('Пустое письмо — нужен текст или HTML');
     }
 
+    const from = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
+
     try {
       const { data, error } = await this.resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || DEFAULT_FROM,
+        from,
         to,
         subject,
         html: html || textToHtml(text as string),
@@ -75,7 +94,7 @@ export class MailService {
         throw new ServiceUnavailableException('Не удалось отправить письмо — почтовый сервис отклонил запрос');
       }
 
-      this.logger.log(`Письмо отправлено через Resend: id=${data?.id}, to=${to}`);
+      this.logger.log(`Письмо отправлено через Resend: id=${data?.id}, from=${fromAddress}, to=${to}`);
       return { id: data?.id ?? null };
     } catch (e: any) {
       if (e instanceof ServiceUnavailableException) throw e;

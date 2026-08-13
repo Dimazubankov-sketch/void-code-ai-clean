@@ -39,10 +39,20 @@ export class MailController {
   }
 
   @Post('send')
-  async send(@Body() dto: SendMailDto) {
+  async send(@Req() req: any, @Body() dto: SendMailDto) {
+    // Отправитель — личный адрес АВТОРИЗОВАННОГО пользователя
+    // (username@voidops.ru), а не общий системный адрес. mailboxAddress
+    // закрепляется при регистрации (см. MailProvisioningService) и в
+    // норме совпадает с user.email — email оставлен как запасной вариант
+    // на случай, если у старой учётки почему-то не проставлен
+    // mailboxAddress.
+    const user = await this.prisma.user.findUnique({ where: { id: req.user.userId } });
+    const fromAddress = user?.mailboxAddress || user?.email;
+    const fromName = user?.name || fromAddress?.split('@')[0];
+
     // Фронтенд шлёт обычный текст в поле body (см. dto/send-mail.dto.ts) —
     // HTML-версия письма генерируется автоматически внутри MailService.
-    const result = await this.mail.sendEmail(dto.to, dto.subject, undefined, dto.body);
+    const result = await this.mail.sendEmail(dto.to, dto.subject, fromAddress as string, fromName, undefined, dto.body);
     return { ok: true, id: result.id };
   }
 }
