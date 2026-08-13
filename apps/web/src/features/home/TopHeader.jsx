@@ -168,7 +168,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     // сколько кнопок в левой/правой группе.
     if (inChatView) {
         return (
-            <div className="sticky top-0 z-30 bg-white/70 dark:bg-darkBg/70 backdrop-blur-xl px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div className="sticky top-0 z-30 bg-white dark:bg-darkBg px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <div className="flex items-center justify-self-start">
                     <IconCircleButton onClick={() => updateState({ currentView: 'home' })} title="Назад">
                         <Icons.ChevronLeft className="w-5 h-5" />

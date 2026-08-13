@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
@@ -43,9 +44,8 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
     const [editingImage, setEditingImage] = useState(null);
     const homeTextareaRef = useRef(null);
     const homeComposerWrapRef = useRef(null);
-    const { expanded: composerExpanded, manyLines: composerManyLines, enterFullscreen: composerEnterFullscreen, exitFullscreen: composerExitFullscreen, insertIndent: composerInsertIndent } = useExpandableComposer({
-        textareaRef: homeTextareaRef,
-        wrapRef: homeComposerWrapRef,
+    const homeExpandedTextareaRef = useRef(null);
+    const { expanded: composerExpanded, manyChars: composerManyChars, enterFullscreen: composerEnterFullscreen, exitFullscreen: composerExitFullscreen, insertIndent: composerInsertIndent } = useExpandableComposer({
         value: state.inputValue,
         onChange: (v) => updateState({ inputValue: v }),
     });
@@ -186,8 +186,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             ))}
                         </div>
                     )}
-                    {composerExpanded && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90] fade-in" onClick={composerExitFullscreen} />}
-                    <div ref={homeComposerWrapRef} className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border border-gray-200 dark:border-darkBorder shadow-md focus-within:ring-4 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4] transition-colors relative ${composerExpanded ? 'flex-col items-stretch !rounded-2xl shadow-2xl' : ''}`}>
+                    <div ref={homeComposerWrapRef} className="flex items-end bg-white dark:bg-darkCard rounded-3xl border border-gray-200 dark:border-darkBorder shadow-md focus-within:ring-4 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4] transition-colors relative">
 
                         {/* accept="image/*" (не список конкретных MIME) — именно
                             эта маска даёт iOS Safari/WebKit сразу открыть
@@ -221,7 +220,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                                 {t(lang, 'chat.transcribing')}…
                             </div>
                         )}
-                        {!state.inputValue && !voice.busy && !composerExpanded && (
+                        {!state.inputValue && !voice.busy && (
                             <div className="absolute left-14 right-16 top-0 py-5 pointer-events-none text-gray-400 text-[16px] truncate">
                                 {typedPlaceholder}
                                 {typedPlaceholder && typedPlaceholder.length < placeholderFull.length && <span className="void-type-cursor">|</span>}
@@ -229,47 +228,34 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         )}
                         <textarea 
                             ref={homeTextareaRef}
-                            className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none ${composerExpanded ? '!max-h-none flex-1 pt-12' : 'max-h-32'} min-h-[64px] text-[16px] ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
+                            className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none max-h-32 min-h-[64px] text-[16px] ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
                             placeholder=""
                             value={state.inputValue}
                             readOnly={voice.busy}
                             onChange={(e) => { 
                                 updateState({inputValue: e.target.value}); 
-                                if (!composerExpanded) {
-                                    e.target.style.height = 'auto'; 
-                                    e.target.style.height = (e.target.scrollHeight < 128 ? e.target.scrollHeight : 128) + 'px'; 
-                                }
+                                e.target.style.height = 'auto'; 
+                                e.target.style.height = (e.target.scrollHeight < 128 ? e.target.scrollHeight : 128) + 'px'; 
                             }}
                             onKeyDown={(e) => { 
-                                if (e.key === 'Enter' && !e.shiftKey && !composerExpanded) { 
+                                if (e.key === 'Enter' && !e.shiftKey) { 
                                     e.preventDefault(); 
                                     handleSendMessage(); 
                                     e.target.style.height = 'auto'; 
                                 }
-                                if (e.key === 'Tab') { e.preventDefault(); composerInsertIndent(); }
+                                if (e.key === 'Tab') { e.preventDefault(); composerInsertIndent(homeTextareaRef.current); }
                             }}
                             rows={1}
                         />
-                        {/* Задача 3 (повторно): та же логика, что и в чате —
-                            непрозрачный фон под иконкой, высокий z, чтобы не
-                            терялась за кнопками отправки/микрофона. */}
-                        {(composerManyLines || composerExpanded) && (
+                        {/* Задача 2 (повторный раунд): 57 символов ИЛИ 3
+                            отступа — не высота строки. */}
+                        {composerManyChars && (
                             <button
-                                onClick={composerExpanded ? composerExitFullscreen : composerEnterFullscreen}
-                                title={composerExpanded ? 'Свернуть поле ввода' : 'Развернуть на весь экран'}
+                                onClick={composerEnterFullscreen}
+                                title="Развернуть на весь экран"
                                 className="void-tap-target absolute z-30 top-2 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
                             >
-                                {composerExpanded ? <Icons.Minimize className="w-5 h-5" /> : <Icons.Maximize className="w-5 h-5" />}
-                            </button>
-                        )}
-                        {/* Задача 12: отступ (красная строка) */}
-                        {composerExpanded && (
-                            <button
-                                onClick={composerInsertIndent}
-                                title="Добавить отступ (красная строка)"
-                                className="void-tap-target absolute z-30 top-2 left-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
-                            >
-                                <Icons.Indent className="w-5 h-5" />
+                                <Icons.Maximize className="w-5 h-5" />
                             </button>
                         )}
                         {/* Микрофон: покой → запись (квадрат-стоп) → индикатор загрузки */}
@@ -278,7 +264,6 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                                 onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
                                 title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
                                 disabled={voice.transcribing}
-                                // Задача 1 — реальный компонент Хаба (не ChatInputBar.jsx).
                                 className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 flex items-center justify-center transition-all z-20 active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
                             >
                                 {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
@@ -293,6 +278,66 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         </button>
                     </div>
                 </div>
+
+                {composerExpanded && createPortal(
+                    <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-stretch sm:items-center sm:justify-center p-0 sm:p-4 fade-in">
+                        <div className="bg-white dark:bg-darkCard w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl sm:rounded-3xl flex flex-col shadow-2xl">
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-darkBorder shrink-0">
+                                <button
+                                    onClick={() => composerInsertIndent(homeExpandedTextareaRef.current)}
+                                    title="Добавить отступ (красная строка)"
+                                    className="void-tap-target w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                    <Icons.Indent className="w-5 h-5" />
+                                </button>
+                                <span className="text-sm font-bold text-gray-400">Полноэкранный ввод</span>
+                                <button
+                                    onClick={composerExitFullscreen}
+                                    title="Свернуть"
+                                    className="void-tap-target w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                    <Icons.Minimize className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <textarea
+                                ref={homeExpandedTextareaRef}
+                                autoFocus
+                                value={state.inputValue}
+                                onChange={(e) => updateState({ inputValue: e.target.value })}
+                                enterKeyHint="enter"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Tab' || e.key === 'Enter') {
+                                        e.preventDefault();
+                                        composerInsertIndent(homeExpandedTextareaRef.current);
+                                    }
+                                }}
+                                placeholder=""
+                                className="flex-1 w-full p-4 sm:p-6 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none text-[16px] leading-7"
+                            />
+                            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-100 dark:border-darkBorder shrink-0">
+                                {voice.supported && (
+                                    <button
+                                        onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
+                                        title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
+                                        disabled={voice.transcribing}
+                                        className={`void-tap-target w-11 h-11 rounded-full border-2 flex items-center justify-center transition-all active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
+                                    >
+                                        {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => { handleSendMessage(); composerExitFullscreen(); }}
+                                    disabled={(!state.inputValue.trim() && !(state.selectedImages && state.selectedImages.length > 0)) || state.isGenerating || voice.busy}
+                                    title="Отправить"
+                                    className="void-tap-target w-11 h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md"
+                                >
+                                    <Icons.ArrowUp className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
 
                 <div className="grid grid-cols-2 gap-3.5 sm:gap-5 md:gap-6 mb-10 sm:mb-14">
                     <div onClick={() => startNewChat({ selectedModelId: 'flash_ext' })} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-[#5b32d4]/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">

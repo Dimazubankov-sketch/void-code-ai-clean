@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
 import { AudioPlayer } from '@/features/chat/AudioPlayer';
 import { ChatToolbar } from '@/features/chat/ChatToolbar';
@@ -87,9 +88,8 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     };
     const editableTextareaRef = useRef(null);
     const composerWrapRef = useRef(null);
-    const { expanded: composerExpanded, manyLines: composerManyLines, enterFullscreen: composerEnterFullscreen, exitFullscreen: composerExitFullscreen, insertIndent: composerInsertIndent } = useExpandableComposer({
-        textareaRef: editableTextareaRef,
-        wrapRef: composerWrapRef,
+    const expandedTextareaRef = useRef(null);
+    const { expanded: composerExpanded, manyChars: composerManyChars, enterFullscreen: composerEnterFullscreen, exitFullscreen: composerExitFullscreen, insertIndent: composerInsertIndent } = useExpandableComposer({
         value: state.inputValue,
         onChange: (v) => updateState({ inputValue: v }),
     });
@@ -563,8 +563,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             ))}
                         </div>
                     )}
-                    {composerExpanded && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90] fade-in" onClick={composerExitFullscreen} />}
-                    <div ref={composerWrapRef} className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border shadow-2xl focus-within:ring-4 transition-colors relative ${state.imageGenMode ? 'border-[#5b32d4]/40 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]' : 'border-gray-200 dark:border-darkBorder focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]'} ${composerExpanded ? 'flex-col items-stretch !rounded-2xl shadow-2xl' : ''}`}>
+                    <div ref={composerWrapRef} className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border shadow-2xl focus-within:ring-4 transition-colors relative ${state.imageGenMode ? 'border-[#5b32d4]/40 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]' : 'border-gray-200 dark:border-darkBorder focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]'}`}>
                         {/* multiple — нативный мультивыбор из галереи: пользователь
                             отмечает галочками несколько фото за один заход системного
                             пикера (задача 2-4). Лимит по тарифу применяется в
@@ -626,7 +625,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         )}
                         <textarea 
                             ref={editableTextareaRef}
-                            className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto ${composerExpanded ? '!max-h-none flex-1 pt-12' : 'max-h-[220px]'} min-h-[64px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
+                            className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[64px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
                             placeholder={voice.busy ? '' : (state.imageGenMode ? t(lang, 'chat.imagePlaceholder') : t(lang, 'home.inputPlaceholder'))}
                             readOnly={voice.busy}
                             value={state.inputValue}
@@ -645,12 +644,12 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 });
                             }}
                             onKeyDown={(e) => { 
-                                if (e.key === 'Enter' && !e.shiftKey && !composerExpanded) { 
+                                if (e.key === 'Enter' && !e.shiftKey) { 
                                     e.preventDefault(); 
                                     state.imageGenMode ? handleGenerateImage() : handleSendMessage(); 
                                     e.target.style.height = 'auto'; 
                                 }
-                                if (e.key === 'Tab') { e.preventDefault(); composerInsertIndent(); }
+                                if (e.key === 'Tab') { e.preventDefault(); composerInsertIndent(editableTextareaRef.current); }
                             }}
                             onFocus={(e) => {
                                 // На телефоне клавиатура может перекрыть поле ввода — после
@@ -663,32 +662,19 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             }}
                             rows={1}
                         />
-                        {/* Задача 3 (повторно): кнопка полноэкранного режима.
-                            В СВЁРНУТОМ виде — в правом ВЕРХНЕМ углу, но с
-                            запасом сверху, чтобы не пересекаться с кнопками
-                            отправки/микрофона (они внизу). Появляется только
-                            с 4-й строки (FULLSCREEN_TRIGGER_LINES). В
-                            развёрнутом — тоже сверху справа, там места
-                            достаточно. */}
-                        {(composerManyLines || composerExpanded) && (
+                        {/* Задача 2 (повторный раунд): кнопка полноэкранного
+                            режима появляется только после 57 символов ИЛИ 3
+                            вставленных отступов (см. useExpandableComposer) —
+                            раньше срабатывало по высоте textarea, слишком
+                            рано. Непрозрачный фон + высокий z, чтобы не
+                            терялась за кнопками отправки/микрофона. */}
+                        {composerManyChars && (
                             <button
-                                onClick={composerExpanded ? composerExitFullscreen : composerEnterFullscreen}
-                                title={composerExpanded ? 'Свернуть поле ввода' : 'Развернуть на весь экран'}
+                                onClick={composerEnterFullscreen}
+                                title="Развернуть на весь экран"
                                 className="void-tap-target absolute z-30 top-2 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
                             >
-                                {composerExpanded ? <Icons.Minimize className="w-5 h-5" /> : <Icons.Maximize className="w-5 h-5" />}
-                            </button>
-                        )}
-                        {/* Задача 12: кнопка отступа (красная строка) — только
-                            в развёрнутом режиме, тот же стиль что и кнопка
-                            разворота (непрозрачный фон, высокий z). */}
-                        {composerExpanded && (
-                            <button
-                                onClick={composerInsertIndent}
-                                title="Добавить отступ (красная строка)"
-                                className="void-tap-target absolute z-30 top-2 left-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
-                            >
-                                <Icons.Indent className="w-5 h-5" />
+                                <Icons.Maximize className="w-5 h-5" />
                             </button>
                         )}
                         {voice.supported && (
@@ -696,11 +682,6 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
                                 title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
                                 disabled={voice.transcribing}
-                                // Задача 1 (перевнесено правильно — это РЕАЛЬНЫЙ
-                                // компонент чата, ChatInputBar.jsx здесь не
-                                // используется вообще): rounded-full вместо
-                                // rounded-2xl, одинаковый размер с кнопкой
-                                // отправки, обводка невидима в покое.
                                 className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 flex items-center justify-center transition-all z-20 active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
                             >
                                 {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
@@ -709,13 +690,86 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         <button
                             onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()}
                             disabled={(!state.inputValue.trim() && !(state.selectedImages && state.selectedImages.length > 0)) || state.isGenerating || voice.busy}
-                            // Задача 1: rounded-full, тот же размер (10/11),
-                            // обводка видна ВСЕГДА.
                             className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
                         ><Icons.ArrowUp className="w-5 h-5" /></button>
                     </div>
                 </div>
             </div>
+
+            {/* Задача 2 (повторный раунд) — полноэкранный режим ЧЕРЕЗ PORTAL
+                прямо в document.body. Раньше пытались анимировать исходный
+                элемент через position:fixed (GSAP FLIP), но он был вложен в
+                предка с собственным position:absolute+z-index (см.
+                inputWrapRef ниже) — это создаёт свой стекинговый контекст,
+                и fixed-потомок всё равно рисовался ВНУТРИ него, из-за чего
+                оверлей перекрывал содержимое («видно только блюр»). Portal
+                полностью решает это — дерево рендерится в document.body,
+                вне любых родительских z-index/position/transform. */}
+            {composerExpanded && createPortal(
+                <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-stretch sm:items-center sm:justify-center p-0 sm:p-4 fade-in">
+                    <div className="bg-white dark:bg-darkCard w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl sm:rounded-3xl flex flex-col shadow-2xl">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-darkBorder shrink-0">
+                            <button
+                                onClick={() => composerInsertIndent(expandedTextareaRef.current)}
+                                title="Добавить отступ (красная строка)"
+                                className="void-tap-target w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                            >
+                                <Icons.Indent className="w-5 h-5" />
+                            </button>
+                            <span className="text-sm font-bold text-gray-400">Полноэкранный ввод</span>
+                            <button
+                                onClick={composerExitFullscreen}
+                                title="Свернуть"
+                                className="void-tap-target w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                            >
+                                <Icons.Minimize className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <textarea
+                            ref={expandedTextareaRef}
+                            autoFocus
+                            value={state.inputValue}
+                            onChange={(e) => updateState({ inputValue: e.target.value })}
+                            // Задача 2 (пункт 3): на телефоне клавиша «отправить»
+                            // на самой клавиатуре здесь работает как отступ, а не
+                            // отправка — реальная отправка только явной кнопкой
+                            // ниже. enterKeyHint меняет ПОДПИСЬ клавиши на
+                            // клавиатуре (была бы стрелка «отправить», стала
+                            // обычная «Enter»), чтобы не вводить в заблуждение.
+                            enterKeyHint="enter"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Tab' || e.key === 'Enter') {
+                                    e.preventDefault();
+                                    composerInsertIndent(expandedTextareaRef.current);
+                                }
+                            }}
+                            placeholder={voice.busy ? '' : (state.imageGenMode ? t(lang, 'chat.imagePlaceholder') : t(lang, 'home.inputPlaceholder'))}
+                            className="flex-1 w-full p-4 sm:p-6 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none text-[16px] leading-7"
+                        />
+                        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-100 dark:border-darkBorder shrink-0">
+                            {voice.supported && (
+                                <button
+                                    onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
+                                    title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
+                                    disabled={voice.transcribing}
+                                    className={`void-tap-target w-11 h-11 rounded-full border-2 flex items-center justify-center transition-all active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
+                                >
+                                    {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => { (state.imageGenMode ? handleGenerateImage() : handleSendMessage()); composerExitFullscreen(); }}
+                                disabled={(!state.inputValue.trim() && !(state.selectedImages && state.selectedImages.length > 0)) || state.isGenerating || voice.busy}
+                                title="Отправить"
+                                className="void-tap-target w-11 h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md"
+                            >
+                                <Icons.ArrowUp className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {activeCodeBlock && <CodeViewerModal block={activeCodeBlock.block} siblings={activeCodeBlock.siblings} onClose={() => setActiveCodeBlock(null)} />}
             {showPlusMenu && (
