@@ -25,6 +25,7 @@ import { getPlanLimits } from '@/shared/config/models';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
 import { compressImageFiles } from '@/shared/lib/imageCompress';
+import { useExpandableComposer } from '@/shared/lib/useExpandableComposer';
 
 
 export function ChatView({ state, updateState, handleSendMessage, handleGenerateImage, messagesEndRef, chatFileInputRef }) {
@@ -85,6 +86,13 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         });
     };
     const editableTextareaRef = useRef(null);
+    const composerWrapRef = useRef(null);
+    const { expanded: composerExpanded, manyLines: composerManyLines, enterFullscreen: composerEnterFullscreen, exitFullscreen: composerExitFullscreen, insertIndent: composerInsertIndent } = useExpandableComposer({
+        textareaRef: editableTextareaRef,
+        wrapRef: composerWrapRef,
+        value: state.inputValue,
+        onChange: (v) => updateState({ inputValue: v }),
+    });
     const currentReasoningLevel = (state.reasoningByModel || {})[state.selectedModelId] || defaultReasoningFor(state.selectedModelId);
 
     // ==========================================
@@ -227,8 +235,29 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     // чтобы перечитать что-то выше), автоследование останавливается и не
     // мешает, пока пользователь сам не вернётся к низу переписки.
     const messagesContainerRef = useRef(null);
+    const headerBlurStripRef = useRef(null);
     const autoScrollRef = useRef(true);
     const [showScrollDown, setShowScrollDown] = useState(false);
+    // Задача 13 (повторно — заменяем градиент прозрачности на настоящий
+    // GSAP-блюр): полоса высотой 28px прямо под шапкой чата, её
+    // backdrop-filter плавно усиливается с ростом прокрутки (через
+    // gsap.quickTo — без пересоздания твина на каждый scroll-евент, см.
+    // gsap-performance skill). При scrollTop=0 блюра нет вообще (текст
+    // сверху списка виден чётко), дальше нарастает до ~6px и держится.
+    const blurQuickToRef = useRef(null);
+    useEffect(() => {
+        const el = messagesContainerRef.current;
+        const strip = headerBlurStripRef.current;
+        if (!el || !strip) return;
+        blurQuickToRef.current = gsap.quickTo(strip, '--void-header-blur-px', { duration: 0.2, ease: 'power2.out' });
+        const onScrollBlur = () => {
+            const progress = Math.min(1, el.scrollTop / 60);
+            blurQuickToRef.current?.(progress * 6);
+        };
+        el.addEventListener('scroll', onScrollBlur, { passive: true });
+        onScrollBlur();
+        return () => el.removeEventListener('scroll', onScrollBlur);
+    }, []);
     useEffect(() => {
         const el = messagesContainerRef.current;
         if (!el) return;
@@ -361,24 +390,29 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             <div
                 ref={messagesContainerRef}
                 className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth"
-                style={{
-                    paddingBottom: bottomPad,
-                    // Задача 13: раньше текст сообщений при скролле «резко»
-                    // пропадал ровно на границе шапки (шапка и так
-                    // полупрозрачная с backdrop-blur — см. TopHeader.jsx —
-                    // но сам список сообщений обрезался жёстко, без
-                    // перехода). Маска на верхней кромке контейнера плавно
-                    // сводит текст к прозрачности ДО того, как он скроется
-                    // под шапкой — вместе с blur самой шапки это даёт
-                    // ощущение, что текст «уходит под шапку с размытием»,
-                    // а не обрывается. CSS-маска — правильный инструмент
-                    // именно для этого статичного градиента (GSAP не даёт
-                    // тут ничего сверх — маска не анимируется по скроллу,
-                    // она работает как обычная многослойная прозрачность).
-                    WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, black 32px)',
-                    maskImage: 'linear-gradient(to bottom, transparent 0, black 32px)',
-                }}
+                style={{ paddingBottom: bottomPad }}
             >
+                {/* Задача 13: полоса прогрессивного блюра — sticky ВНУТРИ
+                    самого прокручиваемого контейнера (не снаружи), поэтому
+                    визуально держится прямо под шапкой чата, поверх текста,
+                    который проезжает под ней. backdrop-filter управляется
+                    CSS-переменной --void-header-blur-px, которую крутит
+                    GSAP quickTo при скролле (см. useEffect выше). При
+                    scrollTop=0 blur=0 — текст сверху списка идеально
+                    чёткий, дальше нарастает плавно вместо резкого обрыва.
+                    Отрицательный margin-bottom не даёт полосе съедать
+                    реальное место в потоке — она просто «нависает». */}
+                <div
+                    ref={headerBlurStripRef}
+                    className="sticky -top-4 md:-top-8 z-20 h-10 -mb-10 pointer-events-none"
+                    style={{
+                        '--void-header-blur-px': 0,
+                        backdropFilter: 'blur(calc(var(--void-header-blur-px, 0) * 1px))',
+                        WebkitBackdropFilter: 'blur(calc(var(--void-header-blur-px, 0) * 1px))',
+                        maskImage: 'linear-gradient(to bottom, black 40%, transparent)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent)',
+                    }}
+                />
                 <div className="max-w-4xl mx-auto space-y-6">
                     {messages.length === 0 && (
                         <div className="text-center mt-20 fade-in">
@@ -571,7 +605,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             ))}
                         </div>
                     )}
-                    <div className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border shadow-2xl focus-within:ring-4 transition-all relative ${state.imageGenMode ? 'border-[#5b32d4]/40 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]' : 'border-gray-200 dark:border-darkBorder focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]'}`}>
+                    <div ref={composerWrapRef} className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border shadow-2xl focus-within:ring-4 transition-colors relative ${state.imageGenMode ? 'border-[#5b32d4]/40 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]' : 'border-gray-200 dark:border-darkBorder focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]'} ${composerExpanded ? 'flex-col items-stretch !rounded-2xl shadow-2xl' : ''}`}>
                         {/* multiple — нативный мультивыбор из галереи: пользователь
                             отмечает галочками несколько фото за один заход системного
                             пикера (задача 2-4). Лимит по тарифу применяется в
@@ -631,9 +665,10 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 {t(lang, 'chat.transcribing')}…
                             </div>
                         )}
+                        {composerExpanded && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[99] fade-in" onClick={composerExitFullscreen} />}
                         <textarea 
                             ref={editableTextareaRef}
-                            className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[64px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
+                            className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto ${composerExpanded ? '!max-h-none flex-1 pt-12' : 'max-h-[220px]'} min-h-[64px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
                             placeholder={voice.busy ? '' : (state.imageGenMode ? t(lang, 'chat.imagePlaceholder') : t(lang, 'home.inputPlaceholder'))}
                             readOnly={voice.busy}
                             value={state.inputValue}
@@ -652,11 +687,12 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 });
                             }}
                             onKeyDown={(e) => { 
-                                if (e.key === 'Enter' && !e.shiftKey) { 
+                                if (e.key === 'Enter' && !e.shiftKey && !composerExpanded) { 
                                     e.preventDefault(); 
                                     state.imageGenMode ? handleGenerateImage() : handleSendMessage(); 
                                     e.target.style.height = 'auto'; 
-                                } 
+                                }
+                                if (e.key === 'Tab') { e.preventDefault(); composerInsertIndent(); }
                             }}
                             onFocus={(e) => {
                                 // На телефоне клавиатура может перекрыть поле ввода — после
@@ -669,17 +705,50 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             }}
                             rows={1}
                         />
+                        {/* Задача 11: кнопка полноэкранного режима — появляется
+                            от 3 строк текста, без обводки. */}
+                        {(composerManyLines || composerExpanded) && (
+                            <button
+                                onClick={composerExpanded ? composerExitFullscreen : composerEnterFullscreen}
+                                title={composerExpanded ? 'Свернуть поле ввода' : 'Развернуть на весь экран'}
+                                className={`void-tap-target absolute z-20 p-1.5 text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors ${composerExpanded ? 'top-3 right-3' : 'top-3 right-3'}`}
+                            >
+                                {composerExpanded ? <Icons.Minimize className="w-5 h-5" /> : <Icons.Maximize className="w-5 h-5" />}
+                            </button>
+                        )}
+                        {/* Задача 12: кнопка отступа (красная строка) — только
+                            в развёрнутом режиме. */}
+                        {composerExpanded && (
+                            <button
+                                onClick={composerInsertIndent}
+                                title="Добавить отступ (красная строка)"
+                                className="void-tap-target absolute z-20 top-3 left-3 p-1.5 text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
+                            >
+                                <Icons.Indent className="w-5 h-5" />
+                            </button>
+                        )}
                         {voice.supported && (
                             <button
                                 onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
                                 title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
                                 disabled={voice.transcribing}
-                                className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center transition-all z-20 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                                // Задача 1 (перевнесено правильно — это РЕАЛЬНЫЙ
+                                // компонент чата, ChatInputBar.jsx здесь не
+                                // используется вообще): rounded-full вместо
+                                // rounded-2xl, одинаковый размер с кнопкой
+                                // отправки, обводка невидима в покое.
+                                className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 flex items-center justify-center transition-all z-20 active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
                             >
                                 {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
                             </button>
                         )}
-                        <button onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()} disabled={(!state.inputValue.trim() && !(state.selectedImages && state.selectedImages.length > 0)) || state.isGenerating || voice.busy} className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-2xl flex items-center justify-center transition-all shadow-md z-20"><Icons.ArrowUp /></button>
+                        <button
+                            onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()}
+                            disabled={(!state.inputValue.trim() && !(state.selectedImages && state.selectedImages.length > 0)) || state.isGenerating || voice.busy}
+                            // Задача 1: rounded-full, тот же размер (10/11),
+                            // обводка видна ВСЕГДА.
+                            className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
+                        ><Icons.ArrowUp className="w-5 h-5" /></button>
                     </div>
                 </div>
             </div>

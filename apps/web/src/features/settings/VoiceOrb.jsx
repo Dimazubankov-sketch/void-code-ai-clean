@@ -147,28 +147,27 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
         }
 
         const data = new Uint8Array(analyser.frequencyBinCount);
-        // Небольшое сглаживание амплитуды через экспоненциальное среднее:
-        // от резких скачков графика картинка выглядит нервной, а речь
-        // редко даёт «идеально ровный» уровень.
+        // Задача 3 (повторный раунд — было недостаточно заметно):
+        // сглаживание было СЛИШКОМ сильным (0.7/0.3), из-за чего
+        // амплитуда еле шевелилась и терялась на глаз даже при громкой
+        // речи. Снижаем сглаживание (0.45/0.55 — заметно отзывчивее,
+        // но без дребезга по одиночным всплескам) и ощутимо увеличиваем
+        // диапазоны scale — теперь круг реально «раздувается» в такт
+        // словам, а не еле заметно колышется.
         let smoothed = 0;
         const tick = () => {
             if (stopped) return;
             analyser.getByteFrequencyData(data);
-            // Среднее по низкой части спектра — голос в основном 100-1000Гц,
-            // это первые ~30 бинов при fftSize=256, sampleRate 44100.
             let sum = 0;
             const N = Math.min(30, data.length);
             for (let i = 0; i < N; i++) sum += data[i];
             const avg = sum / N / 255; // 0..1
-            smoothed = smoothed * 0.7 + avg * 0.3;
-            // Диапазоны заметно увеличены — круг ощутимо «дышит» в такт
-            // озвучке, но только по масштабу (никакого потемнения/
-            // затухания).
-            const scale = 1 + smoothed * 0.38;
-            const haloScale = 1 + smoothed * 0.65;
+            smoothed = smoothed * 0.45 + avg * 0.55;
+            const scale = 1 + smoothed * 0.75;
+            const haloScale = 1 + smoothed * 1.15;
             setScale(scale);
             setHalo1(haloScale);
-            setHalo2(haloScale * 1.06);
+            setHalo2(haloScale * 1.08);
             rafId = requestAnimationFrame(tick);
         };
         rafId = requestAnimationFrame(tick);

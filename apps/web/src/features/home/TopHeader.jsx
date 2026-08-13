@@ -220,7 +220,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     // Задача 7: логотип/надпись Void Code AI сдвинуты чуть левее — уменьшен
     // левый отступ шапки (было pl-3 sm:pl-4 md:pl-8).
     return (
-        <div className="bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg sticky top-0 z-30 pl-1.5 sm:pl-2 md:pl-5 pr-4 sm:pr-6 py-3 flex items-center gap-2">
+        <div className="bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg sticky top-0 z-30 pl-1.5 sm:pl-2 md:pl-5 pr-3 sm:pr-4 md:pr-6 py-3 flex items-center gap-2">
             <div className="flex items-center gap-2 sm:gap-2.5 font-extrabold tracking-tight cursor-pointer text-[#1a1a2e] dark:text-white min-w-0 leading-none" onClick={() => updateState({currentView: 'home'})}>
                 <Icons.VoidLogo className="w-11 h-11 md:w-14 md:h-14 flex-shrink-0" />
                 <span className="text-base sm:text-xl md:text-2xl truncate leading-none"><span className="void-grad-text">VOID</span> CODE AI</span>

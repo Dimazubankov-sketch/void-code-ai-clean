@@ -137,11 +137,26 @@ function CollapsibleUserText({ bind, content }) {
         setExpanded(nextExpanded);
     });
 
+    // Задача 2 (найден реальный баг): bind содержит СВОЙ ref-колбэк
+    // (targetRef из useLongPressMenu — нужен, чтобы pulse-анимация при
+    // long-press применялась именно к этому DOM-узлу). Но этому же узлу
+    // нужен и wrapperRef (для GSAP-анимации разворачивания текста). JSX
+    // не умеет объединять два ref на одном элементе сам — при
+    // {...bind} ref={wrapperRef} второй ref молча перезаписывает первый,
+    // и pulse-анимация целится в null. Разбираем bind на ref отдельно и
+    // остальные обработчики отдельно, дальше объединяем оба ref вручную
+    // в одном колбэке.
+    const { ref: longPressRef, ...longPressHandlers } = bind;
+    const setWrapperNode = (node) => {
+        wrapperRef.current = node;
+        if (typeof longPressRef === 'function') longPressRef(node);
+    };
+
     return (
         <div className="relative max-w-full">
             <div
-                {...bind}
-                ref={wrapperRef}
+                {...longPressHandlers}
+                ref={setWrapperNode}
                 // Специально БЕЗ void-selectable: пользователь попросил
                 // убрать ручное выделение и копирование СВОИХ сообщений —
                 // теперь единственный способ скопировать текст своего
