@@ -126,9 +126,18 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
             // AudioContext создаём внутри try — некоторые браузеры
             // (iOS Safari до user-gesture) кинут исключение.
             ctx = new (window.AudioContext || window.webkitAudioContext)();
+            // ГЛАВНАЯ ПРИЧИНА, почему реактивной анимации не было видно
+            // (задача 1, повторно): свежесозданный AudioContext в
+            // Chrome/Safari стартует в состоянии 'suspended', и пока его
+            // явно не resume(), analyser.getByteFrequencyData() отдаёт
+            // сплошные нули — амплитуда 0 → круг застывает на scale 1
+            // (то самое «дыхание просто останавливается, а второй
+            // анимации нет»). Резюмируем сразу (мы внутри user-gesture от
+            // кнопки «Проверить голос», так что это разрешено).
+            if (ctx.state === 'suspended') ctx.resume().catch(() => {});
             analyser = ctx.createAnalyser();
             analyser.fftSize = 256; // 128 бинов — хватает и легковесно
-            analyser.smoothingTimeConstant = 0.75;
+            analyser.smoothingTimeConstant = 0.6;
             source = ctx.createMediaElementSource(audioElement);
             source.connect(analyser);
             // Подключаем к destination чтобы звук всё-таки играл (иначе

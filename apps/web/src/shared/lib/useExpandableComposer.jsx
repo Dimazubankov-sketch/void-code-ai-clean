@@ -20,7 +20,11 @@ import { useGSAP } from '@gsap/react';
 // курсора; также перехватываем Tab, чтобы он не уводил фокус со страницы.
 
 const LINE_HEIGHT_PX = 24;
-const FULLSCREEN_TRIGGER_LINES = 3;
+// Задача 3 (повторно): кнопку полноэкранного режима показываем только
+// начиная с 4-й строки — раньше был порог 3 и она вылезала слишком рано
+// (уже на второй визуальной строке из-за запаса) и налезала на кнопку
+// отправки в правом верхнем углу.
+const FULLSCREEN_TRIGGER_LINES = 4;
 
 export function useExpandableComposer({ textareaRef, wrapRef, value, onChange }) {
     const [expanded, setExpanded] = useState(false);

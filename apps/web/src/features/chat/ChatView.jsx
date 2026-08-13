@@ -235,29 +235,8 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     // чтобы перечитать что-то выше), автоследование останавливается и не
     // мешает, пока пользователь сам не вернётся к низу переписки.
     const messagesContainerRef = useRef(null);
-    const headerBlurStripRef = useRef(null);
     const autoScrollRef = useRef(true);
     const [showScrollDown, setShowScrollDown] = useState(false);
-    // Задача 13 (повторно — заменяем градиент прозрачности на настоящий
-    // GSAP-блюр): полоса высотой 28px прямо под шапкой чата, её
-    // backdrop-filter плавно усиливается с ростом прокрутки (через
-    // gsap.quickTo — без пересоздания твина на каждый scroll-евент, см.
-    // gsap-performance skill). При scrollTop=0 блюра нет вообще (текст
-    // сверху списка виден чётко), дальше нарастает до ~6px и держится.
-    const blurQuickToRef = useRef(null);
-    useEffect(() => {
-        const el = messagesContainerRef.current;
-        const strip = headerBlurStripRef.current;
-        if (!el || !strip) return;
-        blurQuickToRef.current = gsap.quickTo(strip, '--void-header-blur-px', { duration: 0.2, ease: 'power2.out' });
-        const onScrollBlur = () => {
-            const progress = Math.min(1, el.scrollTop / 60);
-            blurQuickToRef.current?.(progress * 6);
-        };
-        el.addEventListener('scroll', onScrollBlur, { passive: true });
-        onScrollBlur();
-        return () => el.removeEventListener('scroll', onScrollBlur);
-    }, []);
     useEffect(() => {
         const el = messagesContainerRef.current;
         if (!el) return;
@@ -392,27 +371,6 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth"
                 style={{ paddingBottom: bottomPad }}
             >
-                {/* Задача 13: полоса прогрессивного блюра — sticky ВНУТРИ
-                    самого прокручиваемого контейнера (не снаружи), поэтому
-                    визуально держится прямо под шапкой чата, поверх текста,
-                    который проезжает под ней. backdrop-filter управляется
-                    CSS-переменной --void-header-blur-px, которую крутит
-                    GSAP quickTo при скролле (см. useEffect выше). При
-                    scrollTop=0 blur=0 — текст сверху списка идеально
-                    чёткий, дальше нарастает плавно вместо резкого обрыва.
-                    Отрицательный margin-bottom не даёт полосе съедать
-                    реальное место в потоке — она просто «нависает». */}
-                <div
-                    ref={headerBlurStripRef}
-                    className="sticky -top-4 md:-top-8 z-20 h-10 -mb-10 pointer-events-none"
-                    style={{
-                        '--void-header-blur-px': 0,
-                        backdropFilter: 'blur(calc(var(--void-header-blur-px, 0) * 1px))',
-                        WebkitBackdropFilter: 'blur(calc(var(--void-header-blur-px, 0) * 1px))',
-                        maskImage: 'linear-gradient(to bottom, black 40%, transparent)',
-                        WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent)',
-                    }}
-                />
                 <div className="max-w-4xl mx-auto space-y-6">
                     {messages.length === 0 && (
                         <div className="text-center mt-20 fade-in">
@@ -605,6 +563,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             ))}
                         </div>
                     )}
+                    {composerExpanded && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90] fade-in" onClick={composerExitFullscreen} />}
                     <div ref={composerWrapRef} className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border shadow-2xl focus-within:ring-4 transition-colors relative ${state.imageGenMode ? 'border-[#5b32d4]/40 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]' : 'border-gray-200 dark:border-darkBorder focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]'} ${composerExpanded ? 'flex-col items-stretch !rounded-2xl shadow-2xl' : ''}`}>
                         {/* multiple — нативный мультивыбор из галереи: пользователь
                             отмечает галочками несколько фото за один заход системного
@@ -665,7 +624,6 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 {t(lang, 'chat.transcribing')}…
                             </div>
                         )}
-                        {composerExpanded && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[99] fade-in" onClick={composerExitFullscreen} />}
                         <textarea 
                             ref={editableTextareaRef}
                             className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto ${composerExpanded ? '!max-h-none flex-1 pt-12' : 'max-h-[220px]'} min-h-[64px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
@@ -705,24 +663,30 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             }}
                             rows={1}
                         />
-                        {/* Задача 11: кнопка полноэкранного режима — появляется
-                            от 3 строк текста, без обводки. */}
+                        {/* Задача 3 (повторно): кнопка полноэкранного режима.
+                            В СВЁРНУТОМ виде — в правом ВЕРХНЕМ углу, но с
+                            запасом сверху, чтобы не пересекаться с кнопками
+                            отправки/микрофона (они внизу). Появляется только
+                            с 4-й строки (FULLSCREEN_TRIGGER_LINES). В
+                            развёрнутом — тоже сверху справа, там места
+                            достаточно. */}
                         {(composerManyLines || composerExpanded) && (
                             <button
                                 onClick={composerExpanded ? composerExitFullscreen : composerEnterFullscreen}
                                 title={composerExpanded ? 'Свернуть поле ввода' : 'Развернуть на весь экран'}
-                                className={`void-tap-target absolute z-20 p-1.5 text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors ${composerExpanded ? 'top-3 right-3' : 'top-3 right-3'}`}
+                                className="void-tap-target absolute z-30 top-2 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
                             >
                                 {composerExpanded ? <Icons.Minimize className="w-5 h-5" /> : <Icons.Maximize className="w-5 h-5" />}
                             </button>
                         )}
                         {/* Задача 12: кнопка отступа (красная строка) — только
-                            в развёрнутом режиме. */}
+                            в развёрнутом режиме, тот же стиль что и кнопка
+                            разворота (непрозрачный фон, высокий z). */}
                         {composerExpanded && (
                             <button
                                 onClick={composerInsertIndent}
                                 title="Добавить отступ (красная строка)"
-                                className="void-tap-target absolute z-20 top-3 left-3 p-1.5 text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
+                                className="void-tap-target absolute z-30 top-2 left-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
                             >
                                 <Icons.Indent className="w-5 h-5" />
                             </button>

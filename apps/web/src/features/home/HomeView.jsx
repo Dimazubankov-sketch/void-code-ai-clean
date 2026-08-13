@@ -186,8 +186,9 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             ))}
                         </div>
                     )}
+                    {composerExpanded && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90] fade-in" onClick={composerExitFullscreen} />}
                     <div ref={homeComposerWrapRef} className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border border-gray-200 dark:border-darkBorder shadow-md focus-within:ring-4 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4] transition-colors relative ${composerExpanded ? 'flex-col items-stretch !rounded-2xl shadow-2xl' : ''}`}>
-                        {composerExpanded && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[99] fade-in" onClick={composerExitFullscreen} />}
+
                         {/* accept="image/*" (не список конкретных MIME) — именно
                             эта маска даёт iOS Safari/WebKit сразу открыть
                             галерею, минуя системное меню «Медиатека/Снимок/
@@ -249,12 +250,14 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             }}
                             rows={1}
                         />
-                        {/* Задача 11: кнопка полноэкранного режима */}
+                        {/* Задача 3 (повторно): та же логика, что и в чате —
+                            непрозрачный фон под иконкой, высокий z, чтобы не
+                            терялась за кнопками отправки/микрофона. */}
                         {(composerManyLines || composerExpanded) && (
                             <button
                                 onClick={composerExpanded ? composerExitFullscreen : composerEnterFullscreen}
                                 title={composerExpanded ? 'Свернуть поле ввода' : 'Развернуть на весь экран'}
-                                className="void-tap-target absolute z-20 top-3 right-3 p-1.5 text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
+                                className="void-tap-target absolute z-30 top-2 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
                             >
                                 {composerExpanded ? <Icons.Minimize className="w-5 h-5" /> : <Icons.Maximize className="w-5 h-5" />}
                             </button>
@@ -264,7 +267,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             <button
                                 onClick={composerInsertIndent}
                                 title="Добавить отступ (красная строка)"
-                                className="void-tap-target absolute z-20 top-3 left-3 p-1.5 text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
+                                className="void-tap-target absolute z-30 top-2 left-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
                             >
                                 <Icons.Indent className="w-5 h-5" />
                             </button>

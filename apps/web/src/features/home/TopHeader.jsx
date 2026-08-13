@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { gsap } from 'gsap';
-import { useGSAP } from '@gsap/react';
 import { AI_MODELS, getPlanLimits, REASONING_LEVELS, defaultReasoningFor, isReasoningAllowed, getReasoningLevel } from '@/shared/config/models';
 import { Icons } from '@/shared/ui/Icons';
 import { ChatActionsMenu } from '@/features/chat/ChatActionsMenu';
@@ -52,15 +51,8 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
 
     const inChatView = state.currentView === 'chat';
 
-    // Задача 13: лёгкий GSAP-вход шапки чата (fade+edge slide) при заходе
-    // в чат. Хук обязан вызываться безусловно на каждый рендер (Rules of
-    // Hooks) — сам эффект внутри просто ничего не делает, если ref ещё не
-    // примонтирован (заходим в хаб, не в чат).
-    const headerRef = useRef(null);
-    useGSAP(() => {
-        if (!inChatView || !headerRef.current) return;
-        gsap.fromTo(headerRef.current, { autoAlpha: 0, y: -8 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: 'power2.out' });
-    }, { scope: headerRef, dependencies: [inChatView] });
+    // Задача 13 отменена по требованию — эффект блюра/fade под шапкой
+    // убран полностью, шапка возвращена к исходному виду (bg /70).
 
     // Текущий уровень рассуждений выбранной модели (с учётом дефолта по модели)
     const currentReasoningId = (state.reasoningByModel || {})[activeModel.id] || defaultReasoningFor(activeModel.id);
@@ -176,7 +168,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     // сколько кнопок в левой/правой группе.
     if (inChatView) {
         return (
-            <div ref={headerRef} className="sticky top-0 z-30 bg-white/60 dark:bg-darkBg/60 backdrop-blur-xl px-3 sm:px-4 md:px-6 py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div className="sticky top-0 z-30 bg-white/70 dark:bg-darkBg/70 backdrop-blur-xl px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <div className="flex items-center justify-self-start">
                     <IconCircleButton onClick={() => updateState({ currentView: 'home' })} title="Назад">
                         <Icons.ChevronLeft className="w-5 h-5" />
@@ -220,9 +212,9 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     // Задача 7: логотип/надпись Void Code AI сдвинуты чуть левее — уменьшен
     // левый отступ шапки (было pl-3 sm:pl-4 md:pl-8).
     return (
-        <div className="bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg sticky top-0 z-30 pl-1.5 sm:pl-2 md:pl-5 pr-3 sm:pr-4 md:pr-6 py-3 flex items-center gap-2">
+        <div className="bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg sticky top-0 z-30 pl-1.5 sm:pl-2 md:pl-5 pr-3 sm:pr-4 md:pr-6 h-16 flex items-center gap-2">
             <div className="flex items-center gap-2 sm:gap-2.5 font-extrabold tracking-tight cursor-pointer text-[#1a1a2e] dark:text-white min-w-0 leading-none" onClick={() => updateState({currentView: 'home'})}>
-                <Icons.VoidLogo className="w-11 h-11 md:w-14 md:h-14 flex-shrink-0" />
+                <Icons.VoidLogo className="w-10 h-10 md:w-12 md:h-12 flex-shrink-0" />
                 <span className="text-base sm:text-xl md:text-2xl truncate leading-none"><span className="void-grad-text">VOID</span> CODE AI</span>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0 ml-auto">
