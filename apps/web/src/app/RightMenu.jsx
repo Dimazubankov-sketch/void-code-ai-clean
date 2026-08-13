@@ -216,7 +216,21 @@ export function RightMenu({ state, updateState }) {
                             <Icons.Search className="w-6 h-6" />
                         </button>
                         <span className="font-extrabold text-xl dark:text-white mx-auto">{t(lang, 'menu.title')}</span>
-                        <button onClick={() => updateState({ isRightMenuOpen: false })} className="void-tap-target absolute right-0 p-2 -mr-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                        <button
+                            onClick={() => updateState({ isRightMenuOpen: false })}
+                            title="Закрыть меню"
+                            // Задача 10: раньше у кнопки не было flex-центрирования
+                            // иконки внутри хитбокса (только padding), из-за чего
+                            // сама иконка X сидела не по центру кликабельной
+                            // области — и нативная обводка фокуса браузера
+                            // визуально «съезжала» вправо относительно иконки.
+                            // Явный w-9 h-9 + flex items-center justify-center
+                            // центрируют иконку РОВНО по центру обводки. Обводка
+                            // теперь появляется только в момент нажатия
+                            // (active:ring-2), в покое (focus:outline-none) —
+                            // невидима.
+                            className="void-tap-target absolute right-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors focus:outline-none active:ring-2 active:ring-gray-300 dark:active:ring-gray-600"
+                        >
                             <Icons.X />
                         </button>
                     </div>

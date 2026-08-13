@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { AI_MODELS, getPlanLimits, REASONING_LEVELS, defaultReasoningFor, isReasoningAllowed, getReasoningLevel } from '@/shared/config/models';
 import { Icons } from '@/shared/ui/Icons';
 import { ChatActionsMenu } from '@/features/chat/ChatActionsMenu';
@@ -50,6 +51,16 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     const limitExhausted = maxDaily !== Infinity && state.usedDailyLimits >= maxDaily;
 
     const inChatView = state.currentView === 'chat';
+
+    // Задача 13: лёгкий GSAP-вход шапки чата (fade+edge slide) при заходе
+    // в чат. Хук обязан вызываться безусловно на каждый рендер (Rules of
+    // Hooks) — сам эффект внутри просто ничего не делает, если ref ещё не
+    // примонтирован (заходим в хаб, не в чат).
+    const headerRef = useRef(null);
+    useGSAP(() => {
+        if (!inChatView || !headerRef.current) return;
+        gsap.fromTo(headerRef.current, { autoAlpha: 0, y: -8 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: 'power2.out' });
+    }, { scope: headerRef, dependencies: [inChatView] });
 
     // Текущий уровень рассуждений выбранной модели (с учётом дефолта по модели)
     const currentReasoningId = (state.reasoningByModel || {})[activeModel.id] || defaultReasoningFor(activeModel.id);
@@ -165,7 +176,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     // сколько кнопок в левой/правой группе.
     if (inChatView) {
         return (
-            <div className="sticky top-0 z-30 bg-white/70 dark:bg-darkBg/70 backdrop-blur-xl px-3 sm:px-4 md:px-6 py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div ref={headerRef} className="sticky top-0 z-30 bg-white/60 dark:bg-darkBg/60 backdrop-blur-xl px-3 sm:px-4 md:px-6 py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <div className="flex items-center justify-self-start">
                     <IconCircleButton onClick={() => updateState({ currentView: 'home' })} title="Назад">
                         <Icons.ChevronLeft className="w-5 h-5" />

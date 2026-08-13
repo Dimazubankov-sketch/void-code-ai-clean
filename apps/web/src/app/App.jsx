@@ -133,7 +133,11 @@ export function App() {
         };
 
         const saved = loadPersistedState();
-        if (!saved) return defaults;
+        // Задача 8: у совсем нового посетителя (localStorage пуст) модалка
+        // входа/регистрации должна открываться СРАЗУ, обязательно — см.
+        // mandatory-режим в AuthModal.jsx (нет крестика закрытия, фон
+        // непрозрачный).
+        if (!saved) return { ...defaults, showAuthModal: true };
 
         // Гость (нет входа) видит чистый интерфейс — личная история не
         // показывается. История каждого аккаунта живёт в accountData[email]
@@ -190,7 +194,10 @@ export function App() {
             activeSkills: [],
             customSkills: [],
             isGeneratingImage: false,
-            showAuthModal: false,
+            // Задача 8: без входа — модалка обязательна и открыта сразу
+            // (isGuest true = saved.user пуст). Если человек уже входил
+            // раньше и есть сохранённая сессия — модалка не мешает.
+            showAuthModal: isGuest,
             savedAccounts: saved.savedAccounts || [],
             accountPhotos: saved.accountPhotos || {},
             accountData: saved.accountData || {},

@@ -358,7 +358,27 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         <div className="flex flex-col h-full bg-white dark:bg-darkBg relative w-full max-w-full fade-in">
             <TopHeader state={state} updateState={updateState} onChatMenuAction={handleChatMenuAction} />
             
-            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth" style={{ paddingBottom: bottomPad }}>
+            <div
+                ref={messagesContainerRef}
+                className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth"
+                style={{
+                    paddingBottom: bottomPad,
+                    // Задача 13: раньше текст сообщений при скролле «резко»
+                    // пропадал ровно на границе шапки (шапка и так
+                    // полупрозрачная с backdrop-blur — см. TopHeader.jsx —
+                    // но сам список сообщений обрезался жёстко, без
+                    // перехода). Маска на верхней кромке контейнера плавно
+                    // сводит текст к прозрачности ДО того, как он скроется
+                    // под шапкой — вместе с blur самой шапки это даёт
+                    // ощущение, что текст «уходит под шапку с размытием»,
+                    // а не обрывается. CSS-маска — правильный инструмент
+                    // именно для этого статичного градиента (GSAP не даёт
+                    // тут ничего сверх — маска не анимируется по скроллу,
+                    // она работает как обычная многослойная прозрачность).
+                    WebkitMaskImage: 'linear-gradient(to bottom, transparent 0, black 32px)',
+                    maskImage: 'linear-gradient(to bottom, transparent 0, black 32px)',
+                }}
+            >
                 <div className="max-w-4xl mx-auto space-y-6">
                     {messages.length === 0 && (
                         <div className="text-center mt-20 fade-in">

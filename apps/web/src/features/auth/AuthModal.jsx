@@ -15,6 +15,14 @@ export function AuthModal({ state, updateState }) {
 
     if (!state.showAuthModal) return null;
 
+    // Задача 8: пока пользователь не вошёл (state.user пусто) — модалка
+    // ОБЯЗАТЕЛЬНА: без крестика закрытия, непрозрачный фон (интерфейс
+    // Void Code AI за ней не должен просвечивать даже размыто). Если же
+    // это открытие модалки для УЖЕ авторизованного человека (например,
+    // сессия истекла, но данные аккаунта ещё есть) — оставляем обычное
+    // поведение с крестиком и полупрозрачным фоном.
+    const mandatory = !state.user;
+
     const handleClose = () => updateState({ showAuthModal: false, sessionExpiredNotice: false });
 
     const handleAuth = async () => {
@@ -47,9 +55,11 @@ export function AuthModal({ state, updateState }) {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto fade-in">
+        <div className={`fixed inset-0 z-[110] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto fade-in ${mandatory ? 'bg-[#f8f9fc] dark:bg-darkBg' : 'bg-black/50 backdrop-blur-sm'}`}>
             <div className="bg-white dark:bg-darkCard w-full max-w-md rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-darkBorder relative slide-in-right my-6 sm:my-0 mb-[40vh] sm:mb-0">
-                <button onClick={handleClose} className="void-tap-target absolute top-3 right-3 sm:top-4 sm:right-4 p-2 text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-full transition-colors flex items-center justify-center"><Icons.X /></button>
+                {!mandatory && (
+                    <button onClick={handleClose} className="void-tap-target absolute top-3 right-3 sm:top-4 sm:right-4 p-2 text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-full transition-colors flex items-center justify-center"><Icons.X /></button>
+                )}
 
                 <div className="flex justify-center mb-6"><div className="flex items-center gap-2.5 font-extrabold text-2xl dark:text-white"><Icons.VoidLogo /><span><span className="void-grad-text">VOID</span> CODE AI</span></div></div>
                 {state.sessionExpiredNotice ? (
@@ -118,11 +128,6 @@ export function AuthModal({ state, updateState }) {
                     <button onClick={handleAuth} disabled={loading} className="w-full bg-[#5b32d4] hover:bg-[#4a26b0] disabled:opacity-60 text-white font-bold py-4 rounded-2xl shadow-lg transition-colors mt-4">
                         {loading ? 'Проверяем…' : 'Продолжить'}
                     </button>
-                    {/* Мелкая ссылка на публичные реквизиты — доступна ещё до
-                        регистрации/входа, отдельный статический маршрут (см. main.jsx). */}
-                    <a href="/requisites" target="_blank" rel="noopener noreferrer" className="block text-center text-xs text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-400 transition-colors pt-1">
-                        Реквизиты
-                    </a>
                 </div>
             </div>
         </div>

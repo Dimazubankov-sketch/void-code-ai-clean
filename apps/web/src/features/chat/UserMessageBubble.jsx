@@ -171,7 +171,7 @@ function CollapsibleUserText({ bind, content }) {
                     <button
                         onClick={toggle}
                         title={expanded ? 'Свернуть' : 'Развернуть сообщение'}
-                        className="void-tap-target absolute right-2.5 bottom-2 z-10 w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
+                        className="void-tap-target absolute right-2.5 bottom-2 z-10 w-7 h-7 flex items-center justify-center text-white focus:outline-none focus-visible:outline-none"
                     >
                         <span ref={arrowRef} className="flex items-center justify-center">
                             <Icons.ChevronDown className="w-4 h-4" />
