@@ -24,7 +24,9 @@
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.19.0",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "svix": "^1.99.1",
+    "svix": "^1.99.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",

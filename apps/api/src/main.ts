@@ -25,6 +25,7 @@ function logEnvChecklist() {
     { name: 'OPENAI_API_KEY', required: false, note: 'озвучка (TTS) + fallback генерации картинок' },
     { name: 'DEEPINFRA_API_KEY', required: false, note: 'доп. провайдер картинок' },
     { name: 'RESEND_API_KEY', required: false, note: 'почта @voidops.ru — без него отправка писем недоступна' },
+    { name: 'RESEND_WEBHOOK_SECRET', required: false, note: 'приём ВХОДЯЩИХ писем @voidops.ru — без него вебхук отклоняет запросы (см. mail-webhook.controller.ts)' },
   ];
   // eslint-disable-next-line no-console
   console.log('\n[ENV CHECK] ================================================');
@@ -51,7 +52,13 @@ async function bootstrap() {
   // urlencoded-парсеры до 50mb — с большим запасом под несколько
   // приложенных фото в одном сообщении (клиент дополнительно сжимает
   // изображения перед отправкой, см. features/chat/imageCompress.jsx).
-  app.use(express.json({ limit: '50mb' }));
+  // verify: сохраняем СЫРОЕ тело запроса в req.rawBody ДО того, как
+  // express его распарсит в объект — нужно для проверки подписи вебхука
+  // Resend (mail-webhook.controller.ts): Svix подписывает именно сырые
+  // байты тела, повторная JSON.stringify() распарсенного объекта не
+  // гарантированно даёт побайтово тот же результат (порядок ключей,
+  // пробелы), поэтому подпись должна проверяться по оригиналу.
+  app.use(express.json({ limit: '50mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
   // Валидация DTO на входе: лишние поля отрезаются, неверные типы — ошибка 400
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

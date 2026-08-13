@@ -51,6 +51,16 @@ enum MessageRole {
   SYSTEM
 }
 
+// Папки почтового приложения (Void Mail). SPAM заложен на будущее —
+// пока ничего не кладёт письма туда автоматически, но структура готова.
+enum EmailFolder {
+  INBOX
+  SENT
+  DRAFTS
+  TRASH
+  SPAM
+}
+
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
@@ -77,6 +87,46 @@ model User {
   sites         Site[]
   usage         UsageCounter[]
   providerKeys  ProviderKey[]
+  emails        Email[]
+}
+
+// ==========================================
+// Почта (Void Mail) — задача: полноценные папки внутри приложения
+// ==========================================
+// Одна таблица на все папки (folder — обычное поле, не отдельные
+// таблицы) — так поиск/фильтры в будущем остаются простым WHERE, а не
+// UNION нескольких таблиц. Письмо принадлежит РОВНО одному пользователю
+// (userId) — если письмо на *@voidops.ru пришло сразу нескольким
+// пользователям Void Code (в to через запятую), для каждого создаётся
+// своя строка при обработке вебхука.
+model Email {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder      EmailFolder
+
+  fromAddress String
+  fromName    String?
+  toAddress   String
+  subject     String      @default("")
+  bodyText    String?
+  bodyHtml    String?
+
+  isRead      Boolean     @default(false)
+  // Письмо, на которое отвечает это (для будущей группировки в цепочки —
+  // сейчас используется только чтобы связать ответ с исходным письмом).
+  replyToId   String?
+
+  // id письма в Resend: у ОТПРАВЛЕННЫХ — id из ответа Resend API; у
+  // ВХОДЯЩИХ — id из вебхука, нужен для идемпотентности (Resend/Svix
+  // может повторно прислать один и тот же вебхук при ретрае — по
+  // resendId проверяем, что письмо уже сохранено, и не дублируем).
+  resendId    String?     @unique
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId, folder, createdAt])
 }
 
 model Subscription {

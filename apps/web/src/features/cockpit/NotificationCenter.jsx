@@ -3,7 +3,16 @@ import { gsap } from 'gsap';
 import { MailAgentChat } from '@/features/cockpit/MailAgentChat';
 import { switchToAccount } from '@/shared/lib/accounts';
 import { playNotificationSound } from '@/shared/lib/sound';
-import { fetchInbox, fetchMailMessage, sendMail } from '@/shared/api/mail';
+import {
+    fetchMailAddress,
+    fetchFolder,
+    fetchMailMessage,
+    setMailRead,
+    deleteMailMessage,
+    createDraft,
+    updateDraft,
+    sendMail,
+} from '@/shared/api/mail';
 import { ApiError } from '@/shared/api/client';
 import { Icons } from '@/shared/ui/Icons';
 
@@ -32,17 +41,26 @@ function SenderAvatar({ system, from, size = 'w-9 h-9' }) {
     return <div className={`${size} rounded-full bg-gray-400 dark:bg-gray-600 flex items-center justify-center text-white font-bold text-xs shrink-0`}>{initials(from)}</div>;
 }
 
+// Папки почты Void Mail. 'inbox' / 'sent' / 'drafts' / 'trash' — реальные
+// папки на бэкенде (см. apps/api/src/modules/mail), письма в них хранятся
+// в БД и переживают перезагрузку страницы/смену устройства. 'updates' и
+// 'agents' — системные ленты (обновления платформы, отчёты оркестраторов),
+// они устроены отдельно и почты не касаются — не трогаем их логику.
 const FOLDERS = [
     { id: 'all', label: 'Все письма', icon: Icons.MailLogoFlat },
     { id: 'updates', label: 'Обновления', icon: Icons.Info },
     { id: 'agents', label: 'Оповещения агентов', icon: Icons.Robot },
-    { id: 'personal', label: 'Личная почта', icon: Icons.Mail },
+    { id: 'inbox', label: 'Личная почта', icon: Icons.Mail },
     { id: 'sent', label: 'Отправленные', icon: Icons.Send },
     { id: 'starred', label: 'Помеченные', icon: Icons.Star },
     { id: 'drafts', label: 'Черновики', icon: Icons.Pencil },
     { id: 'trash', label: 'Корзина', icon: Icons.Trash },
     { id: 'settings', label: 'Настройки', icon: Icons.Settings },
 ];
+
+// Папки, реально хранящиеся на бэкенде (в БД) — для остальных ('all',
+// 'updates', 'agents', 'starred', 'settings') используется другая логика.
+const BACKEND_FOLDERS = ['inbox', 'sent', 'drafts', 'trash'];
 
 export function NotificationCenter({ state, updateState, onClose }) {
     const [expanded, setExpanded] = useState(false);
@@ -115,93 +133,119 @@ export function NotificationCenter({ state, updateState, onClose }) {
     const [openOrchestratorId, setOpenOrchestratorId] = useState(null);
     const [openLetter, setOpenLetter] = useState(null);
     const [composing, setComposing] = useState(false);
-    const [draft, setDraft] = useState({ id: null, to: '', subject: '', body: '', attachments: [] });
+    const [draft, setDraft] = useState({ id: null, to: '', subject: '', body: '', attachments: [], replyToId: null });
     const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
     const [accountManageMode, setAccountManageMode] = useState(false);
     const photoInputRef = useRef(null);
     const [mailSearch, setMailSearch] = useState('');
     const touchStartX = useRef(null);
 
+    // 'updates' (обновления платформы) остаётся локальной системной
+    // лентой в app-state — почты не касается, не трогаем.
     const rawInbox = state.inbox || {};
     const inbox = {
         updates: rawInbox.updates || [],
-        personal: rawInbox.personal || [],
-        sent: rawInbox.sent || [],
-        drafts: rawInbox.drafts || [],
+        // Локальная корзина хранит ТОЛЬКО удалённые 'update' — реальная
+        // почта (входящие/отправленные/черновики) удаляется через
+        // бэкенд и живёт в mailData.trash (см. ниже).
         trash: rawInbox.trash || [],
     };
     const reports = state.orchestratorReports || {};
     const readUpdates = state.readUpdateIds || [];
-    const readPersonal = state.readPersonalIds || [];
     const starred = state.starredIds || [];
 
     // ==========================================
-    // Реальная почта (задача 2) — Migadu через наш бэкенд
+    // Реальная почта (Void Mail) — папки на бэкенде + Resend
     // ==========================================
-    // «Личная почта» больше не локальная имитация: inbox.personal
-    // заполняется из реального IMAP-инбокса @voidops.ru. Список из
-    // /mail/inbox содержит только заголовки (без текста письма — дорого
-    // тянуть тело каждого письма при каждом обновлении списка), полный
-    // текст подгружается лениво при открытии письма (см. openPersonal).
+    // Каждая папка (inbox/sent/drafts/trash) хранится в БД на сервере и
+    // подгружается лениво — только когда человек реально открыл эту
+    // вкладку (незачем тянуть все четыре папки сразу при каждом открытии
+    // почты). Список содержит только заголовки/превью (без полного
+    // текста письма — дорого гонять по сети при каждом обновлении
+    // списка), полный текст подгружается отдельно при открытии письма.
+    const [mailData, setMailData] = useState({ inbox: [], sent: [], drafts: [], trash: [] });
     const [mailLoading, setMailLoading] = useState(false);
     const [mailError, setMailError] = useState(null);
     const [mailAddress, setMailAddress] = useState(null);
 
-    const refreshInbox = async () => {
+    // Личный адрес — нужен независимо от того, какая папка открыта
+    // (шапка почты, экран составления письма), поэтому грузится один раз
+    // при открытии почты, а не по папкам.
+    useEffect(() => {
+        fetchMailAddress()
+            .then(({ address }) => setMailAddress(address))
+            .catch(() => { /* не критично — просто не покажем адрес в шапке */ });
+    }, []);
+
+    const refreshFolder = async (folderId) => {
+        if (!BACKEND_FOLDERS.includes(folderId)) return;
         setMailLoading(true);
         setMailError(null);
         try {
-            const { address, messages } = await fetchInbox();
-            setMailAddress(address);
-            const mapped = messages.map(m => ({
-                id: `mail_${m.uid}`,
-                uid: m.uid,
-                subject: m.subject,
-                from: m.from,
-                at: new Date(m.at).getTime(),
-                preview: m.preview || '',
-            }));
-            updateState({ inbox: { ...inbox, personal: mapped } });
+            const { messages } = await fetchFolder(folderId);
+            setMailData(prev => ({ ...prev, [folderId]: messages }));
         } catch (e) {
-            // 403 здесь означает «ящик ещё не создан» (см. MailController) —
-            // это не сбой сети, а ожидаемое состояние для части аккаунтов
-            // (например, зарегистрированных до подключения почты, или если
-            // Migadu был временно недоступен в момент регистрации).
-            if (e instanceof ApiError && e.status === 403) {
-                setMailError('Персональный ящик ещё не создан. Попробуйте обновить чуть позже.');
-            } else {
-                setMailError(e instanceof ApiError ? e.message : 'Не удалось загрузить входящие письма');
-            }
+            setMailError(e instanceof ApiError ? e.message : 'Не удалось загрузить письма');
         } finally {
             setMailLoading(false);
         }
     };
 
-    // Загружаем инбокс один раз при открытии почты и дальше — каждый раз
-    // при переключении на вкладку «Личная почта» (не грузим фоном, пока
-    // человек смотрит другие папки — незачем держать лишние IMAP-сессии).
-    // Плюс лёгкий фоновый поллинг (раз в 60с) ТОЛЬКО пока вкладка активна,
-    // чтобы новые письма появлялись без ручного обновления.
+    // Загружаем нужные папки при переключении вкладки: обычная папка —
+    // саму себя; «Все письма» — сразу «Входящие» и «Отправленные» (то,
+    // что в неё попадает). Лёгкий фоновый поллинг (раз в 60с) — чтобы
+    // новые письма (в т.ч. пришедшие через вебхук Resend) появлялись без
+    // ручного обновления, пока вкладка активна.
     useEffect(() => {
-        if (activeFolder !== 'personal') return;
-        refreshInbox();
-        const interval = setInterval(refreshInbox, 60_000);
+        const targets = activeFolder === 'all' ? ['inbox', 'sent'] : BACKEND_FOLDERS.includes(activeFolder) ? [activeFolder] : [];
+        if (targets.length === 0) return;
+        targets.forEach(refreshFolder);
+        const interval = setInterval(() => targets.forEach(refreshFolder), 60_000);
         return () => clearInterval(interval);
     }, [activeFolder]);
 
+    // Приводим сырые записи бэкенда к единому виду, с которым уже умеет
+    // работать остальной UI (LetterRow/LetterReader) — поле `at` в мс,
+    // `from`/`title`/`preview` для отображения, плюс сырые адреса
+    // (fromAddress/toAddress) для «Ответить» и составления письма.
+    const inboxItems = mailData.inbox.map(m => ({
+        id: m.id, kind: 'inbox', subject: m.subject, title: m.subject,
+        from: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress,
+        fromAddress: m.fromAddress, at: new Date(m.createdAt).getTime(),
+        preview: m.preview, isRead: m.isRead,
+    }));
+    const sentItems = mailData.sent.map(m => ({
+        id: m.id, kind: 'sent', subject: m.subject, title: m.subject,
+        to: m.toAddress, at: new Date(m.createdAt).getTime(), preview: m.preview,
+    }));
+    const draftItems = mailData.drafts.map(m => ({
+        id: m.id, to: m.toAddress, subject: m.subject, preview: m.preview,
+        savedAt: new Date(m.createdAt).getTime(),
+    }));
+    const trashItems = mailData.trash.map(m => ({
+        id: m.id, subject: m.subject, title: m.subject,
+        // В корзине уже неизвестно, было письмо входящим или
+        // отправленным (папка на бэкенде одна — TRASH), поэтому
+        // определяем по наличию адреса отправителя: у отправленных и
+        // черновиков fromAddress пуст (это же поле, что и в исходной
+        // папке, — просто не было заполнено при создании черновика).
+        from: m.fromAddress ? (m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress) : `Кому: ${m.toAddress || '(без адресата)'}`,
+        preview: m.preview, deletedAt: new Date(m.createdAt).getTime(),
+    }));
+
     const unreadUpdates = inbox.updates.filter(u => !readUpdates.includes(u.id)).length;
-    const unreadPersonal = inbox.personal.filter(m => !readPersonal.includes(m.id)).length;
+    const unreadInbox = inboxItems.filter(m => !m.isRead).length;
     const pendingReports = Object.values(reports).reduce((n, l) => n + l.filter(r => r.status === 'pending').length, 0);
-    const totalUnread = unreadUpdates + unreadPersonal + pendingReports;
+    const totalUnread = unreadUpdates + unreadInbox + pendingReports;
 
     const FOLDER_COUNTS = {
         all: totalUnread,
         updates: unreadUpdates,
         agents: pendingReports,
-        personal: unreadPersonal,
+        inbox: unreadInbox,
         sent: 0,
         starred: 0,
-        drafts: inbox.drafts.length,
+        drafts: draftItems.length,
         trash: 0,
         settings: 0,
     };
@@ -245,61 +289,120 @@ export function NotificationCenter({ state, updateState, onClose }) {
         setOpenLetter({ ...u, kind: 'update' });
         if (!readUpdates.includes(u.id)) updateState({ readUpdateIds: [...readUpdates, u.id] });
     };
-    const openPersonal = (m) => {
-        // Показываем письмо сразу с тем, что уже есть (тема/отправитель/дата),
-        // а полный текст подтягиваем асинхронно — так открытие ощущается
-        // мгновенным, а не «зависает» на сетевой запрос.
-        setOpenLetter({ id: m.id, kind: 'personal', title: m.subject, from: m.from, body: 'Загрузка письма…', at: m.at, uid: m.uid });
-        if (!readPersonal.includes(m.id)) updateState({ readPersonalIds: [...readPersonal, m.id] });
-        if (m.uid == null) return;
-        fetchMailMessage(m.uid)
+    // Входящие/отправленные — показываем письмо сразу с тем, что уже
+    // есть (тема/отправитель/дата/превью), полный текст подтягиваем
+    // асинхронно — открытие ощущается мгновенным, а не «зависает» на
+    // сетевой запрос. Открытие входящего письма на бэкенде автоматически
+    // отмечает его прочитанным — обновляем это же и в списке на экране,
+    // чтобы точка «непрочитано» пропала сразу, не дожидаясь refreshFolder.
+    const openInbox = (m) => {
+        setOpenLetter({ id: m.id, kind: 'inbox', title: m.subject, from: m.from, fromAddress: m.fromAddress, subject: m.subject, body: 'Загрузка письма…', at: m.at });
+        if (!m.isRead) setMailData(prev => ({ ...prev, inbox: prev.inbox.map(x => x.id === m.id ? { ...x, isRead: true } : x) }));
+        fetchMailMessage(m.id)
             .then(({ message }) => {
                 if (!message) return;
-                setOpenLetter(prev => (prev && prev.id === m.id ? { ...prev, body: message.body || '(пустое письмо)' } : prev));
+                setOpenLetter(prev => (prev && prev.id === m.id ? { ...prev, body: message.bodyText || '(пустое письмо)' } : prev));
             })
             .catch((e) => {
                 setOpenLetter(prev => (prev && prev.id === m.id ? { ...prev, body: e instanceof ApiError ? `Не удалось загрузить письмо: ${e.message}` : 'Не удалось загрузить письмо' } : prev));
             });
     };
-    const openSent = (m) => setOpenLetter({ id: m.id, kind: 'sent', title: m.subject, from: `Кому: ${m.to}`, body: m.body, at: m.at });
+    const openSent = (m) => {
+        setOpenLetter({ id: m.id, kind: 'sent', title: m.subject, from: `Кому: ${m.to}`, subject: m.subject, body: 'Загрузка письма…', at: m.at });
+        fetchMailMessage(m.id)
+            .then(({ message }) => {
+                if (!message) return;
+                setOpenLetter(prev => (prev && prev.id === m.id ? { ...prev, body: message.bodyText || '(пустое письмо)' } : prev));
+            })
+            .catch((e) => {
+                setOpenLetter(prev => (prev && prev.id === m.id ? { ...prev, body: e instanceof ApiError ? `Не удалось загрузить письмо: ${e.message}` : 'Не удалось загрузить письмо' } : prev));
+            });
+    };
 
-    // --- Звезда: работает для обновлений/личных/отправленных ---
+    // --- Звезда: пока работает только для обновлений (системная лента) —
+    // реальная почта звёздочку на бэкенде не хранит (не входило в
+    // задачу папок), поэтому в LetterRow/LetterReader кнопка звезды
+    // показывается только для kind === 'update'.
     const toggleStar = (id) => {
         updateState({ starredIds: starred.includes(id) ? starred.filter(x => x !== id) : [...starred, id] });
     };
 
-    // --- Удаление в корзину (для всего, кроме отчётов оркестраторов) ---
+    // --- Удаление 'update' (системные обновления) — как раньше, локально ---
     const deleteToTrash = (kind, item) => {
         const now = Date.now();
         const trashEntry = { ...item, kind, deletedAt: now };
-        const nextInbox = { ...inbox, [kind === 'update' ? 'updates' : kind]: (inbox[kind === 'update' ? 'updates' : kind] || []).filter(x => x.id !== item.id), trash: [trashEntry, ...inbox.trash] };
+        const nextInbox = { ...inbox, updates: inbox.updates.filter(x => x.id !== item.id), trash: [trashEntry, ...inbox.trash] };
         updateState({ inbox: nextInbox, starredIds: starred.filter(x => x !== item.id) });
         setOpenLetter(null);
     };
     const restoreFromTrash = (item) => {
-        const targetKey = item.kind === 'update' ? 'updates' : item.kind;
         const { kind, deletedAt, ...clean } = item;
-        const nextInbox = { ...inbox, [targetKey]: [clean, ...(inbox[targetKey] || [])], trash: inbox.trash.filter(x => x.id !== item.id) };
+        const nextInbox = { ...inbox, updates: [clean, ...inbox.updates], trash: inbox.trash.filter(x => x.id !== item.id) };
         updateState({ inbox: nextInbox });
     };
     const purgeFromTrash = (id) => updateState({ inbox: { ...inbox, trash: inbox.trash.filter(x => x.id !== id) } });
 
-    // --- Составление письма ---
-    const openCompose = (existingDraft) => {
-        setDraft(existingDraft ? { ...existingDraft, attachments: existingDraft.attachments || [] } : { id: null, to: '', subject: '', body: '', attachments: [] });
-        setComposing(true);
+    // --- Удаление реальной почты (входящие/отправленные/черновики) —
+    // через бэкенд: первый вызов уводит письмо в Корзину, повторный (уже
+    // из Корзины) удаляет навсегда — см. MailStoreService.removeOrTrash.
+    const deleteMailItem = async (item) => {
+        setOpenLetter(null);
+        try {
+            await deleteMailMessage(item.id);
+        } catch (e) {
+            setMailError(e instanceof ApiError ? e.message : 'Не удалось удалить письмо');
+            return;
+        }
+        // Оптимистично убираем из текущего списка и обновляем счётчики,
+        // не дожидаясь следующего поллинга.
+        const sourceKey = item.kind === 'draft' ? 'drafts' : item.kind;
+        setMailData(prev => ({ ...prev, [sourceKey]: (prev[sourceKey] || []).filter(x => x.id !== item.id) }));
+        if (activeFolder === 'trash') refreshFolder('trash');
     };
-    const hasDraftContent = () => draft.to.trim() || draft.subject.trim() || draft.body.trim();
 
-    const saveDraft = () => {
-        if (!hasDraftContent()) return;
-        const now = Date.now();
-        const entry = { id: draft.id || `dr_${now}`, to: draft.to, subject: draft.subject, body: draft.body, attachments: draft.attachments, savedAt: now };
-        const nextDrafts = draft.id ? inbox.drafts.map(d => d.id === draft.id ? entry : d) : [entry, ...inbox.drafts];
-        updateState({ inbox: { ...inbox, drafts: nextDrafts } });
-        return entry.id;
+    // --- Составление письма ---
+    // Для нового письма — сразу открываем пустой композер. Для
+    // редактирования черновика — сначала подгружаем ПОЛНЫЙ текст (список
+    // черновиков хранит только превью, обрезанное до ~160 символов), а
+    // не то короткое превью, что видно в списке.
+    const openCompose = (existingDraftSummary, replyTo) => {
+        if (replyTo) {
+            setDraft({ id: null, to: replyTo.fromAddress || '', subject: replyTo.subject?.startsWith('Re:') ? replyTo.subject : `Re: ${replyTo.subject || ''}`, body: '', attachments: [], replyToId: replyTo.id });
+            setComposing(true);
+            return;
+        }
+        if (!existingDraftSummary) {
+            setDraft({ id: null, to: '', subject: '', body: '', attachments: [], replyToId: null });
+            setComposing(true);
+            return;
+        }
+        setDraft({ id: existingDraftSummary.id, to: existingDraftSummary.to, subject: existingDraftSummary.subject, body: 'Загрузка…', attachments: [], replyToId: null });
+        setComposing(true);
+        fetchMailMessage(existingDraftSummary.id)
+            .then(({ message }) => {
+                if (!message) return;
+                setDraft(prev => (prev.id === existingDraftSummary.id ? { ...prev, body: message.bodyText || '' } : prev));
+            })
+            .catch(() => setDraft(prev => (prev.id === existingDraftSummary.id ? { ...prev, body: existingDraftSummary.preview || '' } : prev)));
     };
-    // Закрытие без отправки — автосохранение черновика (п.3, п.6)
+    const hasDraftContent = () => draft.to.trim() || draft.subject.trim() || (draft.body.trim() && draft.body !== 'Загрузка…');
+
+    const saveDraft = async () => {
+        if (!hasDraftContent()) return;
+        const payload = { to: draft.to, subject: draft.subject, body: draft.body };
+        try {
+            if (draft.id) {
+                await updateDraft(draft.id, payload);
+            } else {
+                const { draft: created } = await createDraft(payload);
+                setDraft(prev => ({ ...prev, id: created.id }));
+            }
+            if (activeFolder === 'drafts') refreshFolder('drafts');
+        } catch (e) {
+            setMailError(e instanceof ApiError ? e.message : 'Не удалось сохранить черновик');
+        }
+    };
+    // Закрытие без отправки — автосохранение черновика
     const closeCompose = () => {
         if (hasDraftContent()) saveDraft();
         setComposing(false);
@@ -314,13 +417,13 @@ export function NotificationCenter({ state, updateState, onClose }) {
         const subject = draft.subject.trim();
         const body = draft.body.trim() || '(без текста)';
         try {
-            await sendMail(to, subject, body);
-            const now = Date.now();
-            const sent = { id: `sent_${now}`, to, subject, body, attachments: draft.attachments, at: now };
-            const nextDrafts = draft.id ? inbox.drafts.filter(d => d.id !== draft.id) : inbox.drafts;
-            updateState({ inbox: { ...inbox, sent: [sent, ...inbox.sent], drafts: nextDrafts } });
-            setDraft({ id: null, to: '', subject: '', body: '', attachments: [] });
+            await sendMail(to, subject, body, { replyToId: draft.replyToId || undefined, draftId: draft.id || undefined });
+            setDraft({ id: null, to: '', subject: '', body: '', attachments: [], replyToId: null });
             setComposing(false);
+            // Письмо переехало из «Черновиков» (если было) в «Отправленные» —
+            // обновляем обе папки, если человек сейчас на них смотрит.
+            if (activeFolder === 'sent') refreshFolder('sent');
+            if (activeFolder === 'drafts') refreshFolder('drafts');
         } catch (e) {
             // Письмо НЕ отмечаем отправленным и не закрываем композер —
             // черновик остаётся на экране, чтобы не потерять текст при
@@ -371,20 +474,30 @@ export function NotificationCenter({ state, updateState, onClose }) {
 
     const combinedAll = [
         ...inbox.updates.map(u => ({ ...u, kind: 'update', sortAt: u.at })),
-        ...inbox.personal.map(m => ({ ...m, kind: 'personal', sortAt: m.at })),
-        ...inbox.sent.map(m => ({ ...m, kind: 'sent', sortAt: m.at })),
+        ...inboxItems.map(m => ({ ...m, sortAt: m.at })),
+        ...sentItems.map(m => ({ ...m, sortAt: m.at })),
     ].filter(matchesSearch).sort((a, b) => b.sortAt - a.sortAt);
 
-    const starredItems = [
-        ...inbox.updates.map(u => ({ ...u, kind: 'update' })),
-        ...inbox.personal.map(m => ({ ...m, kind: 'personal' })),
-        ...inbox.sent.map(m => ({ ...m, kind: 'sent' })),
-    ].filter(x => starred.includes(x.id)).filter(matchesSearch).sort((a, b) => b.at - a.at);
+    // Звезда пока хранится только для системных обновлений (см. toggleStar) —
+    // почта не участвует в «Помеченных».
+    const starredItems = inbox.updates
+        .map(u => ({ ...u, kind: 'update' }))
+        .filter(x => starred.includes(x.id))
+        .filter(matchesSearch)
+        .sort((a, b) => b.at - a.at);
 
     const openByKind = (item) => {
         if (item.kind === 'update') openUpdate(item);
-        else if (item.kind === 'personal') openPersonal(item);
+        else if (item.kind === 'inbox') openInbox(item);
         else if (item.kind === 'sent') openSent(item);
+    };
+
+    // Удаление письма — маршрутизируется в зависимости от типа: системные
+    // обновления удаляются локально (deleteToTrash), реальная почта — через
+    // бэкенд (deleteMailItem, см. выше).
+    const deleteItem = (item) => {
+        if (item.kind === 'update') deleteToTrash('update', item);
+        else deleteMailItem(item);
     };
 
     const LetterReader = ({ letter, onBack }) => (
@@ -392,10 +505,17 @@ export function NotificationCenter({ state, updateState, onClose }) {
             <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 dark:border-darkBorder shrink-0">
                 <button onClick={onBack} className="p-1.5 -ml-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft /></button>
                 <span className="font-bold text-sm dark:text-white truncate flex-1">{letter.title}</span>
-                <button onClick={() => toggleStar(letter.id)} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Пометить звёздочкой">
-                    <Icons.Star className={`w-4 h-4 ${starred.includes(letter.id) ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`} style={starred.includes(letter.id) ? { fill: 'currentColor' } : {}} />
-                </button>
-                <button onClick={() => deleteToTrash(letter.kind, letter)} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-400" title="Удалить">
+                {letter.kind === 'update' && (
+                    <button onClick={() => toggleStar(letter.id)} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Пометить звёздочкой">
+                        <Icons.Star className={`w-4 h-4 ${starred.includes(letter.id) ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`} style={starred.includes(letter.id) ? { fill: 'currentColor' } : {}} />
+                    </button>
+                )}
+                {letter.kind === 'inbox' && (
+                    <button onClick={() => openCompose(null, letter)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-[#5b32d4] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Ответить">
+                        <Icons.Send className="w-3.5 h-3.5" /> Ответить
+                    </button>
+                )}
+                <button onClick={() => deleteItem(letter)} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-400" title="Удалить">
                     <Icons.Trash className="w-4 h-4" />
                 </button>
             </div>
@@ -419,7 +539,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
         const displayFrom = isSent ? `Кому: ${item.to}` : (item.kind === 'update' ? 'Void Code AI' : item.from);
         const displayTitle = item.kind === 'update' ? item.title : (item.subject || item.title);
         const displayPreview = item.kind === 'update' ? item.body : (item.preview || item.body);
-        const unread = item.kind === 'update' ? !readUpdates.includes(item.id) : item.kind === 'personal' ? !readPersonal.includes(item.id) : false;
+        const unread = item.kind === 'update' ? !readUpdates.includes(item.id) : item.kind === 'inbox' ? !item.isRead : false;
         return (
             <div className="flex items-center gap-1 px-2 group">
                 <button onClick={() => openByKind(item)} className="flex-1 min-w-0 flex items-start gap-3 py-3 text-left rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors px-3">
@@ -434,10 +554,12 @@ export function NotificationCenter({ state, updateState, onClose }) {
                     </div>
                     {unread && <span className="w-2 h-2 rounded-full bg-[#5b32d4] mt-2 shrink-0" />}
                 </button>
-                <button onClick={() => toggleStar(item.id)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 shrink-0" title="Пометить звёздочкой">
-                    <Icons.Star className={`w-4 h-4 ${starred.includes(item.id) ? 'text-amber-400' : 'text-gray-300'}`} style={starred.includes(item.id) ? { fill: 'currentColor' } : {}} />
-                </button>
-                <button onClick={() => deleteToTrash(item.kind, item)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400" title="Удалить">
+                {item.kind === 'update' && (
+                    <button onClick={() => toggleStar(item.id)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 shrink-0" title="Пометить звёздочкой">
+                        <Icons.Star className={`w-4 h-4 ${starred.includes(item.id) ? 'text-amber-400' : 'text-gray-300'}`} style={starred.includes(item.id) ? { fill: 'currentColor' } : {}} />
+                    </button>
+                )}
+                <button onClick={() => deleteItem(item)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400" title="Удалить">
                     <Icons.Trash className="w-4 h-4" />
                 </button>
             </div>
@@ -458,7 +580,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                 </>
             );
         }
-        if (activeFolder === 'personal') {
+        if (activeFolder === 'inbox') {
             return (
                 <>
                     <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-darkBorder bg-gray-50/50 dark:bg-gray-900/20">
@@ -469,7 +591,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Уведомления</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button onClick={refreshInbox} disabled={mailLoading} title="Обновить" className="p-2 rounded-lg text-gray-400 hover:text-[#5b32d4] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-40">
+                            <button onClick={() => refreshFolder('inbox')} disabled={mailLoading} title="Обновить" className="p-2 rounded-lg text-gray-400 hover:text-[#5b32d4] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-40">
                                 <Icons.RefreshCw className={`w-4 h-4 ${mailLoading ? 'animate-spin' : ''}`} />
                             </button>
                             <button onClick={() => openCompose(null)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5b32d4] hover:bg-[#4a26b0] text-white text-xs font-bold transition-colors">
@@ -479,44 +601,73 @@ export function NotificationCenter({ state, updateState, onClose }) {
                     </div>
                     {mailAddress && <p className="px-5 py-2 text-[11px] text-gray-400 border-b border-gray-100 dark:border-darkBorder">Ящик: {mailAddress}</p>}
                     {mailError && <p className="px-5 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10">{mailError}</p>}
-                    {mailLoading && inbox.personal.length === 0
+                    {mailLoading && inboxItems.length === 0
                         ? <EmptyState icon={Icons.Mail} text="Загружаем письма…" />
-                        : (inbox.personal.length === 0 ? <EmptyState icon={Icons.Mail} text="Писем нет" /> : <div className="py-1">{inbox.personal.map(m => <LetterRow key={m.id} item={{ ...m, kind: 'personal' }} />)}</div>)}
+                        : (inboxItems.length === 0 ? <EmptyState icon={Icons.Mail} text="Писем нет" /> : <div className="py-1">{inboxItems.map(m => <LetterRow key={m.id} item={m} />)}</div>)}
                 </>
             );
         }
         if (activeFolder === 'sent') {
-            return inbox.sent.length === 0 ? <EmptyState icon={Icons.Send} text="Отправленных писем нет" /> : <div className="py-1">{inbox.sent.map(m => <LetterRow key={m.id} item={{ ...m, kind: 'sent' }} />)}</div>;
+            return (
+                <>
+                    <div className="flex items-center justify-end px-5 py-2 border-b border-gray-100 dark:border-darkBorder bg-gray-50/50 dark:bg-gray-900/20">
+                        <button onClick={() => refreshFolder('sent')} disabled={mailLoading} title="Обновить" className="p-2 rounded-lg text-gray-400 hover:text-[#5b32d4] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-40">
+                            <Icons.RefreshCw className={`w-4 h-4 ${mailLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                    </div>
+                    {sentItems.length === 0 ? <EmptyState icon={Icons.Send} text="Отправленных писем нет" /> : <div className="py-1">{sentItems.map(m => <LetterRow key={m.id} item={m} />)}</div>}
+                </>
+            );
         }
         if (activeFolder === 'starred') {
             return starredItems.length === 0 ? <EmptyState icon={Icons.Star} text="Помеченных писем нет" /> : <div className="py-1">{starredItems.map(item => <LetterRow key={item.id} item={item} />)}</div>;
         }
         if (activeFolder === 'drafts') {
-            return inbox.drafts.length === 0 ? <EmptyState icon={Icons.Pencil} text="Черновиков нет" /> : (
-                <div className="divide-y divide-gray-50 dark:divide-darkBorder">
-                    {inbox.drafts.map(d => (
-                        <div key={d.id} className="flex items-center gap-2 px-2">
-                            <button onClick={() => openCompose(d)} className="flex-1 min-w-0 text-left px-3 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 rounded-xl transition-colors">
-                                <div className="flex items-center justify-between gap-2">
-                                    <p className="font-bold text-sm dark:text-white truncate">{d.to || 'Без адресата'}</p>
-                                    <span className="text-[11px] text-gray-400 shrink-0">{fmtTime(d.savedAt)}</span>
+            return (
+                <>
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-darkBorder bg-gray-50/50 dark:bg-gray-900/20">
+                        <button onClick={() => refreshFolder('drafts')} disabled={mailLoading} title="Обновить" className="p-2 -ml-2 rounded-lg text-gray-400 hover:text-[#5b32d4] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-40">
+                            <Icons.RefreshCw className={`w-4 h-4 ${mailLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button onClick={() => openCompose(null)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5b32d4] hover:bg-[#4a26b0] text-white text-xs font-bold transition-colors">
+                            <Icons.Plus className="w-4 h-4" /> Написать
+                        </button>
+                    </div>
+                    {draftItems.length === 0 ? <EmptyState icon={Icons.Pencil} text="Черновиков нет" /> : (
+                        <div className="divide-y divide-gray-50 dark:divide-darkBorder">
+                            {draftItems.map(d => (
+                                <div key={d.id} className="flex items-center gap-2 px-2">
+                                    <button onClick={() => openCompose(d)} className="flex-1 min-w-0 text-left px-3 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 rounded-xl transition-colors">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <p className="font-bold text-sm dark:text-white truncate">{d.to || 'Без адресата'}</p>
+                                            <span className="text-[11px] text-gray-400 shrink-0">{fmtTime(d.savedAt)}</span>
+                                        </div>
+                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{d.subject || '(без темы)'}</p>
+                                    </button>
+                                    <button onClick={() => deleteMailItem({ id: d.id, kind: 'draft' })} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 shrink-0"><Icons.Trash className="w-4 h-4" /></button>
                                 </div>
-                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{d.subject || '(без темы)'}</p>
-                            </button>
-                            <button onClick={() => updateState({ inbox: { ...inbox, drafts: inbox.drafts.filter(x => x.id !== d.id) } })} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 shrink-0"><Icons.Trash className="w-4 h-4" /></button>
+                            ))}
                         </div>
-                    ))}
-                </div>
+                    )}
+                </>
             );
         }
         if (activeFolder === 'trash') {
-            return inbox.trash.length === 0 ? <EmptyState icon={Icons.Trash} text="Корзина пуста" /> : (
+            // Корзина показывает ДВА независимых источника: локально
+            // удалённые системные обновления (можно восстановить — они
+            // никогда не покидали браузер) и реальную почту, удалённую
+            // через бэкенд (восстановление недоступно — папка на
+            // сервере одна общая "TRASH", исходная папка не хранится;
+            // повторное удаление стирает письмо навсегда).
+            const localTrash = inbox.trash;
+            const hasAny = localTrash.length > 0 || trashItems.length > 0;
+            return !hasAny ? <EmptyState icon={Icons.Trash} text="Корзина пуста" /> : (
                 <div className="divide-y divide-gray-50 dark:divide-darkBorder">
-                    {inbox.trash.map(item => {
-                        const title = item.kind === 'update' ? item.title : (item.subject || item.title);
-                        const from = item.kind === 'sent' ? `Кому: ${item.to}` : (item.kind === 'update' ? 'Void Code AI' : item.from);
+                    {localTrash.map(item => {
+                        const title = item.title;
+                        const from = 'Void Code AI';
                         return (
-                            <div key={item.id} className="flex items-center gap-2 px-2">
+                            <div key={`local_${item.id}`} className="flex items-center gap-2 px-2">
                                 <div className="flex-1 min-w-0 px-3 py-3.5">
                                     <p className="font-bold text-sm dark:text-white truncate">{from}</p>
                                     <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{title}</p>
@@ -527,6 +678,16 @@ export function NotificationCenter({ state, updateState, onClose }) {
                             </div>
                         );
                     })}
+                    {trashItems.map(item => (
+                        <div key={`mail_${item.id}`} className="flex items-center gap-2 px-2">
+                            <div className="flex-1 min-w-0 px-3 py-3.5">
+                                <p className="font-bold text-sm dark:text-white truncate">{item.from}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{item.title || '(без темы)'}</p>
+                                <p className="text-[11px] text-gray-400">Удалено {fmtTime(item.deletedAt)}</p>
+                            </div>
+                            <button onClick={() => deleteMailItem({ id: item.id, kind: 'trash' })} title="Удалить навсегда" className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 shrink-0"><Icons.X className="w-4 h-4" /></button>
+                        </div>
+                    ))}
                 </div>
             );
         }
