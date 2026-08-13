@@ -24,6 +24,7 @@ function logEnvChecklist() {
     { name: 'OPENROUTER_API_KEY', required: false, note: 'Void Plus/Pro + fallback для Mini + основной провайдер генерации картинок' },
     { name: 'OPENAI_API_KEY', required: false, note: 'озвучка (TTS) + fallback генерации картинок' },
     { name: 'DEEPINFRA_API_KEY', required: false, note: 'доп. провайдер картинок' },
+    { name: 'RESEND_API_KEY', required: false, note: 'почта @voidops.ru — без него отправка писем недоступна' },
   ];
   // eslint-disable-next-line no-console
   console.log('\n[ENV CHECK] ================================================');

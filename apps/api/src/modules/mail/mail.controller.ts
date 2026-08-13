@@ -1,43 +1,48 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards, ServiceUnavailableException, ParseIntPipe } from '@nestjs/common';
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from './mail.service';
+import { SendMailDto } from './dto/send-mail.dto';
 
-// Провайдер почты меняется с Migadu на Mailgun (см. mail.service.ts) —
-// пока миграция не завершена, все три эндпоинта явно отвечают
-// «недоступно», а не пытаются подключиться к удалённому Migadu.
-
-class SendMailDto {
-  @IsEmail()
-  to!: string;
-
-  @IsString()
-  @MinLength(1)
-  @MaxLength(300)
-  subject!: string;
-
-  @IsString()
-  @MaxLength(20000)
-  body!: string;
-}
+// ==========================================
+// MailController — эндпоинты почты (Resend)
+// ==========================================
+// Все три маршрута требуют авторизации (JwtAuthGuard) — почта доступна
+// только вошедшим пользователям.
 
 @Controller('mail')
 @UseGuards(JwtAuthGuard)
 export class MailController {
-  constructor(private readonly mail: MailService) {}
+  constructor(
+    private readonly mail: MailService,
+    private readonly prisma: PrismaService,
+  ) {}
 
+  // Resend — API только для ОТПРАВКИ, у него нет способа читать входящие
+  // письма (нет IMAP/POP3-аналога, нет "ящика" как такового). Честно
+  // возвращаем пустой список вместо имитации инбокса — фронтенд
+  // (NotificationCenter.jsx) корректно показывает состояние «писем нет».
+  // address — личный адрес пользователя (username@voidops.ru), для
+  // отображения под шапкой вкладки.
   @Get('inbox')
-  async inbox() {
-    throw new ServiceUnavailableException('Почта временно недоступна — идёт переход на нового провайдера.');
+  async inbox(@Req() req: any) {
+    const user = await this.prisma.user.findUnique({ where: { id: req.user.userId } });
+    return { address: user?.mailboxAddress ?? null, messages: [] };
   }
 
+  // Чтения отдельных писем нет (см. inbox выше) — оставлен для
+  // совместимости с фронтендом, который может дёрнуть этот путь при
+  // попытке открыть письмо из старых/кэшированных данных.
   @Get('messages/:uid')
-  async message(@Param('uid', ParseIntPipe) _uid: number) {
-    throw new ServiceUnavailableException('Почта временно недоступна — идёт переход на нового провайдера.');
+  async message() {
+    return { message: null };
   }
 
   @Post('send')
-  async send(@Req() _req: any, @Body() _dto: SendMailDto) {
-    throw new ServiceUnavailableException('Почта временно недоступна — идёт переход на нового провайдера.');
+  async send(@Body() dto: SendMailDto) {
+    // Фронтенд шлёт обычный текст в поле body (см. dto/send-mail.dto.ts) —
+    // HTML-версия письма генерируется автоматически внутри MailService.
+    const result = await this.mail.sendEmail(dto.to, dto.subject, undefined, dto.body);
+    return { ok: true, id: result.id };
   }
 }

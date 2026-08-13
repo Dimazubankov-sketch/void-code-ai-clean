@@ -1,20 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 
 // ==========================================
-// Провижининг персонального ящика при регистрации
+// Провижининг адреса при регистрации (Resend)
 // ==========================================
-// Провайдер сменился с Migadu на Mailgun — вся Migadu-специфичная логика
-// (создание ящика через admin API, SMTP/IMAP-хосты Migadu) удалена
-// вместе с migadu-admin.service.ts. Новая почта @voidops.ru будет
-// исключительно внутренней для экосистемы (без внешней доставки третьим
-// сторонам) — реализация на Mailgun будет добавлена отдельным раундом.
-// Пока это заглушка: регистрация проходит как обычно, просто без
-// автосоздания ящика (User.mailboxAddress остаётся null).
+// С Resend это ПРОЩЕ, чем было с Migadu: Resend не хостит почтовые
+// ящики — это API для отправки писем от имени любого адреса на
+// верифицированном домене. Значит "создавать ящик" не нужно вообще,
+// никакого внешнего вызова API. Логин пользователя уже имеет вид
+// username@voidops.ru (домен зафиксирован на фронтенде, см.
+// shared/lib/accounts.jsx: DOMAIN = '@voidops.ru') — просто сохраняем
+// этот же адрес в User.mailboxAddress, чтобы им можно было пользоваться
+// как "from"-адресом для писем и показывать в интерфейсе почты.
 @Injectable()
 export class MailProvisioningService {
   private readonly logger = new Logger(MailProvisioningService.name);
 
-  async provisionForUser(userId: string, email: string, displayName?: string): Promise<void> {
-    this.logger.log(`Провижининг почты для ${userId} пропущен — идёт миграция провайдера (Migadu -> Mailgun)`);
+  constructor(private readonly prisma: PrismaService) {}
+
+  async provisionForUser(userId: string, email: string, _displayName?: string): Promise<void> {
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { mailboxAddress: email },
+      });
+      this.logger.log(`Адрес ${email} закреплён за пользователем ${userId}`);
+    } catch (e: any) {
+      // Не блокируем регистрацию из-за сбоя записи адреса — учётка Void
+      // Code AI и почтовая идентичность логически независимы.
+      this.logger.error(`Не удалось закрепить почтовый адрес за ${userId}: ${e?.message || e}`);
+    }
   }
 }
