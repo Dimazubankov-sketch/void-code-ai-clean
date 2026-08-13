@@ -102,4 +102,26 @@ export class MailService {
       throw new ServiceUnavailableException('Не удалось отправить письмо — почтовый сервис недоступен');
     }
   }
+
+  // Payload вебхука email.received содержит ТОЛЬКО метаданные (from/to/
+  // subject/attachments) — само тело письма (html/text) в нём нет, его
+  // нужно отдельно запросить по email_id через GET /emails/receiving/{id}
+  // (см. resend.com/docs — "Payload contains metadata only, not email
+  // body or attachment content"). Возвращает null, если запрос не удался
+  // или Resend не настроен — вызывающая сторона (webhook-контроллер)
+  // сохранит письмо без текста, а не упадёт целиком.
+  async getReceivedEmail(emailId: string): Promise<{ html: string | null; text: string | null } | null> {
+    if (!this.resend) return null;
+    try {
+      const { data, error } = await this.resend.emails.receiving.get(emailId);
+      if (error) {
+        this.logger.error(`Resend отклонил запрос тела входящего письма id=${emailId}: ${JSON.stringify(error)}`);
+        return null;
+      }
+      return { html: data?.html ?? null, text: data?.text ?? null };
+    } catch (e: any) {
+      this.logger.error(`Не удалось получить тело входящего письма id=${emailId}: ${e?.message || e}`);
+      return null;
+    }
+  }
 }

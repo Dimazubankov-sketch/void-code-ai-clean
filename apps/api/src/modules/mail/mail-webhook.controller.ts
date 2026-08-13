@@ -2,6 +2,7 @@ import { Controller, HttpCode, Logger, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Webhook } from 'svix';
 import { MailStoreService } from './mail-store.service';
+import { MailService } from './mail.service';
 
 // ==========================================
 // MailWebhookController — входящие письма от Resend
@@ -28,7 +29,10 @@ import { MailStoreService } from './mail-store.service';
 export class MailWebhookController {
   private readonly logger = new Logger(MailWebhookController.name);
 
-  constructor(private readonly store: MailStoreService) {}
+  constructor(
+    private readonly store: MailStoreService,
+    private readonly mailService: MailService,
+  ) {}
 
   @Post('resend')
   @HttpCode(200)
@@ -95,9 +99,20 @@ export class MailWebhookController {
 
     const from = extractSingleAddress(data.from);
     const subject: string = data.subject || '';
-    const text: string | undefined = data.text || undefined;
-    const html: string | undefined = data.html || undefined;
     const resendId: string | undefined = data.email_id || data.id || undefined;
+
+    // Сам payload вебхука содержит только метаданные — тело письма
+    // (html/text) нужно отдельно запросить по email_id (см. комментарий
+    // у MailService.getReceivedEmail). Если запрос не удался, письмо всё
+    // равно сохраняется (с темой и отправителем), просто без текста —
+    // лучше так, чем потерять письмо целиком.
+    let text: string | undefined;
+    let html: string | undefined;
+    if (resendId) {
+      const body = await this.mailService.getReceivedEmail(resendId);
+      text = body?.text || undefined;
+      html = body?.html || undefined;
+    }
 
     for (const to of recipients) {
       const saved = await this.store.saveInbound({
