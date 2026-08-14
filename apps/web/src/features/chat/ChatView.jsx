@@ -21,6 +21,8 @@ import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
 import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
+import { useVoiceMode } from '@/shared/lib/useVoiceMode';
+import { VoiceModeOverlay } from '@/features/chat/VoiceModeOverlay';
 import { defaultReasoningFor, getAttachmentLimit } from '@/shared/config/models';
 import { getPlanLimits } from '@/shared/config/models';
 import { t } from '@/shared/lib/i18n';
@@ -156,6 +158,13 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         tts.speak(text, voiceOpts());
     };
     const closePlayer = () => { tts.stop(); setTtsMsgIdx(null); };
+
+    // Voice Mode — разговорный голосовой режим. Открывается вместо кнопки
+    // отправки, когда поле ввода пустое (см. кнопку-«орб» ниже в JSX).
+    // Хук переиспользует ту же STT-диктовку и тот же TTS/голос, что и
+    // остальной чат — см. подробный разбор области действия в
+    // useVoiceMode.jsx.
+    const voiceMode = useVoiceMode({ state, handleSendMessage, voiceOpts, lang: state.voiceLang || 'ru-RU' });
 
     const shareDialog = async () => {
         const chat = state.chatSessions.find(c => c.id === state.activeChatId) || state.chatSessions[0];
@@ -694,11 +703,35 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
                             </button>
                         )}
-                        <button
-                            onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()}
-                            disabled={(!state.inputValue.trim() && !(state.selectedImages && state.selectedImages.length > 0)) || state.isGenerating || voice.busy}
-                            className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
-                        ><Icons.ArrowUp className="w-5 h-5" /></button>
+                        {/* Кнопка отправки/Voice Mode: пока поле ввода пустое (и нет
+                            вложений) — показываем вход в разговорный Voice Mode
+                            (значок микрофона на месте кнопки отправки). Как
+                            только появляется текст или фото — кнопка тут же
+                            становится обычной стрелкой отправки, как и раньше. */}
+                        {(state.inputValue.trim() || (state.selectedImages && state.selectedImages.length > 0)) ? (
+                            <button
+                                onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()}
+                                disabled={state.isGenerating || voice.busy}
+                                title="Отправить"
+                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
+                            ><Icons.ArrowUp className="w-5 h-5" /></button>
+                        ) : state.imageGenMode ? (
+                            // В режиме генерации изображений поле пустым быть не может —
+                            // кнопка остаётся стрелкой (просто неактивной), Voice Mode
+                            // здесь не предлагаем: это отдельный от диалога режим.
+                            <button
+                                disabled
+                                title="Отправить"
+                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-gray-200 dark:bg-gray-800 text-gray-400 rounded-full border-2 border-transparent flex items-center justify-center z-20"
+                            ><Icons.ArrowUp className="w-5 h-5" /></button>
+                        ) : (
+                            <button
+                                onClick={voiceMode.open}
+                                disabled={state.isGenerating || voice.busy}
+                                title="Voice Mode"
+                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
+                            ><Icons.Mic className="w-5 h-5" /></button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -795,6 +828,9 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             )}
 
             {activeCodeBlock && <CodeViewerModal block={activeCodeBlock.block} siblings={activeCodeBlock.siblings} onClose={() => setActiveCodeBlock(null)} />}
+            {voiceMode.active && (
+                <VoiceModeOverlay state={state} voiceMode={voiceMode} onClose={voiceMode.close} />
+            )}
             {showPlusMenu && (
                 <ChatPlusMenu
                     state={state}
