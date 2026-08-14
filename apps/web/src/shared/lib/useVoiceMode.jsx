@@ -23,7 +23,24 @@ export const VOICE_MODE_PHASE = {
     THINKING: 'thinking',
     SPEAKING: 'speaking',
     ERROR: 'error',
+    // Дневной лимит озвучки исчерпан (HTTP 403 от /tts/synthesize) —
+    // отдельная от обычной ERROR фаза: орб не анимируется вообще (просто
+    // статично красный), и вместо мимолётного текста статуса показывается
+    // модальное окно с явным объяснением (см. VoiceModeOverlay.jsx).
+    LIMIT: 'limit',
 };
+
+// Сколько держим предупреждение «лимит исчерпан» персистентным между
+// заходами в Voice Mode, если пользователь закрыл и открыл снова, не
+// дожидаясь реального сброса лимита на бэкенде. Ровно та же цифра, что и
+// в тексте самой ошибки от сервера («Обновится через 6 часов») — см.
+// tts.controller.ts/consumeTtsLimit. Это эвристика: реальный сброс
+// привязан к календарным суткам на бэкенде, а не к моменту исчерпания,
+// но для UX «не пускать в разговор, если недавно уже упёрлись в лимит»
+// этого достаточно — как только реально настанет новый день, первая же
+// попытка озвучить всё равно успешно пройдёт на бэкенде, и флаг ниже
+// корректно спишется при следующем успешном tts.speak().
+const LIMIT_WARNING_TTL_MS = 6 * 60 * 60 * 1000;
 
 // Крошечный беззвучный WAV, закодированный в data URI. Voice Mode
 // открывается по клику (жест пользователя есть), но реальный audio.play()
@@ -136,9 +153,21 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
 
     useEffect(() => {
         if (!active || !tts.error) return;
+        if (tts.limitExceeded) {
+            // Отдельная ветка — лимит, не обычная ошибка (см. LIMIT выше).
+            // Останавливаем прослушивание: продолжать разговор всё равно
+            // бессмысленно, пока лимит не сбросится, а фоновая запись зря
+            // жгла бы микрофон и путала пользователя, отвечая тишиной.
+            recognition.stop();
+            setErrorMsg(tts.error);
+            setPhaseBoth(VOICE_MODE_PHASE.LIMIT);
+            updateState({ ttsLimitExhaustedAt: Date.now() });
+            return;
+        }
         setErrorMsg(tts.error);
         setPhaseBoth(VOICE_MODE_PHASE.ERROR);
-    }, [tts.error, active, setPhaseBoth]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tts.error, tts.limitExceeded, active, setPhaseBoth]);
 
     const open = useCallback(() => {
         // Разблокируем автовоспроизведение аудио ПРЯМО в этом клике — до
@@ -158,11 +187,26 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         pendingReplyRef.current = false;
         mutedRef.current = false;
         setMuted(false);
+
+        // Задача 2: если недавно (см. LIMIT_WARNING_TTL_MS) уже упирались в
+        // дневной лимит озвучки — сразу показываем предупреждение повторно,
+        // даже не пытаясь начать слушать. Реальный сброс на бэкенде
+        // привязан к календарным суткам — если он уже произошёл, флаг
+        // просто устареет (см. TTL-проверку ниже) и разговор пойдёт как
+        // обычно.
+        const exhaustedAt = state.ttsLimitExhaustedAt;
+        if (exhaustedAt && Date.now() - exhaustedAt < LIMIT_WARNING_TTL_MS) {
+            setErrorMsg('Дневной лимит озвучки исчерпан. Попробуй позже.');
+            setPhaseBoth(VOICE_MODE_PHASE.LIMIT);
+            return;
+        }
+        if (exhaustedAt) updateState({ ttsLimitExhaustedAt: null });
+
         setPhaseBoth(VOICE_MODE_PHASE.IDLE);
         // Слушаем сразу — без тапа по орбу.
         recognition.start();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [state.selectedModelId, updateState, setPhaseBoth]);
+    }, [state.selectedModelId, state.ttsLimitExhaustedAt, updateState, setPhaseBoth]);
 
     const close = useCallback(() => {
         setActive(false);

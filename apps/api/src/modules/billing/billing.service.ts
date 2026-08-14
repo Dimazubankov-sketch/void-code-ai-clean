@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Plan, BillingCycle, TransactionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TTS_DAILY_LIMITS, todayDayKey } from '../tts/tts.constants';
 
 // Единая сетка тарифов (в копейках). Названия и id согласованы —
 // больше никакой путаницы pro_plus/Ultra.
@@ -33,6 +34,30 @@ export class BillingService {
         data: { userId, plan, cycle, priceKopecks, endsAt },
       });
       await tx.user.update({ where: { id: userId }, data: { plan } });
+
+      // Задача 3: если пользователь уже израсходовал сегодняшний лимит
+      // озвучки на СТАРОМ тарифе, при апгрейде новый (более высокий)
+      // дневной лимит должен «долиться» поверх уже потраченного, а не
+      // просто заменить потолок сравнения — иначе разница была бы
+      // незаметна, если новый лимит меньше уже накопленного использования.
+      // Технически: уменьшаем счётчик ttsCharsUsed за сегодня на величину
+      // нового лимита (не уходя ниже нуля). При полностью исчерпанном
+      // старом лимите это математически эквивалентно «остаток на сегодня =
+      // полный лимит нового тарифа» — ровно то поведение, которое просили.
+      const dayKey = todayDayKey();
+      const newLimit = TTS_DAILY_LIMITS[plan] ?? TTS_DAILY_LIMITS.FREE;
+      const counter = await tx.usageCounter.findUnique({ where: { userId_dayKey: { userId, dayKey } } });
+      if (counter) {
+        const used = (counter as any).ttsCharsUsed ?? 0;
+        if (used > 0) {
+          const topped = Math.max(0, used - newLimit);
+          await tx.usageCounter.update({
+            where: { id: counter.id },
+            data: { ttsCharsUsed: topped } as any,
+          });
+        }
+      }
+
       await tx.walletTransaction.create({
         data: {
           userId,

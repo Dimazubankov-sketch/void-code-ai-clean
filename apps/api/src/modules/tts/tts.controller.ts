@@ -4,17 +4,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TtsService } from './tts.service';
 import { FishAudioTtsService } from './fish-audio-tts.service';
+import { TTS_DAILY_LIMITS, todayDayKey } from './tts.constants';
 import type { Response } from 'express';
-
-// Лимиты озвучки — количество СИМВОЛОВ, доступных пользователю в сутки.
-// Подобраны из расчёта средней страницы текста ≈ 2000 символов.
-// Множители соответствуют общим лимитам чатов (Plus ×2, Pro ×5, Ultra ×10).
-export const TTS_DAILY_LIMITS: Record<string, number> = {
-  FREE:  4000,   // ≈ 2 страницы текста
-  PLUS:  8000,   // ×2
-  PRO:   20000,  // ×5
-  ULTRA: 40000,  // ×10
-};
 
 export class TtsRequestDto {
   @IsString()
@@ -110,7 +101,7 @@ export class TtsController {
     const userId = req.user.userId;
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const limit = TTS_DAILY_LIMITS[user.plan] ?? TTS_DAILY_LIMITS.FREE;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayDayKey();
     const counter = await this.prisma.usageCounter.findUnique({
       where: { userId_dayKey: { userId, dayKey: today } },
     }).catch(() => null);
@@ -125,7 +116,7 @@ export class TtsController {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const limit = TTS_DAILY_LIMITS[user.plan] ?? TTS_DAILY_LIMITS.FREE;
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayDayKey();
     // Используем тот же UsageCounter, что и для чатов. Схема БД содержит поля
     // dailyUsed/weeklyUsed; для TTS ведём отдельное поле ttsCharsUsed, которое
     // должно быть добавлено в Prisma-схему (миграция ниже в комментарии).

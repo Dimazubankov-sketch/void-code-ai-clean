@@ -72,6 +72,12 @@ export function useOpenAiTts() {
     const [elapsed, setElapsed] = useState(0);
     const [duration, setDuration] = useState(0);
     const [error, setError] = useState(null);
+    // Отдельный флаг именно для «дневной лимит озвучки исчерпан» (HTTP 403
+    // от /tts/synthesize) — Voice Mode должен реагировать на этот конкретный
+    // случай особым образом (модалка + красный статичный орб, см.
+    // useVoiceMode.jsx), а не как на обычную ошибку воспроизведения.
+    // Матчить по тексту error было бы хрупко, поэтому — отдельный boolean.
+    const [limitExceeded, setLimitExceeded] = useState(false);
     // audioEl раньше использовался VoiceOrb для подключения Web Audio API
     // (AnalyserNode) и синхронной со звуком анимации — эта логика убрана
     // (см. VoiceOrb.jsx: переподключение аудио через createMediaElementSource
@@ -184,6 +190,7 @@ export function useOpenAiTts() {
         if (!text || !text.trim()) return;
         stop();
         setError(null);
+        setLimitExceeded(false);
         setLoading(true);
 
         // Защита от гонки при быстром повторном нажатии — см. историю
@@ -305,6 +312,7 @@ export function useOpenAiTts() {
             setLoading(false);
             if (e instanceof ApiError && e.status === 403) {
                 setError(e.message || 'Дневной лимит озвучки исчерпан');
+                setLimitExceeded(true);
                 return;
             }
             // eslint-disable-next-line no-console
@@ -331,5 +339,5 @@ export function useOpenAiTts() {
         }
     }, []);
 
-    return { speak, pause, resume, stop, seek, speaking, paused, loading, elapsed, duration, error, supported: true, audioRef, audioEl };
+    return { speak, pause, resume, stop, seek, speaking, paused, loading, elapsed, duration, error, limitExceeded, supported: true, audioRef, audioEl };
 }

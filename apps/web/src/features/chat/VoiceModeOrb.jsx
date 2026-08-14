@@ -29,6 +29,10 @@ const PHASE_COLORS = {
     thinking:  { from: '#93c5fd', to: '#5b32d4' },
     speaking:  { from: '#22d3ee', to: '#5b32d4' },
     error:     { from: '#fca5a5', to: '#dc2626' },
+    // Лимит озвучки исчерпан — насыщенный статичный красный, БЕЗ анимации
+    // вообще (см. эффект LIMIT ниже) — намеренно выглядит иначе, чем
+    // мимолётная встряска ERROR, это стоп-сигнал, а не разовый сбой.
+    limit:     { from: '#f87171', to: '#b91c1c' },
 };
 
 // Возвращает к масштабу 1 и (если передан) возобновляет фоновое «дыхание».
@@ -150,6 +154,18 @@ export function VoiceModeOrb({ phase, analyserRef, onClick, size = 200 }) {
             .to(coreRef.current, { x: -4, duration: 0.06 })
             .to(coreRef.current, { x: 0, duration: 0.06 });
         return () => { tween.kill(); };
+    }, { scope, dependencies: [phase] });
+
+    // ---- LIMIT: лимит озвучки исчерпан — полностью статично, никакого
+    // движения (задача явно требует «орб больше не анимирует»). Просто
+    // останавливаем фоновое «дыхание» и фиксируем масштаб на 1; цвет уже
+    // меняется отдельным эффектом выше (PHASE_COLORS.limit). ----
+    useGSAP(() => {
+        if (phase !== VOICE_MODE_PHASE.LIMIT) return undefined;
+        idleTweensRef.current.forEach((tw) => tw?.pause());
+        const targets = [coreRef.current, halo1Ref.current, halo2Ref.current].filter(Boolean);
+        if (targets.length) gsap.set(targets, { scale: 1, x: 0 });
+        return () => { idleTweensRef.current.forEach((tw) => tw?.resume()); };
     }, { scope, dependencies: [phase] });
 
     const c = PHASE_COLORS[phase] || PHASE_COLORS.idle;
