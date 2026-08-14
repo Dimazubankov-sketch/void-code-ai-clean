@@ -6,10 +6,7 @@ import { Icons } from '@/shared/ui/Icons';
 export function WalletWithdrawModal({ state, updateState, onClose, onSuccess }) {
     const balance = state.walletBalance || 0;
     const [amount, setAmount] = useState('');
-    const [method, setMethod] = useState('sbp');
     const [cardNumber, setCardNumber] = useState('');
-    const [cryptoAddress, setCryptoAddress] = useState('');
-    const [cryptoNetwork, setCryptoNetwork] = useState('USDT (TRC-20)');
     const [errors, setErrors] = useState({});
     const [success, setSuccess] = useState(false);
 
@@ -19,12 +16,8 @@ export function WalletWithdrawModal({ state, updateState, onClose, onSuccess }) 
         const e = {};
         if (!finalAmount || finalAmount < 100) e.amount = 'Минимальная сумма вывода — 100 ₽';
         else if (finalAmount > balance) e.amount = 'Сумма больше, чем есть на балансе';
-        if (method === 'sbp') {
-            const digits = cardNumber.replace(/\s+/g, '');
-            if (!/^\d{16,19}$/.test(digits)) e.cardNumber = 'Введите корректный номер карты';
-        } else if (method === 'crypto') {
-            if (!cryptoAddress.trim() || cryptoAddress.trim().length < 10) e.cryptoAddress = 'Введите адрес криптокошелька';
-        }
+        const digits = cardNumber.replace(/\s+/g, '');
+        if (!/^\d{16,19}$/.test(digits)) e.cardNumber = 'Введите корректный номер карты';
         return e;
     };
 
@@ -33,10 +26,9 @@ export function WalletWithdrawModal({ state, updateState, onClose, onSuccess }) 
         if (Object.keys(e).length > 0) { setErrors(e); return; }
         setErrors({});
         const now = Date.now();
-        const methodLabel = method === 'sbp' ? 'на карту через СБП' : `на криптокошелёк (${cryptoNetwork})`;
         updateState({
             walletBalance: balance - finalAmount,
-            walletTransactions: [{ id: 'tx' + now, type: 'withdraw', amount: -finalAmount, description: `Вывод средств ${methodLabel}`, timestamp: now }, ...(state.walletTransactions || [])]
+            walletTransactions: [{ id: 'tx' + now, type: 'withdraw', amount: -finalAmount, description: 'Вывод средств на карту через СБП', timestamp: now }, ...(state.walletTransactions || [])]
         });
         setSuccess(true);
         setTimeout(() => { onSuccess && onSuccess(finalAmount); }, 1100);
@@ -65,33 +57,11 @@ export function WalletWithdrawModal({ state, updateState, onClose, onSuccess }) 
                             <button onClick={() => { setAmount(String(balance)); setErrors(prev => ({ ...prev, amount: null })); }} className="text-xs font-bold text-[#5b32d4] dark:text-purple-400 hover:underline mt-1.5 ml-1">Вывести всё</button>
                         </div>
 
-                        <div className="flex gap-2 mb-5">
-                            {[{ id: 'sbp', label: 'На карту (СБП)' }, { id: 'crypto', label: 'Криптокошелёк' }].map(m => (
-                                <button key={m.id} onClick={() => setMethod(m.id)} className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${method === m.id ? 'bg-[#efecf9] dark:bg-purple-900/30 border-[#5b32d4] text-[#5b32d4] dark:text-purple-300' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>{m.label}</button>
-                            ))}
+                        <div className="mb-2">
+                            <input type="text" value={cardNumber} onChange={e => { setCardNumber(e.target.value); setErrors(prev => ({ ...prev, cardNumber: null })); }} placeholder="Номер карты для получения" className={`w-full p-3.5 bg-gray-50 dark:bg-[#23232f] border rounded-xl text-sm font-mono dark:text-white focus:outline-none ${errors.cardNumber ? 'border-2 border-red-500' : 'border-gray-100 dark:border-gray-800 focus:border-[#5b32d4]'}`} />
+                            {errors.cardNumber && <p className="text-xs text-red-500 font-semibold mt-1.5 ml-1">{errors.cardNumber}</p>}
+                            <p className="text-xs text-gray-400 mt-2">Деньги придут через Систему быстрых платежей, обычно в течение нескольких минут.</p>
                         </div>
-
-                        {method === 'sbp' && (
-                            <div className="mb-2">
-                                <input type="text" value={cardNumber} onChange={e => { setCardNumber(e.target.value); setErrors(prev => ({ ...prev, cardNumber: null })); }} placeholder="Номер карты для получения" className={`w-full p-3.5 bg-gray-50 dark:bg-[#23232f] border rounded-xl text-sm font-mono dark:text-white focus:outline-none ${errors.cardNumber ? 'border-2 border-red-500' : 'border-gray-100 dark:border-gray-800 focus:border-[#5b32d4]'}`} />
-                                {errors.cardNumber && <p className="text-xs text-red-500 font-semibold mt-1.5 ml-1">{errors.cardNumber}</p>}
-                                <p className="text-xs text-gray-400 mt-2">Деньги придут через Систему быстрых платежей, обычно в течение нескольких минут.</p>
-                            </div>
-                        )}
-                        {method === 'crypto' && (
-                            <div className="space-y-3 mb-2">
-                                <div className="flex gap-2">
-                                    {['USDT (TRC-20)', 'USDT (ERC-20)', 'BTC'].map(n => (
-                                        <button key={n} onClick={() => setCryptoNetwork(n)} className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${cryptoNetwork === n ? 'bg-[#efecf9] dark:bg-purple-900/30 border-[#5b32d4] text-[#5b32d4] dark:text-purple-300' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>{n}</button>
-                                    ))}
-                                </div>
-                                <div>
-                                    <input type="text" value={cryptoAddress} onChange={e => { setCryptoAddress(e.target.value); setErrors(prev => ({ ...prev, cryptoAddress: null })); }} placeholder="Адрес криптокошелька" className={`w-full p-3.5 bg-gray-50 dark:bg-[#23232f] border rounded-xl text-sm font-mono dark:text-white focus:outline-none ${errors.cryptoAddress ? 'border-2 border-red-500' : 'border-gray-100 dark:border-gray-800 focus:border-[#5b32d4]'}`} />
-                                    {errors.cryptoAddress && <p className="text-xs text-red-500 font-semibold mt-1.5 ml-1">{errors.cryptoAddress}</p>}
-                                </div>
-                                <p className="text-xs text-gray-400">Проверьте сеть и адрес — переводы в криптовалюте необратимы.</p>
-                            </div>
-                        )}
 
                         <button onClick={handleConfirm} disabled={balance <= 0} className="w-full mt-4 py-4 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white font-bold rounded-2xl shadow-lg transition-colors">
                             Вывести {finalAmount ? formatMoney(finalAmount) + ' ₽' : ''}

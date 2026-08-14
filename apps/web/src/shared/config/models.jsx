@@ -73,11 +73,10 @@ export const AI_MODELS = [
 
 
 // Лимиты по тарифам: дневной и недельный. Множители относительно базового
-// (Free = 20/140): Plus ×2, Pro ×5, Ultra ×10. Множители подчёркивают
+// (Free = 20/140): Pro ×5, Ultra ×10. Множители подчёркивают
 // прогрессию тарифов; в будущем базовые лимиты будут повышены.
 export const PLAN_LIMITS = {
     free:     { daily: 20,  weekly: 140 },  // ×1  — базовый
-    plus:     { daily: 40,  weekly: 280 },  // ×2
     pro:      { daily: 100, weekly: 700 },  // ×5
     pro_plus: { daily: 200, weekly: 1400 }, // ×10 (Ultra)
 };

@@ -29,7 +29,6 @@ export function PricingView({ state, updateState }) {
     const [cardNumber, setCardNumber] = useState('');
     const [cardExpiry, setCardExpiry] = useState('');
     const [cardCvc, setCardCvc] = useState('');
-    const [cryptoTxId, setCryptoTxId] = useState('');
     const [paymentErrors, setPaymentErrors] = useState({});
 
     // ==========================================
@@ -104,14 +103,6 @@ export function PricingView({ state, updateState }) {
         return errors;
     };
 
-    const validateCrypto = () => {
-        const errors = {};
-        if (!cryptoTxId.trim() || cryptoTxId.trim().length < 6) {
-            errors.cryptoTxId = 'Укажите хэш транзакции или ID перевода после отправки средств';
-        }
-        return errors;
-    };
-
     const handleConfirmPayment = () => {
         // Защита: неавторизованный пользователь не может оформить подписку.
         // Просто на случай, если он как-то попал на этот экран без входа.
@@ -142,7 +133,6 @@ export function PricingView({ state, updateState }) {
 
         let errors = {};
         if (state.selectedMethod === 'card') errors = validateCard();
-        else if (state.selectedMethod === 'crypto') errors = validateCrypto();
         // Для СБП дополнительных полей не требуется — банк уже выбран заранее
 
         if (Object.keys(errors).length > 0) {
@@ -165,8 +155,7 @@ export function PricingView({ state, updateState }) {
     //   Ultra ×10  (8000₽/мес)
     const PRICING_PLANS = [
         { id: 'free', title: 'Free', subtitle: 'Бесплатный доступ. Идеально для знакомства с Void Code AI и базовых задач.', priceMonth: 0, priceYear: 0, multiplier: 1, features: ["Умный чат с AI", "Обучающие материалы", "Генератор кода", "Генератор картинок", "Стандартная скорость", "Базовые модели AI", "Агенты: 1 агент"] },
-        { id: 'plus', title: 'Plus', subtitle: 'Больше мощностей и меньше ограничений для работы с кодом.', priceMonth: 500, priceYear: 5000, multiplier: 2, features: ["Множитель лимитов ×2 (в 2 раза больше запросов)", "Генератор кода — увеличенный лимит", "Генератор картинок — увеличенный лимит", "Приоритетная скорость", "Доступ к мощным моделям", "Агенты: до 5 агентов"] },
-        { id: 'pro', title: 'Pro', subtitle: 'Максимум возможностей для разработчиков, фрилансеров и команд.', priceMonth: 1500, priceYear: 15000, multiplier: 5, features: ["Множитель лимитов ×5 (в 5 раз больше запросов)", "Генератор кода — увелич. лимит", "Генератор картинок — увелич. лимит", "Максимальная скорость ответов", "Приоритетная поддержка", "Доступ к самым мощным моделям", "Уровень рассуждений Max", "Агенты: до 10 агентов", "Оркестраторы: 1", "Общение с оркестрами через почту"] },
+        { id: 'pro', title: 'Pro', subtitle: 'Максимум возможностей для разработчиков, фрилансеров и команд.', priceMonth: 1200, oldPriceMonth: 1500, priceYear: 15000, multiplier: 5, features: ["Множитель лимитов ×5 (в 5 раз больше запросов)", "Генератор кода — увелич. лимит", "Генератор картинок — увелич. лимит", "Максимальная скорость ответов", "Приоритетная поддержка", "Доступ к самым мощным моделям", "Уровень рассуждений Max", "Агенты: до 10 агентов", "Оркестраторы: 1", "Общение с оркестрами через почту"] },
         { id: 'pro_plus', title: 'Ultra', subtitle: 'Максимальные мощности для компаний и масштабных проектов.', priceMonth: 8000, priceYear: 80000, multiplier: 10, features: ["Множитель лимитов ×10 (в 10 раз больше запросов)", "Всё из тарифа Pro", "Максимальные лимиты на код и картинки", "Доступ к самым мощным моделям", "Приоритетная поддержка", "Максимальная скорость", "Уровень рассуждений Max", "Агенты: до 20 агентов", "Оркестраторы: до 3", "Общение с оркестрами через почту"] }
     ];
 
@@ -197,7 +186,6 @@ export function PricingView({ state, updateState }) {
                                 >
                                     {state.selectedMethod === 'card' && <Icons.Card />}
                                     {state.selectedMethod === 'sbp' && <Icons.SBP />}
-                                    {state.selectedMethod === 'crypto' && <Icons.Crypto />}
                                     {state.selectedMethod === 'wallet' && <Icons.Wallet />}
                                 </button>
                             </div>
@@ -243,30 +231,6 @@ export function PricingView({ state, updateState }) {
                                 </div>
                             )}
 
-                            {state.selectedMethod === 'crypto' && (
-                                <div className="space-y-5 fade-in">
-                                    <div>
-                                        <label className="text-xs font-bold text-gray-500 ml-1 mb-1.5 block">Выберите сеть</label>
-                                        <select className="w-full p-4 bg-gray-50 dark:bg-[#23232f] border border-gray-100 dark:border-gray-800 rounded-xl dark:text-white font-bold focus:outline-none focus:border-[#5b32d4] appearance-none">
-                                            <option>USDT (TRC-20)</option><option>USDT (ERC-20)</option><option>Bitcoin (BTC)</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-gray-500 ml-1 mb-1.5 block">Адрес для перевода</label>
-                                        <div className="flex items-center gap-2">
-                                            <input type="text" readOnly value="TXYZ12345abcdefGHIJKLMNOP67890" className="w-full p-4 bg-gray-50 dark:bg-[#23232f] border border-gray-100 dark:border-gray-800 rounded-xl dark:text-white font-mono text-sm focus:outline-none text-gray-500" />
-                                            <button onClick={() => alert('Адрес скопирован!')} className="p-4 bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-400 rounded-xl hover:bg-[#e0dbf4] transition-colors"><Icons.Code /></button>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-gray-500 ml-1 mb-1.5 block">Хэш транзакции / ID перевода</label>
-                                        <input type="text" value={cryptoTxId} onChange={e => { setCryptoTxId(e.target.value); setPaymentErrors(prev => ({...prev, cryptoTxId: null})); }} placeholder="Вставьте после отправки перевода" className={`w-full p-4 bg-gray-50 dark:bg-[#23232f] border rounded-xl dark:text-white font-mono text-sm focus:outline-none ${paymentErrors.cryptoTxId ? 'border-2 border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-100 dark:border-gray-800 focus:border-[#5b32d4]'}`} />
-                                        {paymentErrors.cryptoTxId && <p className="text-xs text-red-500 font-semibold mt-1.5 ml-1">{paymentErrors.cryptoTxId}</p>}
-                                        <p className="text-xs text-gray-400 mt-1.5 ml-1">Без этого поля подтвердить оплату не получится — мы проверяем перевод по хэшу.</p>
-                                    </div>
-                                </div>
-                            )}
-
                             {state.selectedMethod === 'wallet' && (
                                 <div className="fade-in space-y-4">
                                     <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl">
@@ -285,7 +249,7 @@ export function PricingView({ state, updateState }) {
                             )}
 
                             <button onClick={handleConfirmPayment} className="w-full mt-8 py-4 bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold rounded-2xl shadow-lg transition-colors text-lg">
-                                {state.selectedMethod === 'sbp' ? 'Оплатить через приложение банка' : state.selectedMethod === 'crypto' ? 'Я перевёл средства' : state.selectedMethod === 'wallet' ? `Оплатить с баланса ${money(price)}` : `Оплатить ${money(price)}`}
+                                {state.selectedMethod === 'sbp' ? 'Оплатить через приложение банка' : state.selectedMethod === 'wallet' ? `Оплатить с баланса ${money(price)}` : `Оплатить ${money(price)}`}
                             </button>
                         </div>
                     </div>
@@ -364,11 +328,6 @@ export function PricingView({ state, updateState }) {
                             <div className="flex-1"><div className="font-bold text-[15px] dark:text-white">СБП</div><div className="text-xs text-gray-500">Оплата через Систему быстрых платежей</div></div>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${state.selectedMethod === 'sbp' ? 'border-[#5b32d4] bg-[#5b32d4]' : 'border-gray-300 dark:border-gray-600'}`}>{state.selectedMethod === 'sbp' && <Icons.Check className="w-3 h-3 text-white" />}</div>
                         </div>
-                        <div onClick={() => updateState({selectedMethod: 'crypto'})} className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${state.selectedMethod === 'crypto' ? 'border-[#5b32d4] bg-[#efecf9]/50 dark:bg-purple-900/10' : 'border-gray-100 dark:border-darkBorder hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-darkCard text-[#5b32d4] dark:text-purple-400"><Icons.Crypto /></div>
-                            <div className="flex-1"><div className="font-bold text-[15px] dark:text-white">Криптовалюты</div><div className="text-xs text-gray-500">USDT, BTC и другие</div></div>
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${state.selectedMethod === 'crypto' ? 'border-[#5b32d4] bg-[#5b32d4]' : 'border-gray-300 dark:border-gray-600'}`}>{state.selectedMethod === 'crypto' && <Icons.Check className="w-3 h-3 text-white" />}</div>
-                        </div>
                         <div onClick={() => updateState({selectedMethod: 'wallet'})} className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${state.selectedMethod === 'wallet' ? 'border-[#5b32d4] bg-[#efecf9]/50 dark:bg-purple-900/10' : 'border-gray-100 dark:border-darkBorder hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                             <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-darkCard text-[#5b32d4] dark:text-purple-400"><Icons.Wallet /></div>
                             <div className="flex-1"><div className="font-bold text-[15px] dark:text-white">Баланс кошелька</div><div className={`text-xs ${(state.walletBalance || 0) >= price ? 'text-gray-500' : 'text-red-500 font-semibold'}`}>Доступно: {money(state.walletBalance || 0)}{(state.walletBalance || 0) < price ? ' — не хватает средств' : ''}</div></div>
@@ -399,7 +358,7 @@ export function PricingView({ state, updateState }) {
                     {PRICING_PLANS.map(p => {
                         // Порядок тарифов по «весу». Тарифы дешевле текущего
                         // становятся недоступными — понизиться нельзя.
-                        const rank = { free: 0, plus: 1, pro: 2, pro_plus: 3 };
+                        const rank = { free: 0, pro: 2, pro_plus: 3 };
                         const currentRank = rank[state.userPlan] ?? 0;
                         const isCurrent = p.id === state.userPlan;
                         const isLower = (rank[p.id] ?? 0) < currentRank;

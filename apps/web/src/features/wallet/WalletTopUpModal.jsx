@@ -16,7 +16,6 @@ export function WalletTopUpModal({ state, updateState, onClose, onSuccess, reaso
     const [cardNumber, setCardNumber] = useState('');
     const [cardExpiry, setCardExpiry] = useState('');
     const [cardCvc, setCardCvc] = useState('');
-    const [cryptoTxId, setCryptoTxId] = useState('');
     const [errors, setErrors] = useState({});
     const [success, setSuccess] = useState(false);
 
@@ -30,8 +29,6 @@ export function WalletTopUpModal({ state, updateState, onClose, onSuccess, reaso
             if (!/^\d{16,19}$/.test(digits)) e.cardNumber = 'Введите корректный номер карты';
             if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry.trim())) e.cardExpiry = 'Формат ММ/ГГ';
             if (!/^\d{3,4}$/.test(cardCvc.trim())) e.cardCvc = 'Введите CVC';
-        } else if (method === 'crypto') {
-            if (!cryptoTxId.trim() || cryptoTxId.trim().length < 6) e.cryptoTxId = 'Укажите хэш транзакции после перевода';
         }
         return e;
     };
@@ -41,7 +38,7 @@ export function WalletTopUpModal({ state, updateState, onClose, onSuccess, reaso
         if (Object.keys(e).length > 0) { setErrors(e); return; }
         setErrors({});
         const now = Date.now();
-        const methodLabel = method === 'card' ? 'картой' : method === 'sbp' ? 'через СБП' : 'криптовалютой';
+        const methodLabel = method === 'card' ? 'картой' : 'через СБП';
         updateState({
             walletBalance: (state.walletBalance || 0) + finalAmount,
             walletTransactions: [{ id: 'tx' + now, type: 'topup', amount: finalAmount, description: `Пополнение баланса ${methodLabel}`, timestamp: now }, ...(state.walletTransactions || [])]
@@ -78,7 +75,7 @@ export function WalletTopUpModal({ state, updateState, onClose, onSuccess, reaso
                         </div>
 
                         <div className="flex gap-2 mb-5">
-                            {[{ id: 'card', label: 'Карта' }, { id: 'sbp', label: 'СБП' }, { id: 'crypto', label: 'Крипто' }].map(m => (
+                            {[{ id: 'card', label: 'Карта' }, { id: 'sbp', label: 'СБП' }].map(m => (
                                 <button key={m.id} onClick={() => setMethod(m.id)} className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${method === m.id ? 'bg-[#efecf9] dark:bg-purple-900/30 border-[#5b32d4] text-[#5b32d4] dark:text-purple-300' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>{m.label}</button>
                             ))}
                         </div>
@@ -99,12 +96,6 @@ export function WalletTopUpModal({ state, updateState, onClose, onSuccess, reaso
                                         {errors.cardCvc && <p className="text-xs text-red-500 font-semibold mt-1.5 ml-1">{errors.cardCvc}</p>}
                                     </div>
                                 </div>
-                            </div>
-                        )}
-                        {method === 'crypto' && (
-                            <div className="mb-2">
-                                <input type="text" value={cryptoTxId} onChange={e => { setCryptoTxId(e.target.value); setErrors(prev => ({ ...prev, cryptoTxId: null })); }} placeholder="Хэш транзакции после перевода" className={`w-full p-3.5 bg-gray-50 dark:bg-[#23232f] border rounded-xl text-sm font-mono dark:text-white focus:outline-none ${errors.cryptoTxId ? 'border-2 border-red-500' : 'border-gray-100 dark:border-gray-800 focus:border-[#5b32d4]'}`} />
-                                {errors.cryptoTxId && <p className="text-xs text-red-500 font-semibold mt-1.5 ml-1">{errors.cryptoTxId}</p>}
                             </div>
                         )}
                         {method === 'sbp' && <p className="text-xs text-gray-400 mb-2">После нажатия «Пополнить» откроется приложение вашего банка для подтверждения перевода.</p>}

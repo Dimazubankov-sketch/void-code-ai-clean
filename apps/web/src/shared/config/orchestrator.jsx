@@ -3,13 +3,11 @@
 // ==========================================
 
 // Сколько оркестраторов можно иметь на каждом тарифе.
-// Free и Plus — оркестраторы недоступны (пользователь просил убрать
-// возможность покупки на Plus).
+// Free — оркестраторы недоступны.
 // Pro — ровно один оркестратор.
 // Ultra (pro_plus) — до 3 оркестраторов.
 export const ORCHESTRATOR_LIMITS = {
     free: 0,
-    plus: 0,
     pro: 1,
     pro_plus: 3,
     ultra: 3,
@@ -25,7 +23,6 @@ export const canUseOrchestrators = (plan) => getOrchestratorLimit(plan) > 0;
 // ------------------------------------------
 export const AGENT_LIMITS = {
     free: 1,
-    plus: 5,
     pro: 10,
     pro_plus: 20,
     ultra: 20,

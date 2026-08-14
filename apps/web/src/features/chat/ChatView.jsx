@@ -644,11 +644,11 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 });
                             }}
                             onKeyDown={(e) => { 
-                                if (e.key === 'Enter' && !e.shiftKey) { 
-                                    e.preventDefault(); 
-                                    state.imageGenMode ? handleGenerateImage() : handleSendMessage(); 
-                                    e.target.style.height = 'auto'; 
-                                }
+                                // Задача 4: Enter больше НЕ отправляет сообщение — на
+                                // мобильной клавиатуре кнопка "отправить"/"ввод" должна
+                                // просто переносить строку (стандартное поведение
+                                // textarea, поэтому Enter здесь не перехватывается).
+                                // Отправка — только явным нажатием на кнопку-стрелку.
                                 if (e.key === 'Tab') { e.preventDefault(); composerInsertIndent(editableTextareaRef.current); }
                             }}
                             onFocus={(e) => {
@@ -718,7 +718,23 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             </button>
                             <span className="text-sm font-bold text-gray-400">Полноэкранный ввод</span>
                             <button
-                                onClick={composerExitFullscreen}
+                                onClick={() => {
+                                    // Задача 3: если пользователь набрал длинный текст
+                                    // ЦЕЛИКОМ в полноэкранном режиме и просто свернул
+                                    // его (не отправляя), компактное поле ни разу не
+                                    // получало onChange — его инлайн-высота так и
+                                    // оставалась на минимуме (64px), и кнопка
+                                    // полноэкранного режима (сверху) наслаивалась на
+                                    // кнопку отправки (снизу). Пересчитываем высоту
+                                    // компактного textarea сразу после сворачивания.
+                                    composerExitFullscreen();
+                                    requestAnimationFrame(() => {
+                                        const el = editableTextareaRef.current;
+                                        if (!el) return;
+                                        el.style.height = 'auto';
+                                        el.style.height = Math.min(el.scrollHeight, 220) + 'px';
+                                    });
+                                }}
                                 title="Свернуть"
                                 className="void-tap-target w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                             >
@@ -730,15 +746,15 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             autoFocus
                             value={state.inputValue}
                             onChange={(e) => updateState({ inputValue: e.target.value })}
-                            // Задача 2 (пункт 3): на телефоне клавиша «отправить»
-                            // на самой клавиатуре здесь работает как отступ, а не
-                            // отправка — реальная отправка только явной кнопкой
-                            // ниже. enterKeyHint меняет ПОДПИСЬ клавиши на
-                            // клавиатуре (была бы стрелка «отправить», стала
-                            // обычная «Enter»), чтобы не вводить в заблуждение.
+                            // Задача 4: Enter в полноэкранном режиме тоже просто
+                            // переносит строку (стандартное поведение textarea) —
+                            // раньше он ошибочно вставлял отступ (4 неразрывных
+                            // пробела) вместо переноса, из-за чего на мобильной
+                            // клавиатуре при нажатии "Enter"/"Ввод" появлялся
+                            // один большой пробел. Tab по-прежнему вставляет отступ.
                             enterKeyHint="enter"
                             onKeyDown={(e) => {
-                                if (e.key === 'Tab' || e.key === 'Enter') {
+                                if (e.key === 'Tab') {
                                     e.preventDefault();
                                     composerInsertIndent(expandedTextareaRef.current);
                                 }
