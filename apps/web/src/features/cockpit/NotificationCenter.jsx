@@ -479,10 +479,19 @@ export function NotificationCenter({ state, updateState, onClose }) {
         ...sentItems.map(m => ({ ...m, sortAt: m.at })),
     ].filter(matchesSearch).sort((a, b) => b.sortAt - a.sortAt);
 
-    // Звезда пока хранится только для системных обновлений (см. toggleStar) —
-    // почта не участвует в «Помеченных».
-    const starredItems = inbox.updates
-        .map(u => ({ ...u, kind: 'update' }))
+    // Звезда: раньше — только у системных обновлений. Теперь работает для
+    // любых настоящих писем (входящие/отправленные/обновления) — только
+    // Корзина и «Оповещения агентов» исключены, и оба они и так рендерятся
+    // ОТДЕЛЬНЫМИ компонентами (не через LetterRow), так что здесь ничего
+    // специально исключать не нужно. Черновики сознательно не включены:
+    // это ещё не отправленное письмо, а открываются они не в LetterReader,
+    // а сразу в редакторе (openCompose) — смешивать их в общий список
+    // «Помеченных» усложнило бы переход по клику без реальной пользы.
+    const starredItems = [
+        ...inbox.updates.map(u => ({ ...u, kind: 'update' })),
+        ...inboxItems,
+        ...sentItems,
+    ]
         .filter(x => starred.includes(x.id))
         .filter(matchesSearch)
         .sort((a, b) => b.at - a.at);
@@ -506,7 +515,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
             <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 dark:border-darkBorder shrink-0">
                 <button onClick={onBack} className="p-1.5 -ml-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft /></button>
                 <span className="font-bold text-sm dark:text-white truncate flex-1">{letter.title}</span>
-                {letter.kind === 'update' && (
+                {(letter.kind === 'update' || letter.kind === 'inbox' || letter.kind === 'sent') && (
                     <button onClick={() => toggleStar(letter.id)} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Пометить звёздочкой">
                         <Icons.Star className={`w-4 h-4 ${starred.includes(letter.id) ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`} style={starred.includes(letter.id) ? { fill: 'currentColor' } : {}} />
                     </button>
@@ -555,7 +564,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                     </div>
                     {unread && <span className="w-2 h-2 rounded-full bg-[#5b32d4] mt-2 shrink-0" />}
                 </button>
-                {item.kind === 'update' && (
+                {(item.kind === 'update' || item.kind === 'inbox' || item.kind === 'sent') && (
                     <button onClick={() => toggleStar(item.id)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 shrink-0" title="Пометить звёздочкой">
                         <Icons.Star className={`w-4 h-4 ${starred.includes(item.id) ? 'text-amber-400' : 'text-gray-300'}`} style={starred.includes(item.id) ? { fill: 'currentColor' } : {}} />
                     </button>

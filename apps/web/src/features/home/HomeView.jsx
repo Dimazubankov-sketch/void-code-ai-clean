@@ -13,7 +13,7 @@ import { useExpandableComposer } from '@/shared/lib/useExpandableComposer';
 // ==========================================
 // ЭКРАНЫ ПРИЛОЖЕНИЯ
 // ==========================================
-export function HomeView({ state, updateState, handleSendMessage, handleGenerateImage, chatFileInputRef }) {
+export function HomeView({ state, updateState, handleSendMessage, handleGenerateImage, chatFileInputRef, voiceMode }) {
     const lang = state.lang || 'ru';
     // Клик по карточке-ярлыку (Смарт-чат / Код / Изображение) всегда
     // начинает НОВЫЙ чат, а не открывает что попало.
@@ -267,13 +267,25 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                                 {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
                             </button>
                         )}
-                        <button
-                            onClick={() => handleSendMessage()}
-                            disabled={(!state.inputValue.trim() && !(state.selectedImages && state.selectedImages.length > 0)) || state.isGenerating || voice.busy}
-                            className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
-                        >
-                            <Icons.ArrowUp className="w-5 h-5" />
-                        </button>
+                        {(state.inputValue.trim() || (state.selectedImages && state.selectedImages.length > 0)) ? (
+                            <button
+                                onClick={() => handleSendMessage()}
+                                disabled={state.isGenerating || voice.busy}
+                                title="Отправить"
+                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
+                            >
+                                <Icons.ArrowUp className="w-5 h-5" />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={voiceMode.open}
+                                disabled={state.isGenerating || voice.busy}
+                                title="Voice Mode"
+                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
+                            >
+                                <Icons.Waveform className="w-5 h-5" />
+                            </button>
+                        )}
                     </div>
                 </div>
 

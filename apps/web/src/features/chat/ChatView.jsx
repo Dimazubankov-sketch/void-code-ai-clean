@@ -21,8 +21,7 @@ import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
 import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
 import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
-import { useVoiceMode } from '@/shared/lib/useVoiceMode';
-import { VoiceModeOverlay } from '@/features/chat/VoiceModeOverlay';
+import { getVoiceOpts } from '@/shared/lib/voiceOpts';
 import { defaultReasoningFor, getAttachmentLimit } from '@/shared/config/models';
 import { getPlanLimits } from '@/shared/config/models';
 import { t } from '@/shared/lib/i18n';
@@ -31,7 +30,7 @@ import { compressImageFiles } from '@/shared/lib/imageCompress';
 import { useExpandableComposer } from '@/shared/lib/useExpandableComposer';
 
 
-export function ChatView({ state, updateState, handleSendMessage, handleGenerateImage, messagesEndRef, chatFileInputRef }) {
+export function ChatView({ state, updateState, handleSendMessage, handleGenerateImage, messagesEndRef, chatFileInputRef, voiceMode }) {
     const lang = state.lang || 'ru';
     const activeChat = state.chatSessions.find(c => c.id === state.activeChatId) || state.chatSessions[0];
     const messages = activeChat?.messages || [];
@@ -135,21 +134,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     // избавлен от таймеров, а пользователь видит плавное появление И
     // плавное исчезновение (раньше пропадало резко).
 
-    const voiceOpts = () => {
-        // Fish Audio S2.1 Pro — провайдер по умолчанию (в т.ч. для уже
-        // существующих пользователей без сохранённого выбора, см. App.jsx).
-        const provider = state.ttsProvider || 'fish';
-        return {
-            provider,
-            // Fish: reference_id голоса (или undefined — голос модели по
-            // умолчанию). OpenAI: имя голоса (alloy/echo/fable/onyx/nova/shimmer).
-            // Голос хранится отдельно для каждого провайдера — см. VoiceSettings.
-            voice: provider === 'fish' ? (state.voicePresetFish || undefined) : (state.voicePreset || 'nova'),
-            speed: state.voiceRate || 1.0,
-            // Оставляем lang для Web Speech-фолбэка.
-            lang: state.voiceLang || 'ru-RU',
-        };
-    };
+    const voiceOpts = () => getVoiceOpts(state);
 
     const speakMessage = (idx, text) => {
         if (ttsMsgIdx === idx && tts.speaking) { tts.stop(); setTtsMsgIdx(null); return; }
@@ -158,13 +143,6 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         tts.speak(text, voiceOpts());
     };
     const closePlayer = () => { tts.stop(); setTtsMsgIdx(null); };
-
-    // Voice Mode — разговорный голосовой режим. Открывается вместо кнопки
-    // отправки, когда поле ввода пустое (см. кнопку-«орб» ниже в JSX).
-    // Хук переиспользует ту же STT-диктовку и тот же TTS/голос, что и
-    // остальной чат — см. подробный разбор области действия в
-    // useVoiceMode.jsx.
-    const voiceMode = useVoiceMode({ state, updateState, handleSendMessage, voiceOpts, lang: state.voiceLang || 'ru-RU' });
 
     const shareDialog = async () => {
         const chat = state.chatSessions.find(c => c.id === state.activeChatId) || state.chatSessions[0];
@@ -828,9 +806,6 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             )}
 
             {activeCodeBlock && <CodeViewerModal block={activeCodeBlock.block} siblings={activeCodeBlock.siblings} onClose={() => setActiveCodeBlock(null)} />}
-            {voiceMode.active && (
-                <VoiceModeOverlay state={state} updateState={updateState} voiceMode={voiceMode} onClose={voiceMode.close} />
-            )}
             {showPlusMenu && (
                 <ChatPlusMenu
                     state={state}

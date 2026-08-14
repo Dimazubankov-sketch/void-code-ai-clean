@@ -33,11 +33,11 @@ const PHASE_LABELS = {
 // системы голосов нет).
 function VoicePicker({ voices, selectedId, onChoose, onClose }) {
     return (
-        <div className="fixed inset-0 z-[230] bg-black/50 backdrop-blur-sm flex items-end sm:items-center sm:justify-center fade-in" onClick={onClose}>
-            <div className="bg-[#150d28] w-full sm:max-w-sm sm:rounded-3xl rounded-t-3xl shadow-2xl slide-in-right max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[230] bg-black/40 backdrop-blur-sm flex items-end sm:items-center sm:justify-center fade-in" onClick={onClose}>
+            <div className="bg-white dark:bg-[#150d28] w-full sm:max-w-sm sm:rounded-3xl rounded-t-3xl shadow-2xl slide-in-right max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 py-4 shrink-0">
-                    <h4 className="font-extrabold text-white">Голос</h4>
-                    <button onClick={onClose} className="void-tap-target w-9 h-9 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+                    <h4 className="font-extrabold text-gray-900 dark:text-white">Голос</h4>
+                    <button onClick={onClose} className="void-tap-target w-9 h-9 rounded-full flex items-center justify-center text-gray-400 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
                         <Icons.X className="w-4 h-4" />
                     </button>
                 </div>
@@ -46,16 +46,16 @@ function VoicePicker({ voices, selectedId, onChoose, onClose }) {
                         <button
                             key={v.id || 'default'}
                             onClick={() => onChoose(v.id)}
-                            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-left transition-colors ${selectedId === v.id ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-left transition-colors ${selectedId === v.id ? 'bg-gray-100 dark:bg-white/10' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}
                         >
                             <span>
-                                <span className="block font-semibold text-sm text-white">{v.name}</span>
-                                {v.desc && <span className="block text-xs text-white/50">{v.desc}</span>}
+                                <span className="block font-semibold text-sm text-gray-900 dark:text-white">{v.name}</span>
+                                {v.desc && <span className="block text-xs text-gray-400 dark:text-white/50">{v.desc}</span>}
                             </span>
-                            {selectedId === v.id && <Icons.Check className="w-4 h-4 text-[#8b6ef0] shrink-0" />}
+                            {selectedId === v.id && <Icons.Check className="w-4 h-4 text-[#5b32d4] dark:text-[#8b6ef0] shrink-0" />}
                         </button>
                     ))}
-                    {voices.length === 0 && <p className="text-center text-sm text-white/40 py-10">Список голосов загружается…</p>}
+                    {voices.length === 0 && <p className="text-center text-sm text-gray-400 dark:text-white/40 py-10">Список голосов загружается…</p>}
                 </div>
             </div>
         </div>
@@ -94,13 +94,13 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
         : (phase === VOICE_MODE_PHASE.ERROR && errorMsg ? errorMsg : PHASE_LABELS[phase]);
 
     return createPortal(
-        <div className="fixed inset-0 z-[220] bg-gradient-to-b from-[#1a1030] to-[#0d0819] flex flex-col items-center justify-between py-8 sm:py-10 px-6 fade-in">
+        <div className="fixed inset-0 z-[220] bg-white dark:bg-gradient-to-b dark:from-[#1a1030] dark:to-[#0d0819] flex flex-col items-center justify-between py-8 sm:py-10 px-6 fade-in">
             {/* Выбор голоса — тап по названию вверху. Отдельной кнопки
                 закрытия здесь больше нет (задача: единственный крестик — у
                 микрофона внизу), сам оверлей не закрывается кликом сюда. */}
             <button
                 onClick={() => setShowVoicePicker(true)}
-                className="void-tap-target flex items-center gap-1.5 text-white/60 hover:text-white text-xs font-semibold uppercase tracking-wide transition-colors"
+                className="void-tap-target flex items-center gap-1.5 text-gray-400 dark:text-white/60 hover:text-gray-900 dark:hover:text-white text-xs font-semibold uppercase tracking-wide transition-colors"
             >
                 {voiceLabel}
                 <Icons.ChevronRight className="w-3.5 h-3.5" />
@@ -108,14 +108,14 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
 
             <div className="flex-1 flex flex-col items-center justify-center gap-8">
                 <VoiceModeOrb phase={displayPhase} analyserRef={analyserRef} onClick={muted ? undefined : primaryTap} size={200} />
-                <p className="text-white/80 text-base font-semibold min-h-[1.5em] text-center max-w-xs">{statusText}</p>
+                <p className="text-gray-700 dark:text-white/80 text-base font-semibold min-h-[1.5em] text-center max-w-xs">{statusText}</p>
             </div>
 
             <div className="flex items-center gap-6">
                 <button
                     onClick={toggleMute}
                     title={muted ? 'Включить микрофон' : 'Отключить микрофон'}
-                    className={`void-tap-target w-14 h-14 rounded-full flex items-center justify-center transition-colors ${muted ? 'bg-white/90 text-[#1a1030]' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                    className={`void-tap-target w-14 h-14 rounded-full flex items-center justify-center transition-colors ${muted ? 'bg-[#5b32d4] text-white' : 'bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-white/20'}`}
                 >
                     {muted ? <Icons.VolumeX className="w-6 h-6" /> : <Icons.Mic className="w-6 h-6" />}
                 </button>

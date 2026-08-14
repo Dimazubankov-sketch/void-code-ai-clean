@@ -9,6 +9,9 @@ import { applyApprovedPlan } from '@/shared/lib/orchestrator-engine';
 import { AuthModal } from '@/features/auth/AuthModal';
 import { PricingView } from '@/features/billing/PricingView';
 import { ChatView } from '@/features/chat/ChatView';
+import { VoiceModeOverlay } from '@/features/chat/VoiceModeOverlay';
+import { useVoiceMode } from '@/shared/lib/useVoiceMode';
+import { getVoiceOpts } from '@/shared/lib/voiceOpts';
 import { GuideView } from '@/features/guide/GuideView';
 import { HomeView } from '@/features/home/HomeView';
 import { LibraryView } from '@/features/library/LibraryView';
@@ -651,6 +654,21 @@ export function App() {
         });
     };
 
+    // Voice Mode — разговорный голосовой режим, доступен и с Хаба, и из
+    // обычного чата (см. кнопку в HomeView.jsx/ChatView.jsx). Живёт здесь,
+    // на уровне App.jsx, а не внутри ChatView/HomeView — те монтируются и
+    // размонтируются при переключении state.currentView между 'home' и
+    // 'chat' (см. рендер ниже), и если бы хук жил внутри одного из них,
+    // открытый разговор обрывался бы при уходе с этого экрана (например,
+    // когда отправка первого сообщения из Хаба переключает на 'chat').
+    const voiceMode = useVoiceMode({
+        state,
+        updateState,
+        handleSendMessage,
+        voiceOpts: () => getVoiceOpts(state),
+        lang: state.voiceLang || 'ru-RU',
+    });
+
     // ФУНКЦИЯ ГЕНЕРАЦИИ ИЗОБРАЖЕНИЙ (работает офлайн, без внешних API)
     const handleGenerateImage = async (promptOverride = null) => {
         if (!state.user) {
@@ -731,10 +749,17 @@ export function App() {
             {showSplash && <Splash dark={state.isDarkMode} onDone={() => setShowSplash(false)} />}
             {/* МОДАЛКА АВТОРИЗАЦИИ ПОВЕРХ ВСЕГО */}
             <AuthModal state={state} updateState={updateState} />
+            {/* Voice Mode — рендерится здесь, а не внутри Home/Chat, ровно
+                по той же причине, по которой сам хук живёт в App.jsx (см.
+                комментарий у useVoiceMode выше): не должен размонтироваться
+                при переключении currentView. */}
+            {voiceMode.active && (
+                <VoiceModeOverlay state={state} updateState={updateState} voiceMode={voiceMode} onClose={voiceMode.close} />
+            )}
 
             <main className="flex-1 flex flex-col h-full w-full relative z-10 transition-transform">
-                {state.currentView === 'home' && <HomeView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} chatFileInputRef={chatFileInputRef} />}
-                {state.currentView === 'chat' && <ChatView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} messagesEndRef={messagesEndRef} chatFileInputRef={chatFileInputRef} />}
+                {state.currentView === 'home' && <HomeView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} chatFileInputRef={chatFileInputRef} voiceMode={voiceMode} />}
+                {state.currentView === 'chat' && <ChatView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} messagesEndRef={messagesEndRef} chatFileInputRef={chatFileInputRef} voiceMode={voiceMode} />}
                 {state.currentView === 'settings' && <SettingsView state={state} updateState={updateState} />}
                 {state.currentView === 'pricing' && <PricingView state={state} updateState={updateState} />}
                 {state.currentView === 'profile-edit' && <ProfileEditView state={state} updateState={updateState} />}

@@ -25,6 +25,27 @@ export const VOICE_MODE_PHASE = {
     ERROR: 'error',
 };
 
+// Крошечный беззвучный WAV, закодированный в data URI. Voice Mode
+// открывается по клику (жест пользователя есть), но реальный audio.play()
+// для голосового ответа ИИ происходит намного позже — после round-trip'а
+// распознавания речи и запроса к LLM, уже вне «свежего» жеста. На части
+// браузеров в этот момент срабатывает политика автовоспроизведения
+// (play() падает с NotAllowedError) — именно это давало ощущение «Сара уже
+// говорит, а звука нет» и ошибку «Не удалось воспроизвести аудио».
+// Проигрывая беззвучный клип ПРЯМО ВНУТРИ клика, который открывает Voice
+// Mode, мы один раз «размораживаем» программное воспроизведение аудио на
+// этой странице на всю оставшуюся сессию — штатный, поддерживаемый
+// браузерами приём (не обход политики, а её штатное использование).
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+function unlockAudioPlayback() {
+    try {
+        const a = new Audio(SILENT_WAV);
+        a.volume = 0;
+        const p = a.play();
+        if (p && typeof p.catch === 'function') p.catch(() => { /* тихо игнорируем — не критично, просто попытка */ });
+    } catch { /* noop */ }
+}
+
 export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts, lang = 'ru-RU' }) {
     const [active, setActive] = useState(false);
     const [phase, setPhase] = useState(VOICE_MODE_PHASE.IDLE);
@@ -120,6 +141,12 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     }, [tts.error, active, setPhaseBoth]);
 
     const open = useCallback(() => {
+        // Разблокируем автовоспроизведение аудио ПРЯМО в этом клике — до
+        // любых await, см. комментарий у unlockAudioPlayback выше. Это и
+        // есть основной фикс проблемы «не слышу ИИ»/«не удалось
+        // воспроизвести аудио».
+        unlockAudioPlayback();
+
         // Voice Mode всегда переключает на Void Mini (id 'flash') — самую
         // быструю модель (Groq), безлимитную и бесплатную на любом тарифе.
         // Модель из обычного чата запоминаем и возвращаем при закрытии.
