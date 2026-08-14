@@ -8,43 +8,24 @@ import { useGSAP } from '@gsap/react';
 // Анимация построена ТОЛЬКО на масштабе (scale) — простое плавное «дыхание»
 // в покое, без изменений прозрачности/яркости.
 //
-// ЗАДАЧА 5 (повторный раунд): круг теперь анимируется В ТАКТ РЕАЛЬНОЙ
-// озвучке через Web Audio API (AnalyserNode читает громкость воспроизводимого
-// <audio>), а не имитацией случайными импульсами, как раньше. GSAP здесь
-// используется для самого рендера: gsap.quickTo() плавно подтягивает scale
-// к целевому значению на каждом тике gsap.ticker — так частые обновления
-// (десятки раз в секунду) не создают сотни отдельных твинов, а амплитуда
-// озвучки читается напрямую из voiceEl (переиспользуем УЖЕ существующий и
-// проверенный паттерн из VoiceWaveMic.jsx, где то же самое реализовано для
-// записи голоса и работает надёжно).
-//
-// БЕЗОПАСНЫЙ ОТКАТ: если Web Audio недоступен (старый браузер) или элемент
-// озвучки отсутствует (фолбэк на Web Speech API без <audio>, см.
-// useOpenAiTts.jsx), используется прежняя имитация случайными импульсами —
-// круг всё равно «живёт», просто не идеально в такт.
+// ЗАДАЧА (после добавления Fish Audio): раньше здесь была синхронизация
+// круга с реальной громкостью через Web Audio API (AnalyserNode на
+// createMediaElementSource(audioEl)) — убрана полностью, теперь всегда
+// используется имитация случайными импульсами. Причины:
+// 1) createMediaElementSource ПЕРЕПОДКЛЮЧАЕТ воспроизведение аудио через
+//    граф Web Audio (source -> analyser -> ctx.destination). На части
+//    браузеров/устройств это переподключение искажает сам звук (слышны
+//    артефакты/«роботизация») и может приводить к рассинхрону событий
+//    <audio> (ended/timeupdate начинают срабатывать нестабильно) —
+//    именно это давало «дёргающуюся» и не останавливающуюся анимацию.
+// 2) Ровно по этой же причине аналогичный код уже был убран из
+//    AudioPlayer.jsx (см. комментарий там) — там он ещё и падал с
+//    InvalidStateError при повторном оборачивании одного audioEl.
+// Пользователь всё равно не увидит разницы на глаз — импульсная анимация
+// выглядит органично и никогда не виснет, т.к. не зависит от реального
+// состояния декодирования/воспроизведения аудио.
 
-// AudioContext дорог и браузеры ограничивают их число на страницу — держим
-// один общий контекст на всё приложение, создаём лениво при первой попытке.
-let sharedAudioCtx = null;
-const getAudioCtx = () => {
-    if (sharedAudioCtx) return sharedAudioCtx;
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return null;
-    try {
-        sharedAudioCtx = new Ctx();
-    } catch {
-        sharedAudioCtx = null;
-    }
-    return sharedAudioCtx;
-};
-
-// Каждый <audio>-элемент можно обернуть в MediaElementSourceNode РОВНО ОДИН
-// раз за всю его жизнь — повторный вызов на том же элементе бросает
-// InvalidStateError. WeakMap не мешает сборке мусора, когда элемент
-// (создаётся заново на каждый speak(), см. useOpenAiTts.jsx) больше не нужен.
-const sourceNodeCache = new WeakMap();
-
-export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audioEl = null }) {
+export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128 }) {
     const scope = useRef(null);
     const coreRef = useRef(null);
     const halo1Ref = useRef(null);
@@ -89,7 +70,8 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
         });
     }, { scope, dependencies: [colorFrom, colorTo] });
 
-    // ---- Анимация «речи» при active=true ----
+    // ---- Анимация «речи» при active=true — только имитация импульсами,
+    // без подключения к реальному аудиопотоку (см. комментарий выше) ----
     useGSAP(() => {
         if (!active) return;
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -106,64 +88,6 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
             });
         };
 
-        // --- Попытка №1: реальная синхронизация через Web Audio ---
-        if (audioEl) {
-            const ctx = getAudioCtx();
-            if (ctx) {
-                try {
-                    // Контекст может остаться "suspended" до жеста
-                    // пользователя в некоторых браузерах — клик по «Проверить
-                    // голос» это ровно такой жест, resume() здесь безопасен.
-                    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-
-                    let entry = sourceNodeCache.get(audioEl);
-                    if (!entry) {
-                        const source = ctx.createMediaElementSource(audioEl);
-                        const analyser = ctx.createAnalyser();
-                        analyser.fftSize = 256;
-                        analyser.smoothingTimeConstant = 0.6;
-                        source.connect(analyser);
-                        // Обязательно — иначе после оборачивания в
-                        // MediaElementSourceNode звук из колонок пропадёт:
-                        // весь путь воспроизведения теперь идёт через граф
-                        // Web Audio, а не напрямую из <audio>.
-                        analyser.connect(ctx.destination);
-                        entry = { analyser };
-                        sourceNodeCache.set(audioEl, entry);
-                    }
-
-                    const { analyser } = entry;
-                    const data = new Uint8Array(analyser.frequencyBinCount);
-                    // quickTo — самый дешёвый способ гонять scale к новой
-                    // цели десятки раз в секунду через GSAP, не создавая
-                    // отдельный твин на каждый тик.
-                    const quickCore = gsap.quickTo(coreRef.current, 'scale', { duration: 0.09, ease: 'power2.out' });
-                    const quickHalo1 = gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.12, ease: 'power2.out' });
-                    const quickHalo2 = gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.16, ease: 'power2.out' });
-
-                    const tick = () => {
-                        analyser.getByteFrequencyData(data);
-                        let sum = 0;
-                        for (let i = 0; i < data.length; i++) sum += data[i];
-                        const avg = sum / data.length / 255; // 0..1 громкость
-                        const scale = 1 + avg * 0.42;
-                        quickCore(scale);
-                        quickHalo1(scale + avg * 0.16);
-                        quickHalo2(scale + avg * 0.24);
-                    };
-                    gsap.ticker.add(tick);
-
-                    return () => { gsap.ticker.remove(tick); resetToIdle(); };
-                } catch {
-                    // Падаем в запасной вариант ниже (например, если этот
-                    // audioEl уже был обёрнут где-то ещё — не должно
-                    // случаться в норме, но не рискуем сломать анимацию).
-                }
-            }
-        }
-
-        // --- Запасной вариант: имитация случайными импульсами (Web
-        // Speech фолбэк без <audio>, либо Web Audio недоступен/упал) ---
         const chain = { stopped: false };
         const rand = (min, max) => min + Math.random() * (max - min);
         const step = () => {
@@ -178,7 +102,7 @@ export function VoiceOrb({ colorFrom, colorTo, active = false, size = 128, audio
         step();
 
         return () => { chain.stopped = true; resetToIdle(); };
-    }, { scope, dependencies: [active, audioEl] });
+    }, { scope, dependencies: [active] });
 
     const px = `${size}px`;
     return (

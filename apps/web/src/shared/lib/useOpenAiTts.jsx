@@ -72,11 +72,12 @@ export function useOpenAiTts() {
     const [elapsed, setElapsed] = useState(0);
     const [duration, setDuration] = useState(0);
     const [error, setError] = useState(null);
-    // Дублируем audioRef.current в state: рефы не триггерят ре-рендер,
-    // а VoiceOrb (Web Audio API анимация круга) должен получить именно
-    // СВЕЖИЙ <audio>-элемент через проп, а не устаревший null — иначе
-    // подключение AnalyserNode происходит на несуществующем/старом элементе
-    // и круг не пульсирует при проверке голоса.
+    // audioEl раньше использовался VoiceOrb для подключения Web Audio API
+    // (AnalyserNode) и синхронной со звуком анимации — эта логика убрана
+    // (см. VoiceOrb.jsx: переподключение аудио через createMediaElementSource
+    // искажало сам звук на части устройств и роняло события ended/timeupdate).
+    // Поле оставлено в состоянии как есть — оно ни на что не влияет и может
+    // ещё пригодиться, но больше никем не читается.
     const [audioEl, setAudioEl] = useState(null);
 
     const audioRef = useRef(null);
@@ -84,6 +85,17 @@ export function useOpenAiTts() {
     const requestTokenRef = useRef(null);
     // Фолбэк на Web Speech: заводим отложенно, только если OpenAI TTS упал.
     const fallbackUtterRef = useRef(null);
+    // Страховочный таймер: если событие 'ended'/'onerror' у <audio> по
+    // какой-то причине не сработает (нестабильные метаданные конкретного
+    // MP3-файла, редкий баг конкретного браузера и т.п.), speaking иначе
+    // навсегда останется true — UI («Проверить голос», VoiceOrb) зависнет
+    // в состоянии «озвучиваю» без возможности выйти из него. Таймер грубо
+    // гарантирует, что speaking рано или поздно сбросится сам, независимо
+    // от причины сбоя у конкретного провайдера/файла.
+    const watchdogRef = useRef(null);
+    const clearWatchdog = useCallback(() => {
+        if (watchdogRef.current) { clearTimeout(watchdogRef.current); watchdogRef.current = null; }
+    }, []);
 
     const cleanupAudio = useCallback(() => {
         const el = audioRef.current;
@@ -101,6 +113,7 @@ export function useOpenAiTts() {
 
     const stop = useCallback(() => {
         // Останавливаем и OpenAI-плеер, и Web Speech-фолбэк.
+        clearWatchdog();
         cleanupAudio();
         if (fallbackUtterRef.current) {
             try { window.speechSynthesis?.cancel(); } catch { /* noop */ }
@@ -110,7 +123,7 @@ export function useOpenAiTts() {
         setPaused(false);
         setLoading(false);
         setElapsed(0);
-    }, [cleanupAudio]);
+    }, [cleanupAudio, clearWatchdog]);
 
     // Гарантированная чистка при размонтировании
     useEffect(() => () => stop(), [stop]);
@@ -219,7 +232,7 @@ export function useOpenAiTts() {
 
             audio.onloadedmetadata = () => setDuration(audio.duration || 0);
             audio.ontimeupdate = () => setElapsed(audio.currentTime || 0);
-            audio.onended = () => { setSpeaking(false); setPaused(false); };
+            audio.onended = () => { clearWatchdog(); setSpeaking(false); setPaused(false); };
             // onerror сбрасывался при ЛЮБОЙ ошибке медиа-элемента,
             // включая безобидную MEDIA_ERR_ABORTED (когда мы сами
             // сменили src или вызвали stop()). Фильтруем только реальные
@@ -228,6 +241,7 @@ export function useOpenAiTts() {
             audio.onerror = () => {
                 const code = audio.error?.code;
                 if (code === 3 || code === 4) {
+                    clearWatchdog();
                     setError('Не удалось воспроизвести аудио');
                     setSpeaking(false);
                 }
@@ -256,6 +270,26 @@ export function useOpenAiTts() {
             setSpeaking(true);
             try {
                 await audio.play();
+                // Страховочный таймер (см. объявление watchdogRef выше): если
+                // 'ended'/'onerror' у этого конкретного файла почему-либо не
+                // сработают (нестабильные метаданные MP3 у части
+                // провайдеров/браузеров), speaking всё равно сбросится сам —
+                // UI не зависнет в состоянии «озвучиваю» навсегда. Оценка
+                // длительности: реальная audio.duration, если она конечна и
+                // известна, иначе грубая оценка по длине текста (≈15
+                // символов/сек живой речи), с разумными нижней и верхней
+                // границами на случай совсем короткого/длинного текста.
+                clearWatchdog();
+                const estByText = Math.min(60, Math.max(8, safeText.length / 15 + 5));
+                const estByDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration + 3 : null;
+                const watchdogSec = estByDuration ?? estByText;
+                watchdogRef.current = setTimeout(() => {
+                    if (audioRef.current === audio && !audio.ended) {
+                        console.warn('[useOpenAiTts] watchdog: событие ended не пришло вовремя, принудительно сбрасываю состояние');
+                        setSpeaking(false);
+                        setPaused(false);
+                    }
+                }, watchdogSec * 1000);
             } catch (playErr) {
                 // AbortError возникает при stop()/сmене src во время play() —
                 // это НЕ ошибка воспроизведения, ничего пользователю не
@@ -277,7 +311,7 @@ export function useOpenAiTts() {
             console.warn('[useOpenAiTts] Падение OpenAI TTS, фолбэк на Web Speech:', e?.message);
             speakWithFallback(safeText, opts);
         }
-    }, [stop, speakWithFallback]);
+    }, [stop, speakWithFallback, clearWatchdog]);
 
     const pause = useCallback(() => {
         if (audioRef.current && !paused) { try { audioRef.current.pause(); } catch { /* noop */ } setPaused(true); }

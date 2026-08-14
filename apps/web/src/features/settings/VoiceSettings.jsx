@@ -259,7 +259,6 @@ export function VoiceSettings({ state, updateState, onClose }) {
                                     colorTo={preset.colorTo}
                                     active={testing}
                                     size={128}
-                                    audioEl={tts.audioEl}
                                 />
                                 <div className="text-center">
                                     <p className="font-extrabold text-lg dark:text-white">{preset.name}</p>

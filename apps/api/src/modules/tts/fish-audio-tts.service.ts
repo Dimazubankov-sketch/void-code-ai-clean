@@ -74,6 +74,11 @@ export class FishAudioTtsService {
     const apiKey = this.apiKey();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    // Полезно видеть в логах, ушёл ли reference_id вообще — если голос
+    // регулярно звучит «роботизированно» независимо от выбора в UI, это
+    // первое, что нужно проверить: либо на бэкенд не долетает voice
+    // (баг на фронте/DTO), либо сам список голосов пуст (см. listVoices).
+    console.log(`[FishAudioTtsService] синтез, reference_id=${voice || '(нет — голос модели по умолчанию)'}`);
     let response: Response;
     try {
       response = await fetch(TTS_URL, {
@@ -169,7 +174,11 @@ export class FishAudioTtsService {
       });
       clearTimeout(timer);
       if (!response.ok) {
-        console.error(`[FishAudioTtsService/listVoices] HTTP ${response.status}`);
+        const errorBody = await response.text().catch(() => '');
+        // Подробный лог тела ответа — единственный способ понять причину
+        // сбоя без доступа к живому Fish API из среды разработки (ключ и
+        // сеть есть только на проде). Смотреть через `pm2 logs void-code-api`.
+        console.error(`[FishAudioTtsService/listVoices] HTTP ${response.status}:`, errorBody.slice(0, 500));
         return this.voicesCache?.items ?? [];
       }
       const data: any = await response.json().catch(() => null);
@@ -178,7 +187,16 @@ export class FishAudioTtsService {
             .map((it: any) => ({ id: it?._id || it?.id, title: it?.title || 'Voice' }))
             .filter((v: FishVoice) => !!v.id)
         : [];
+      if (!items.length) {
+        // Ответ 200, но пустой/неожиданной формы список — логируем сырой
+        // JSON (обрезанный), чтобы увидеть реальные имена полей Fish API,
+        // если они отличаются от ожидаемых (_id/id, items).
+        console.warn('[FishAudioTtsService/listVoices] пустой список голосов, сырой ответ:', JSON.stringify(data)?.slice(0, 500));
+      }
       if (items.length) this.voicesCache = { at: Date.now(), items };
+      // Полезно видеть в логах, что список реально пришёл и сколько голосов
+      // в нём — без этого «тихий успех» неотличим от «тихого падения».
+      if (items.length) console.log(`[FishAudioTtsService/listVoices] получено голосов: ${items.length}`);
       return items.length ? items : (this.voicesCache?.items ?? []);
     } catch (e: any) {
       clearTimeout(timer);
