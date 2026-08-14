@@ -14,7 +14,13 @@ import { Icons } from '@/shared/ui/Icons';
 
 const initials = (str) => (str || '?').replace(/[^a-zA-Zа-яА-Я0-9]/g, '').slice(0, 2).toUpperCase();
 
-export function AccountsPanel({ state, updateState, onClose }) {
+// onNavigateAway — вызывается перед уходом на отдельный экран
+// («Личная информация» / «Безопасность и пароль»). Нужен там, где панель
+// открыта поверх ДРУГОГО полноэкранного оверлея (почта): сам оверлей не
+// знает о смене currentView и остаётся сверху, из-за чего целевой экран
+// открывается «за» почтой. Настройки такой оверлей не рисуют и проп не
+// передают — там поведение не меняется.
+export function AccountsPanel({ state, updateState, onClose, onNavigateAway }) {
     useLockBodyScroll();
     const [manageMode, setManageMode] = useState(false);
     const [accountsCollapsed, setAccountsCollapsed] = useState(false);
@@ -116,8 +122,8 @@ export function AccountsPanel({ state, updateState, onClose }) {
                     )}
                     {manageMode && (
                         <div className="mb-4 px-4 py-3 rounded-2xl bg-gray-50/60 dark:bg-gray-900/20 space-y-2">
-                            <button onClick={() => { onClose(); updateState({ currentView: 'profile-edit', reopenAccountsPanel: true }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Личная информация</button>
-                            <button onClick={() => { onClose(); updateState({ currentView: 'security', reopenAccountsPanel: true }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Безопасность и пароль</button>
+                            <button onClick={() => { onClose(); onNavigateAway?.(); updateState({ currentView: 'profile-edit', reopenAccountsPanel: true }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Личная информация</button>
+                            <button onClick={() => { onClose(); onNavigateAway?.(); updateState({ currentView: 'security', reopenAccountsPanel: true }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Безопасность и пароль</button>
                             <button onClick={() => { onClose(); updateState({ currentView: 'pricing' }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Управление подпиской</button>
                         </div>
                     )}

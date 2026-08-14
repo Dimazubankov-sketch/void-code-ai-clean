@@ -79,9 +79,50 @@ export function useVoiceModeSpeech() {
     const [limitExceeded, setLimitExceeded] = useState(false);
 
     const audioRef = useRef(null);        // единственный переиспользуемый <audio>
+    // Огибающая громкости текущего куска — по ней орб анимируется В ТОН
+    // реальной озвучке (см. VoiceModeOrb). Считается ОТДЕЛЬНО от
+    // воспроизведения: decodeAudioData работает с копией ArrayBuffer, а не
+    // с <audio>-элементом. Подключать анализатор к самому элементу через
+    // createMediaElementSource в этом проекте нельзя — уже проверено, что
+    // это искажает звук и роняет события ended/timeupdate.
+    // Формат: { peaks: Float32Array (0..1), duration: seconds } | null.
+    const envelopeRef = useRef(null);
+    const decodeCtxRef = useRef(null);
     const runIdRef = useRef(0);           // «поколение» запуска — защита от гонок
     const abortRef = useRef(null);        // отмена незавершённых fetch'ей
     const urlsRef = useRef([]);           // созданные object URL — чистим за собой
+    const chunkBlobsRef = useRef(new Map()); // url -> blob, чтобы посчитать огибающую
+
+    // Считает огибающую (пики по ~40мс) из сырых байтов MP3. Вызывается
+    // ПОСЛЕ старта воспроизведения и намеренно не ожидается — если декод
+    // не успел или не удался, орб просто использует плавный запасной
+    // вариант, а скорость отдачи звука не страдает.
+    const computeEnvelope = useCallback(async (arrayBuf) => {
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            if (!decodeCtxRef.current) decodeCtxRef.current = new AC();
+            const audioBuffer = await decodeCtxRef.current.decodeAudioData(arrayBuf);
+            const raw = audioBuffer.getChannelData(0);
+            const bucket = Math.max(1, Math.floor(audioBuffer.sampleRate * 0.04)); // ~40мс
+            const count = Math.ceil(raw.length / bucket);
+            const peaks = new Float32Array(count);
+            let max = 0.0001;
+            for (let i = 0; i < count; i++) {
+                let sum = 0;
+                const start = i * bucket;
+                const end = Math.min(start + bucket, raw.length);
+                for (let j = start; j < end; j++) sum += raw[j] * raw[j];
+                const rms = Math.sqrt(sum / Math.max(1, end - start));
+                peaks[i] = rms;
+                if (rms > max) max = rms;
+            }
+            for (let i = 0; i < count; i++) peaks[i] = peaks[i] / max; // нормализуем 0..1
+            envelopeRef.current = { peaks, duration: audioBuffer.duration };
+        } catch {
+            envelopeRef.current = null;
+        }
+    }, []);
 
     const ensureAudioEl = useCallback(() => {
         if (!audioRef.current) {
@@ -127,6 +168,8 @@ export function useVoiceModeSpeech() {
             el.onerror = null;
         }
         revokeUrls();
+        chunkBlobsRef.current.clear();
+        envelopeRef.current = null;
         setSpeaking(false);
         setLoading(false);
     }, [revokeUrls]);
@@ -145,6 +188,8 @@ export function useVoiceModeSpeech() {
         });
         const url = URL.createObjectURL(blob);
         urlsRef.current.push(url);
+        // Кладём и сам blob — из него потом посчитаем огибающую для орба.
+        chunkBlobsRef.current.set(url, blob);
         return url;
     }, []);
 
@@ -153,6 +198,14 @@ export function useVoiceModeSpeech() {
         el.onended = () => resolve();
         el.onerror = () => reject(new Error('audio-element-error'));
         el.src = url;
+        // Огибающая предыдущего куска больше не актуальна.
+        envelopeRef.current = null;
+        const blob = chunkBlobsRef.current.get(url);
+        if (blob) {
+            // НЕ ждём: декодирование идёт параллельно воспроизведению,
+            // чтобы не добавлять задержку до первого звука.
+            blob.arrayBuffer().then(computeEnvelope).catch(() => { /* noop */ });
+        }
         const p = el.play();
         if (p && typeof p.catch === 'function') {
             p.catch((e) => {
@@ -162,7 +215,7 @@ export function useVoiceModeSpeech() {
                 reject(e);
             });
         }
-    }), [ensureAudioEl]);
+    }), [ensureAudioEl, computeEnvelope]);
 
     // Главный вход: озвучить весь ответ Сары по частям.
     const speak = useCallback(async (text, opts = {}) => {
@@ -309,5 +362,5 @@ export function useVoiceModeSpeech() {
     // возобновление разговора (см. жалобу: после неё нельзя начать заново).
     const clearError = useCallback(() => { setError(null); setLimitExceeded(false); }, []);
 
-    return { speak, beginStream, stop, unlock, clearError, speaking, loading, error, limitExceeded };
+    return { speak, beginStream, stop, unlock, clearError, speaking, loading, error, limitExceeded, audioRef, envelopeRef };
 }

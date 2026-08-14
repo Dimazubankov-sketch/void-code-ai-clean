@@ -7,6 +7,7 @@ import { VoiceModeOrb } from '@/features/chat/VoiceModeOrb';
 import { VOICE_MODE_PHASE } from '@/shared/lib/useVoiceMode';
 import { VOICE_PRESETS } from '@/features/settings/VoiceSettings';
 import { useFishVoices } from '@/shared/lib/useOpenAiTts';
+import { VoiceModeSettings } from '@/features/chat/VoiceModeSettings';
 
 // ==========================================
 // VoiceModeOverlay — полноэкранный UI разговорного режима
@@ -126,8 +127,9 @@ function LimitModal({ onClose }) {
 }
 
 export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
-    const { phase, muted, errorMsg, primaryTap, toggleMute, analyserRef } = voiceMode;
+    const { phase, muted, errorMsg, primaryTap, toggleMute, analyserRef, speechAudioRef, speechEnvelopeRef } = voiceMode;
     const [showVoicePicker, setShowVoicePicker] = useState(false);
+    const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
     const provider = state.ttsProvider || 'fish';
     const { voices: fishVoices } = useFishVoices();
@@ -166,16 +168,26 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
             {/* Выбор голоса — тап по названию вверху. Отдельной кнопки
                 закрытия здесь больше нет (задача: единственный крестик — у
                 микрофона внизу), сам оверлей не закрывается кликом сюда. */}
-            <button
-                onClick={() => setShowVoicePicker(true)}
-                className="void-tap-target flex items-center gap-1.5 text-gray-400 dark:text-white/60 hover:text-gray-900 dark:hover:text-white text-xs font-semibold uppercase tracking-wide transition-colors"
-            >
-                {voiceLabel}
-                <Icons.ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="w-full flex items-center justify-between">
+                <button
+                    onClick={() => setShowVoicePicker(true)}
+                    className="void-tap-target flex items-center gap-1.5 text-gray-400 dark:text-white/60 hover:text-gray-900 dark:hover:text-white text-xs font-semibold uppercase tracking-wide transition-colors"
+                >
+                    {voiceLabel}
+                    <Icons.ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                {/* Голосовые настройки — кнопка-ползунки в правом верхнем углу */}
+                <button
+                    onClick={() => setShowVoiceSettings(true)}
+                    title="Голосовые настройки"
+                    className="void-tap-target w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-white flex items-center justify-center transition-colors"
+                >
+                    <Icons.Sliders className="w-5 h-5" />
+                </button>
+            </div>
 
             <div className="flex-1 flex flex-col items-center justify-center gap-8">
-                <VoiceModeOrb phase={displayPhase} analyserRef={analyserRef} onClick={(muted || isLimited) ? undefined : primaryTap} size={200} />
+                <VoiceModeOrb phase={displayPhase} analyserRef={analyserRef} speechAudioRef={speechAudioRef} speechEnvelopeRef={speechEnvelopeRef} onClick={(muted || isLimited) ? undefined : primaryTap} size={200} />
                 <p className={`text-base font-semibold min-h-[1.5em] text-center max-w-xs ${isLimited ? 'text-red-500' : 'text-gray-700 dark:text-white/80'}`}>{statusText}</p>
             </div>
 
@@ -206,6 +218,10 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
                     onChoose={chooseVoice}
                     onClose={() => setShowVoicePicker(false)}
                 />
+            )}
+
+            {showVoiceSettings && (
+                <VoiceModeSettings state={state} updateState={updateState} onClose={() => setShowVoiceSettings(false)} />
             )}
 
             {isLimited && <LimitModal onClose={onClose} />}

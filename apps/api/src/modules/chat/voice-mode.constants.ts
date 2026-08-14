@@ -9,11 +9,16 @@
 // и активны.
 //
 // Раскладка по тарифам (легко правится здесь, в одном месте):
-//   FREE  → 4.3 всегда
+//   FREE  → DeepSeek V4 Flash (дёшево и быстро)
 //   PRO   → 4.3 всегда (эскалации нет: её целью по задумке был 4.3, а он
 //           здесь уже и так базовый)
 //   ULTRA → 4.3 обычно, 4.6 на тяжёлых диалогах и глубоких рассуждениях
 export const VOICE_MODELS = {
+  // Free: DeepSeek V4 Flash (сборка 0731 — официальный re-post-trained
+  // билд). Выбран вместо Grok 4.3 намеренно: $0.14/$0.28 за миллион
+  // токенов против $1.25/$2.50 у Grok 4.3, то есть примерно в девять раз
+  // дешевле — на бесплатном тарифе это принципиально.
+  FREE: 'deepseek/deepseek-v4-flash-0731',
   FAST: 'x-ai/grok-4.3',
   DEEP: 'x-ai/grok-4.6',
 } as const;
@@ -42,6 +47,7 @@ export function isHeavyDialogue(text: string): boolean {
 // Какую реальную модель звать для голосового режима на данном тарифе.
 export function pickVoiceModel(plan: string | undefined, userText: string): string {
   const p = (plan || 'FREE').toUpperCase() as PlanName;
+  if (p === 'FREE') return VOICE_MODELS.FREE;
   if (p === 'ULTRA' && isHeavyDialogue(userText)) return VOICE_MODELS.DEEP;
   return VOICE_MODELS.FAST;
 }

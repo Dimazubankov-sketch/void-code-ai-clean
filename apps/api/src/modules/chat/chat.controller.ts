@@ -41,6 +41,14 @@ class VoiceStreamDto {
   @MinLength(1)
   @MaxLength(8000)
   content!: string;
+
+  // Инструкции выбранной «личности» из голосовых настроек. Дописываются
+  // к системному промпту голосового режима. Лимит совпадает с лимитом
+  // поля в UI (1500 символов).
+  @IsOptional()
+  @IsString()
+  @MaxLength(1500)
+  persona?: string;
 }
 
 @Controller('chats')
@@ -138,6 +146,7 @@ export class ChatController {
         chatId,
         dto.content,
         (sentence) => send('sentence', { text: sentence }),
+        dto.persona,
       );
       clearInterval(heartbeat);
       send('done', { full });

@@ -48,6 +48,7 @@ export class ChatService {
     chatId: string,
     content: string,
     onSentence: (sentence: string) => void,
+    persona?: string,
   ): Promise<string> {
     await this.consumeLimit(userId);
 
@@ -88,7 +89,12 @@ export class ChatService {
 
     const full = await this.openrouter.generateStream(
       {
-        systemPrompt: VOICE_SYSTEM_PROMPT,
+        // Личность дописывается ПОСЛЕ базовых правил — так её характер
+        // накладывается поверх, но не отменяет требований формата (без
+        // markdown, коротко и т.д.), важных для озвучки.
+        systemPrompt: persona
+          ? `${VOICE_SYSTEM_PROMPT}\n\nТвоя роль в этом разговоре: ${persona}`
+          : VOICE_SYSTEM_PROMPT,
         messages: [
           ...chat.messages.map((m) => ({ role: m.role.toLowerCase(), content: m.content })),
           { role: 'user', content },

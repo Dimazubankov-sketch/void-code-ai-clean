@@ -840,7 +840,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                     было идентичным из обеих точек входа. */}
                 {showAccountSwitcher && (
                     <div className="absolute inset-0 z-30">
-                        <AccountsPanel state={state} updateState={updateState} onClose={() => setShowAccountSwitcher(false)} />
+                        <AccountsPanel state={state} updateState={updateState} onClose={() => setShowAccountSwitcher(false)} onNavigateAway={onClose} />
                     </div>
                 )}
             </div>

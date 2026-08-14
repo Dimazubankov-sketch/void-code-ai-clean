@@ -3,6 +3,7 @@ import { useVoiceModeRecognition } from '@/shared/lib/useVoiceModeRecognition';
 import { useVoiceModeSpeech } from '@/shared/lib/useVoiceModeSpeech';
 import { playVoiceModeOpenChime, playVoiceModeCloseChime } from '@/shared/lib/voiceModeChime';
 import { createBackendChat, streamVoiceMessage } from '@/shared/api/chat';
+import { BUILTIN_PERSONAS } from '@/features/chat/VoiceModeSettings';
 
 // ==========================================
 // useVoiceMode — разговорный голосовой режим чата (hands-free)
@@ -114,7 +115,13 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
 
         try {
             const chatId = await ensureBackendChatId();
+            // Инструкции выбранной личности дописываются к системному
+            // промпту голосового режима на бэкенде (см. VOICE_SYSTEM_PROMPT).
+            const prev = stateRef.current;
+            const personas = [...BUILTIN_PERSONAS, ...(prev.voicePersonas || [])];
+            const persona = personas.find((x) => x.id === (prev.activePersonaId || BUILTIN_PERSONAS[0].id));
             const full = await streamVoiceMessage(chatId, text, {
+                persona: persona?.instructions || undefined,
                 signal: controller.signal,
                 onSentence: (sentence) => {
                     if (!sawFirst) { sawFirst = true; setPhaseBoth(VOICE_MODE_PHASE.SPEAKING); }
@@ -297,5 +304,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         active, phase, muted, errorMsg,
         open, close, primaryTap, toggleMute,
         analyserRef: recognition.analyserRef,
+        speechAudioRef: speech.audioRef,
+        speechEnvelopeRef: speech.envelopeRef,
     };
 }

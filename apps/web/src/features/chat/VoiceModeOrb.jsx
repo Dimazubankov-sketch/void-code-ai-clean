@@ -50,7 +50,7 @@ function settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef) {
     });
 }
 
-export function VoiceModeOrb({ phase, analyserRef, onClick, size = 200 }) {
+export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelopeRef, onClick, size = 200 }) {
     const scope = useRef(null);
     const coreRef = useRef(null);
     const halo1Ref = useRef(null);
@@ -127,22 +127,53 @@ export function VoiceModeOrb({ phase, analyserRef, onClick, size = 200 }) {
         };
     }, { scope, dependencies: [phase] });
 
-    // ---- SPEAKING: ТРИ фиксированных tween'а с repeat:-1, слегка сбитых
-    // по фазе и периоду — даёт живое, «дышащее» ощущение речи без единого
-    // случайного скачка и БЕЗ пересоздания объектов на каждой итерации
-    // (см. комментарий вверху файла про причину краша). ----
-    useGSAP(() => {
+    // ---- SPEAKING: анимация В ТОН реальной озвучке ----
+    // Орб пульсирует по НАСТОЯЩЕЙ громкости голоса Сары. Данные берутся не
+    // с аудиоэлемента напрямую (createMediaElementSource в этом проекте
+    // искажает звук и роняет события — см. шапку файла), а из огибающей,
+    // посчитанной заранее из тех же MP3-байтов в useVoiceModeSpeech.
+    // Здесь мы лишь читаем audio.currentTime и берём соответствующий пик —
+    // это копеечная операция на кадр, на скорость режима не влияет.
+    // Если огибающая ещё не досчиталась (первые доли секунды) или декод не
+    // удался — плавно «дышим» запасным паттерном, без рывков.
+    useEffect(() => {
         if (phase !== VOICE_MODE_PHASE.SPEAKING) return undefined;
         if (!coreRef.current) return undefined;
         idleTweensRef.current.forEach((tw) => tw?.pause());
-        const core = gsap.to(coreRef.current, { scale: 1.13, duration: 0.5, ease: 'sine.inOut', yoyo: true, repeat: -1 });
-        const h1 = halo1Ref.current ? gsap.to(halo1Ref.current, { scale: 1.24, duration: 0.65, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.08 }) : null;
-        const h2 = halo2Ref.current ? gsap.to(halo2Ref.current, { scale: 1.34, duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.16 }) : null;
+
+        const scaleTo = gsap.quickTo(coreRef.current, 'scale', { duration: 0.12, ease: 'power2.out' });
+        const h1To = halo1Ref.current ? gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.18, ease: 'power2.out' }) : null;
+        const h2To = halo2Ref.current ? gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.24, ease: 'power2.out' }) : null;
+
+        let raf = null;
+        let smooth = 0;
+        const tick = () => {
+            const env = speechEnvelopeRef?.current;
+            const el = speechAudioRef?.current;
+            let target = 0;
+            if (env && el && env.duration > 0) {
+                const t = el.currentTime || 0;
+                const idx = Math.min(env.peaks.length - 1, Math.max(0, Math.floor((t / env.duration) * env.peaks.length)));
+                target = env.peaks[idx] || 0;
+            } else {
+                // Запасной вариант на время, пока огибающая считается:
+                // мягкая синусоида, чтобы орб не стоял мёртвым.
+                target = 0.45 + 0.25 * Math.sin(Date.now() / 220);
+            }
+            // Сглаживание, чтобы не дёргалось на резких пиках.
+            smooth += (target - smooth) * 0.35;
+            const scale = 1 + Math.min(smooth, 1) * 0.26;
+            scaleTo(scale);
+            h1To?.(scale + 0.07);
+            h2To?.(scale + 0.13);
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
         return () => {
-            core.kill(); h1?.kill(); h2?.kill();
+            if (raf) cancelAnimationFrame(raf);
             settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef);
         };
-    }, { scope, dependencies: [phase] });
+    }, [phase, speechAudioRef, speechEnvelopeRef]);
 
     // ---- ERROR: короткая встряска, затем покой ----
     useGSAP(() => {
