@@ -36,25 +36,25 @@ export interface FishVoice {
 // id навсегда, поэтому здесь только ПОИСКОВЫЙ запрос (title) к публичной
 // библиотеке; сам _id резолвится и кэшируется в рантайме (см. listVoices).
 // query — основной поисковый запрос (максимально похож на то, что видно
-// в каталоге Fish); fallbackQuery — более короткий/общий запрос на случай,
-// если точный тайтл не найдётся (напр. другая версия суффикса у автора).
+// в каталоге Fish); остальные строки в queries — запасные варианты (по
+// одному слову/токену из названия), перебираются по порядку, пока
+// какой-нибудь не найдёт совпадение в публичной библиотеке Fish.
 interface CuratedVoiceDef {
-  query: string;
-  fallbackQuery?: string;
+  queries: string[];
   name: string;
   description: string;
 }
 
 const CURATED_VOICES: CuratedVoiceDef[] = [
-  { query: 'Мужской Профессиональный213',              fallbackQuery: 'Мужской Профессиональный', name: 'Marcus',   description: 'Мужской, глубокий, деловой' },
-  { query: 'РасДК-836443 James Baker',                  fallbackQuery: 'James Baker',               name: 'James',    description: 'Мужской, уверенный, чёткий' },
-  { query: 'Сергей Бурунов x1Katari',                   fallbackQuery: 'Сергей Бурунов',            name: 'Sergei',   description: 'Мужской, характерный, живой' },
-  { query: 'Adam Ксения Терехова',                      fallbackQuery: 'Ксения Терехова',           name: 'Ksenia',   description: 'Женский, мягкий, тёплый' },
-  { query: 'Инциденты 2.0 ytwatchingalexandr',          fallbackQuery: 'Инциденты',                 name: 'Alexander',description: 'Мужской, спокойный, размеренный' },
-  { query: 'история от котят Николай Абрамович',        fallbackQuery: 'Николай Абрамович',         name: 'Nikolai',  description: 'Мужской, тёплый, повествовательный' },
-  { query: 'Меллстрой Скуф',                            fallbackQuery: 'Меллстрой',                 name: 'Mellstroy',description: 'Мужской, громкий, энергичный' },
-  { query: 'Рената Литвинова Серафима',                 fallbackQuery: 'Рената Литвинова',          name: 'Serafima', description: 'Женский, глубокий, выразительный' },
-  { query: 'Обычный Голос s2yuzzll',                    fallbackQuery: 'Обычный Голос',             name: 'Olivia',   description: 'Женский, ровный, нейтральный' },
+  { queries: ['Мужской Профессиональный213', 'Мужской Профессиональный'],                                          name: 'Marcus',    description: 'Мужской, глубокий, деловой' },
+  { queries: ['РасДК-836443 James Baker', 'James Baker', 'РасДК-836443', 'James', 'Baker'],                        name: 'James',     description: 'Мужской, уверенный, чёткий' },
+  { queries: ['Сергей Бурунов x1Katari', 'Сергей Бурунов', 'Бурунов'],                                              name: 'Sergei',    description: 'Мужской, характерный, живой' },
+  { queries: ['Adam Ксения Терехова', 'Ксения Терехова', 'Терехова', 'Ксения'],                                     name: 'Ksenia',    description: 'Женский, мягкий, тёплый' },
+  { queries: ['Инциденты 2.0 ytwatchingalexandr', 'Инциденты 2.0', 'Инциденты'],                                    name: 'Alexander', description: 'Мужской, спокойный, размеренный' },
+  { queries: ['история от котят Николай Абрамович', 'Николай Абрамович', 'Абрамович', 'история от котят'],          name: 'Nikolai',   description: 'Мужской, тёплый, повествовательный' },
+  { queries: ['Меллстрой Скуф', 'Меллстрой'],                                                                       name: 'Mellstroy', description: 'Мужской, громкий, энергичный' },
+  { queries: ['Рената Литвинова Серафима', 'Рената Литвинова', 'Серафима'],                                         name: 'Serafima',  description: 'Женский, глубокий, выразительный' },
+  { queries: ['Обычный Голос s2yuzzll', 'Обычный Голос'],                                                           name: 'Olivia',    description: 'Женский, ровный, нейтральный' },
 ];
 
 @Injectable()
@@ -63,6 +63,14 @@ export class FishAudioTtsService {
   // api.fish.audio может быть недоступна с сервера целиком, и без таймаута
   // клиент увидит «бесконечную загрузку» вместо понятной ошибки.
   private readonly timeoutMs = 15_000;
+
+  // Отдельный, более короткий таймаут для поисковых запросов голосов
+  // (searchVoice) — при обновлении кэша списка голосов один голос может
+  // перебирать до 5 запросов подряд (см. CURATED_VOICES.queries), и это
+  // метаданные, а не синтез, где точность важнее скорости. Короткий
+  // таймаут не даёт единичному зависшему запросу раздувать общее время
+  // резолва всего списка голосов.
+  private readonly voiceSearchTimeoutMs = 6_000;
 
   // Простой in-memory кэш списка голосов — без Redis и очередей, как и
   // просили. Курируемый список голосов меняется только при правке кода,
@@ -131,16 +139,19 @@ export class FishAudioTtsService {
       // Путь остаётся буферизованным целиком (см. tts.controller.ts —
       // Cloudflare ломает chunked-стрим), поэтому единственный доступный
       // рычаг скорости — ускорить саму генерацию на стороне Fish:
-      //   • latency: 'low' — самый быстрый режим генерации у Fish (было
-      //     'balanced'); проигрывает 'normal' в качестве, но для
-      //     голосового чата это оправданный компромисс — так и просит
-      //     задача (максимально быстрая отдача).
+      //   • latency: 'balanced' — быстрее дефолтного 'normal', при этом
+      //     задокументированное и уже проверенное в проде значение для
+      //     именно этого эндпоинта (POST /v1/tts). Пробовал 'low' — часть
+      //     документации Fish указывает это значение только для другого
+      //     эндпоинта (стриминг с таймстампами), для обычного /v1/tts оно,
+      //     видимо, не принимается и роняет запрос — возвращаю
+      //     подтверждённое рабочее значение, чтобы не ломать озвучку.
       //   • chunk_length ниже дефолта (200) — модель быстрее генерирует
       //     первый и последующие куски.
       //   • mp3_bitrate 64 вместо дефолтных 128 — меньше байт на скачку
       //     через Cloudflare/nginx, для речи (не музыки) разница в
       //     качестве на слух практически незаметна.
-      latency: 'low',
+      latency: 'balanced',
       chunk_length: 130,
       mp3_bitrate: 64,
       prosody: { speed },
@@ -244,7 +255,7 @@ export class FishAudioTtsService {
   // сортирует по релевантности при заданном title.
   private async searchVoice(apiKey: string, query: string): Promise<{ id: string; title: string } | null> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timer = setTimeout(() => controller.abort(), this.voiceSearchTimeoutMs);
     try {
       const url = `${VOICES_URL}?title=${encodeURIComponent(query)}&page_size=5`;
       const response = await fetch(url, {
@@ -265,17 +276,17 @@ export class FishAudioTtsService {
     }
   }
 
-  // Резолвит один пункт курируемого списка: сначала точный запрос, если
-  // пусто — короткий fallbackQuery. Возвращает готовый FishVoice с НАШИМ
-  // именем и описанием (не сырым тайтлом из каталога Fish).
+  // Резолвит один пункт курируемого списка: перебирает queries по порядку,
+  // пока какой-нибудь запрос не найдёт совпадение в каталоге Fish.
+  // Возвращает готовый FishVoice с НАШИМ именем и описанием (не сырым
+  // тайтлом из каталога Fish).
   private async resolveCuratedVoice(apiKey: string, def: CuratedVoiceDef): Promise<FishVoice | null> {
-    let found = await this.searchVoice(apiKey, def.query);
-    if (!found && def.fallbackQuery) found = await this.searchVoice(apiKey, def.fallbackQuery);
-    if (!found) {
-      console.warn(`[FishAudioTtsService/listVoices] голос не найден в каталоге: "${def.query}"`);
-      return null;
+    for (const q of def.queries) {
+      const found = await this.searchVoice(apiKey, q);
+      if (found) return { id: found.id, title: def.name, description: def.description };
     }
-    return { id: found.id, title: def.name, description: def.description };
+    console.warn(`[FishAudioTtsService/listVoices] голос не найден в каталоге: "${def.queries[0]}" (перебрано запросов: ${def.queries.length})`);
+    return null;
   }
 
   // Список голосов для UI выбора голоса (VoiceSettings). Теперь это не
