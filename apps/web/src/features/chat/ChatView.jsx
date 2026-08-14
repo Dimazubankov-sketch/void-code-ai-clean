@@ -730,7 +730,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 disabled={state.isGenerating || voice.busy}
                                 title="Voice Mode"
                                 className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
-                            ><Icons.Headset className="w-5 h-5" /></button>
+                            ><Icons.Waveform className="w-5 h-5" /></button>
                         )}
                     </div>
                 </div>
@@ -829,7 +829,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
 
             {activeCodeBlock && <CodeViewerModal block={activeCodeBlock.block} siblings={activeCodeBlock.siblings} onClose={() => setActiveCodeBlock(null)} />}
             {voiceMode.active && (
-                <VoiceModeOverlay state={state} voiceMode={voiceMode} onClose={voiceMode.close} />
+                <VoiceModeOverlay state={state} updateState={updateState} voiceMode={voiceMode} onClose={voiceMode.close} />
             )}
             {showPlusMenu && (
                 <ChatPlusMenu

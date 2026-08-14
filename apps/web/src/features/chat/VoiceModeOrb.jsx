@@ -9,21 +9,42 @@ import { VOICE_MODE_PHASE } from '@/shared/lib/useVoiceMode';
 // ВАЖНО (урок из VoiceOrb.jsx во вкладке настроек «Голос»): фаза SPEAKING
 // НИКОГДА не подключается к реальному аудиопотоку через AnalyserNode на
 // <audio>-элементе (createMediaElementSource) — на части устройств это
-// искажает сам звук и роняет события ended/timeupdate. Поэтому речь Сары
-// анимируется безопасной имитацией случайными импульсами — тот же
-// проверенный паттерн, что и в настройках.
-// Фаза LISTENING, наоборот, честно реагирует на РЕАЛЬНЫЙ уровень сигнала
-// с сырого потока микрофона (analyserRef из useVoiceRecorder — это
-// getUserMedia, а не воспроизведение, подключать его безопасно).
+// искажает сам звук и роняет события ended/timeupdate. Речь Сары
+// анимируется безопасной имитацией — НО не случайными рывками (см. ниже),
+// а плавной многослойной синусоидой, чтобы не «дёргалось».
+//
+// ВАЖНО #2 (правка после жалобы на краш при закрытии): раньше SPEAKING
+// пересоздавал НОВЫЙ gsap.timeline() каждые ~0.15–0.25с рекурсивным
+// вызовом step() — это самый вероятный источник краша (лавинообразное
+// накопление таймлайнов при частой смене фаз). Теперь ВСЕ фазы используют
+// ограниченное число tween'ов с repeat:-1 — они создаются ОДИН раз и
+// просто крутятся, ничего не пересоздают на каждый кадр/итерацию.
+// Плюс — все точки обращения к DOM-рефам защищены проверкой на null:
+// компонент может быть уже размонтирован (Voice Mode закрыли) в момент,
+// когда сработает cleanup-функция предыдущего эффекта.
 
 const PHASE_COLORS = {
-    idle:         { from: '#c4b5fd', to: '#5b32d4' },
-    listening:    { from: '#5eead4', to: '#5b32d4' },
-    transcribing: { from: '#5eead4', to: '#5b32d4' },
-    thinking:     { from: '#93c5fd', to: '#5b32d4' },
-    speaking:     { from: '#22d3ee', to: '#5b32d4' },
-    error:        { from: '#fca5a5', to: '#dc2626' },
+    idle:      { from: '#c4b5fd', to: '#5b32d4' },
+    listening: { from: '#5eead4', to: '#5b32d4' },
+    thinking:  { from: '#93c5fd', to: '#5b32d4' },
+    speaking:  { from: '#22d3ee', to: '#5b32d4' },
+    error:     { from: '#fca5a5', to: '#dc2626' },
 };
+
+// Возвращает к масштабу 1 и (если передан) возобновляет фоновое «дыхание».
+// Общая функция для всех cleanup — с защитой на случай, что рефы уже null
+// (компонент размонтирован).
+function settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef) {
+    const targets = [coreRef.current, halo1Ref.current, halo2Ref.current].filter(Boolean);
+    if (!targets.length) {
+        idleTweensRef.current.forEach((tw) => tw?.resume());
+        return;
+    }
+    gsap.to(targets, {
+        scale: 1, x: 0, duration: 0.3, ease: 'power2.out', overwrite: 'auto',
+        onComplete: () => idleTweensRef.current.forEach((tw) => tw?.resume()),
+    });
+}
 
 export function VoiceModeOrb({ phase, analyserRef, onClick, size = 200 }) {
     const scope = useRef(null);
@@ -33,11 +54,11 @@ export function VoiceModeOrb({ phase, analyserRef, onClick, size = 200 }) {
     const idleTweensRef = useRef([]);
     const rafRef = useRef(null);
 
-    // ---- «Дыхание» покоя — играет всегда как база, ставится на паузу
-    // другими фазами и возобновляется, когда они заканчиваются ----
+    // ---- «Дыхание» покоя — база, ставится на паузу другими фазами и
+    // возобновляется, когда они заканчиваются ----
     useGSAP(() => {
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (reduce) return;
+        if (reduce) return undefined;
         const coreTween = gsap.to('.vm-orb-core', { scale: 1.05, duration: 2.4, ease: 'sine.inOut', yoyo: true, repeat: -1 });
         gsap.set('.vm-orb-halo-1', { autoAlpha: 0.28 });
         gsap.set('.vm-orb-halo-2', { autoAlpha: 0.2 });
@@ -59,14 +80,14 @@ export function VoiceModeOrb({ phase, analyserRef, onClick, size = 200 }) {
     }, { scope, dependencies: [phase] });
 
     // ---- LISTENING: масштаб честно реагирует на реальный уровень
-    // сигнала с микрофона (rAF-цикл + gsap.quickTo — часто обновляемое
-    // свойство, quickTo рекомендован именно для такого случая) ----
+    // сигнала с микрофона (rAF-цикл + gsap.quickTo) ----
     useEffect(() => {
         if (phase !== VOICE_MODE_PHASE.LISTENING) return undefined;
+        if (!coreRef.current) return undefined;
         idleTweensRef.current.forEach((tw) => tw?.pause());
         const scaleTo = gsap.quickTo(coreRef.current, 'scale', { duration: 0.15, ease: 'power2.out' });
-        const halo1To = gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.2, ease: 'power2.out' });
-        const halo2To = gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.25, ease: 'power2.out' });
+        const halo1To = halo1Ref.current ? gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.2, ease: 'power2.out' }) : null;
+        const halo2To = halo2Ref.current ? gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.25, ease: 'power2.out' }) : null;
         const analyser = analyserRef?.current;
         const data = analyser ? new Uint8Array(analyser.frequencyBinCount) : null;
         const tick = () => {
@@ -77,8 +98,8 @@ export function VoiceModeOrb({ phase, analyserRef, onClick, size = 200 }) {
                 const avg = sum / data.length / 255;
                 const scale = 1 + Math.min(avg * 0.9, 0.4);
                 scaleTo(scale);
-                halo1To(scale + 0.06);
-                halo2To(scale + 0.12);
+                halo1To?.(scale + 0.06);
+                halo2To?.(scale + 0.12);
             }
             rafRef.current = requestAnimationFrame(tick);
         };
@@ -86,56 +107,43 @@ export function VoiceModeOrb({ phase, analyserRef, onClick, size = 200 }) {
         return () => {
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
             rafRef.current = null;
-            gsap.to([coreRef.current, halo1Ref.current, halo2Ref.current], {
-                scale: 1, duration: 0.3, ease: 'power2.out', overwrite: 'auto',
-                onComplete: () => idleTweensRef.current.forEach((tw) => tw?.resume()),
-            });
+            settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef);
         };
     }, [phase, analyserRef]);
 
-    // ---- THINKING: равномерный, чуть более быстрый пульс (без реальных
-    // данных — просто индикатор «обрабатываю») ----
+    // ---- THINKING: равномерный, чуть более быстрый пульс ----
     useGSAP(() => {
         if (phase !== VOICE_MODE_PHASE.THINKING) return undefined;
+        if (!coreRef.current) return undefined;
         idleTweensRef.current.forEach((tw) => tw?.pause());
         const tween = gsap.to(coreRef.current, { scale: 1.08, duration: 0.7, ease: 'sine.inOut', yoyo: true, repeat: -1 });
         return () => {
             tween.kill();
-            gsap.to(coreRef.current, {
-                scale: 1, duration: 0.3, ease: 'power2.out', overwrite: 'auto',
-                onComplete: () => idleTweensRef.current.forEach((tw) => tw?.resume()),
-            });
+            settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef);
         };
     }, { scope, dependencies: [phase] });
 
-    // ---- SPEAKING: безопасная имитация импульсами (см. комментарий
-    // вверху файла — никогда не подключаем реальный аудиопоток) ----
+    // ---- SPEAKING: ТРИ фиксированных tween'а с repeat:-1, слегка сбитых
+    // по фазе и периоду — даёт живое, «дышащее» ощущение речи без единого
+    // случайного скачка и БЕЗ пересоздания объектов на каждой итерации
+    // (см. комментарий вверху файла про причину краша). ----
     useGSAP(() => {
         if (phase !== VOICE_MODE_PHASE.SPEAKING) return undefined;
+        if (!coreRef.current) return undefined;
         idleTweensRef.current.forEach((tw) => tw?.pause());
-        const chain = { stopped: false };
-        const rand = (min, max) => min + Math.random() * (max - min);
-        const step = () => {
-            if (chain.stopped) return;
-            const scale = rand(1.04, 1.22);
-            const dur = rand(0.14, 0.26);
-            gsap.timeline({ onComplete: step })
-                .to(coreRef.current, { scale, duration: dur, ease: 'power2.out' }, 0)
-                .to([halo1Ref.current, halo2Ref.current], { scale: scale + 0.08, duration: dur, ease: 'power2.out' }, 0);
-        };
-        step();
+        const core = gsap.to(coreRef.current, { scale: 1.13, duration: 0.5, ease: 'sine.inOut', yoyo: true, repeat: -1 });
+        const h1 = halo1Ref.current ? gsap.to(halo1Ref.current, { scale: 1.24, duration: 0.65, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.08 }) : null;
+        const h2 = halo2Ref.current ? gsap.to(halo2Ref.current, { scale: 1.34, duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.16 }) : null;
         return () => {
-            chain.stopped = true;
-            gsap.to([coreRef.current, halo1Ref.current, halo2Ref.current], {
-                scale: 1, duration: 0.3, ease: 'power2.out', overwrite: 'auto',
-                onComplete: () => idleTweensRef.current.forEach((tw) => tw?.resume()),
-            });
+            core.kill(); h1?.kill(); h2?.kill();
+            settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef);
         };
     }, { scope, dependencies: [phase] });
 
     // ---- ERROR: короткая встряска, затем покой ----
     useGSAP(() => {
         if (phase !== VOICE_MODE_PHASE.ERROR) return undefined;
+        if (!coreRef.current) return undefined;
         const tween = gsap.timeline()
             .to(coreRef.current, { x: -6, duration: 0.06 })
             .to(coreRef.current, { x: 6, duration: 0.06 })
@@ -153,7 +161,7 @@ export function VoiceModeOrb({ phase, analyserRef, onClick, size = 200 }) {
             type="button"
             className="relative flex items-center justify-center shrink-0 focus:outline-none"
             style={{ width: px, height: px }}
-            aria-label="Говорить"
+            aria-label="Voice Mode"
         >
             <div ref={halo1Ref} className="vm-orb-halo-1 absolute inset-0 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c.from}, transparent 70%)` }} />
             <div ref={halo2Ref} className="vm-orb-halo-2 absolute inset-0 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c.to}, transparent 70%)` }} />
