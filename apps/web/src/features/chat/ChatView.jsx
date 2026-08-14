@@ -462,6 +462,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                             onFeedback={(type) => setFeedback({ idx, type })}
                                             onSpeak={() => speakMessage(idx, msg.content)}
                                             speaking={ttsMsgIdx === idx && tts.speaking}
+                                            speakLoading={ttsMsgIdx === idx && tts.loading}
                                             feedbackValue={feedbackMap[idx]}
                                         />
                                         {ttsMsgIdx === idx && tts.supported && (
