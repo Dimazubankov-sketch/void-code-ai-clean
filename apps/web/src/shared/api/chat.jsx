@@ -1,4 +1,4 @@
-import { apiFetch } from '@/shared/api/client';
+import { apiFetch, ApiError, getToken } from '@/shared/api/client';
 
 // Backend сейчас всегда отвечает через один настроенный провайдер (Groq,
 // модель llama-3.3-70b-versatile — см. GroqProvider на сервере). Поле model
@@ -15,6 +15,71 @@ export async function sendBackendMessage(chatId, content, model, systemPrompt, i
     body: { content, model: model || 'llama-3.3-70b-versatile', systemPrompt, images },
   });
   return data.content;
+}
+
+// ==========================================
+// Голосовой режим: потоковый ответ по предложениям (SSE)
+// ==========================================
+// Обычный sendBackendMessage ждёт ответ целиком. Здесь бэкенд присылает
+// КАЖДОЕ законченное предложение отдельным событием, и вызывающий код
+// (Voice Mode) сразу ставит его в очередь озвучки — пользователь слышит
+// начало ответа, пока модель ещё дописывает остальное.
+//
+// EventSource не используем: он умеет только GET и не даёт передать
+// заголовок Authorization. Поэтому обычный fetch + ручной разбор SSE.
+export async function streamVoiceMessage(chatId, content, { onSentence, signal } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let response;
+  try {
+    response = await fetch(`/api/v1/chats/${chatId}/voice-stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ content }),
+      signal,
+    });
+  } catch (e) {
+    if (e?.name === 'AbortError') throw e;
+    throw new ApiError(0, 'Не удалось связаться с сервером.');
+  }
+  if (!response.ok || !response.body) {
+    throw new ApiError(response.status, `Ошибка сервера (HTTP ${response.status})`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let full = '';
+  let serverError = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    // События SSE разделены пустой строкой.
+    const parts = buf.split('\n\n');
+    buf = parts.pop() || '';
+    for (const part of parts) {
+      const lines = part.split('\n');
+      let event = 'message';
+      let dataRaw = '';
+      for (const line of lines) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) dataRaw += line.slice(5).trim();
+      }
+      if (!dataRaw) continue; // heartbeat-комментарий ': keep-alive'
+      let data;
+      try { data = JSON.parse(dataRaw); } catch { continue; }
+      if (event === 'sentence' && data.text) { full += (full ? ' ' : '') + data.text; onSentence?.(data.text); }
+      else if (event === 'done') { if (data.full) full = data.full; }
+      else if (event === 'error') { serverError = new ApiError(data.statusCode || 500, data.message || 'Ошибка'); }
+    }
+  }
+
+  if (serverError) throw serverError;
+  return full;
 }
 
 // Генерация изображения через backend (DALL-E 3). Возвращает URL/ data-URL.

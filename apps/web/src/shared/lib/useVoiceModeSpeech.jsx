@@ -222,9 +222,92 @@ export function useVoiceModeSpeech() {
         }
     }, [fetchChunk, playUrl, stop]);
 
+    // ==========================================
+    // Потоковый режим: очередь предложений
+    // ==========================================
+    // Используется, когда ответ приходит с бэкенда по предложениям (SSE,
+    // см. streamVoiceMessage). Каждое пришедшее предложение сразу встаёт
+    // в очередь; фоновый «насос» синтезирует и проигрывает их строго по
+    // порядку, при этом синтез СЛЕДУЮЩЕГО стартует, пока играет текущее.
+    const queueRef = useRef([]);
+    const pumpingRef = useRef(false);
+    const streamDoneRef = useRef(false);
+
+    const pump = useCallback(async (opts, myRun) => {
+        if (pumpingRef.current) return;
+        pumpingRef.current = true;
+        try {
+            let pending = null; // уже запущенный синтез следующего куска
+            while (runIdRef.current === myRun) {
+                let url = null;
+                if (pending) { url = await pending; pending = null; }
+                else if (queueRef.current.length) {
+                    const next = queueRef.current.shift();
+                    url = await fetchChunk(next, opts, abortRef.current?.signal);
+                } else if (streamDoneRef.current) {
+                    break; // поток закончился и очередь пуста — всё сказали
+                } else {
+                    // Ждём следующее предложение от модели.
+                    await new Promise((r) => setTimeout(r, 60));
+                    continue;
+                }
+                if (runIdRef.current !== myRun || !url) break;
+
+                setLoading(false);
+                setSpeaking(true);
+                // Пока играет текущее, синтезируем следующее из очереди.
+                if (queueRef.current.length) {
+                    const next = queueRef.current.shift();
+                    pending = fetchChunk(next, opts, abortRef.current?.signal).catch(() => null);
+                }
+                await playUrl(url);
+            }
+            if (runIdRef.current === myRun) setSpeaking(false);
+        } catch (e) {
+            if (runIdRef.current !== myRun) return;
+            setLoading(false);
+            setSpeaking(false);
+            if (e?.name === 'AbortError') return;
+            if (e instanceof ApiError && e.status === 403) {
+                setLimitExceeded(true);
+                setError(e.message || 'Дневной лимит озвучки исчерпан');
+                return;
+            }
+            setError('Не удалось воспроизвести ответ');
+        } finally {
+            pumpingRef.current = false;
+        }
+    }, [fetchChunk, playUrl]);
+
+    // Начать новый потоковый ответ: очищает всё предыдущее.
+    const beginStream = useCallback((opts) => {
+        stop();
+        queueRef.current = [];
+        streamDoneRef.current = false;
+        setError(null);
+        setLimitExceeded(false);
+        setLoading(true);
+        const controller = new AbortController();
+        abortRef.current = controller;
+        const myRun = runIdRef.current;
+        return {
+            push: (sentence) => {
+                if (runIdRef.current !== myRun) return;
+                const clean = sanitizeForSpeech(sentence);
+                if (clean) queueRef.current.push(clean);
+                pump(opts, myRun);
+            },
+            finish: () => {
+                if (runIdRef.current !== myRun) return;
+                streamDoneRef.current = true;
+                pump(opts, myRun);
+            },
+        };
+    }, [pump, stop]);
+
     // Явный сброс ошибки — чтобы «залипшая» ошибка не блокировала
     // возобновление разговора (см. жалобу: после неё нельзя начать заново).
     const clearError = useCallback(() => { setError(null); setLimitExceeded(false); }, []);
 
-    return { speak, stop, unlock, clearError, speaking, loading, error, limitExceeded };
+    return { speak, beginStream, stop, unlock, clearError, speaking, loading, error, limitExceeded };
 }

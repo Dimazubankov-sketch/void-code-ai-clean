@@ -184,4 +184,104 @@ export class OpenRouterProvider implements LlmProvider {
     );
     return content;
   }
+
+  // ==========================================
+  // Потоковая генерация (для голосового режима)
+  // ==========================================
+  // Обычный generate() ждёт ответ целиком — для разговора вслух это
+  // означает, что пользователь молчит всё время генерации. Здесь мы
+  // читаем SSE-поток OpenRouter и отдаём текст по мере поступления, а
+  // вызывающая сторона (ChatService) режет его на предложения и сразу
+  // отправляет на синтез — первое слово звучит через ~секунду, а не
+  // после того как модель дописала весь ответ.
+  //
+  // modelSlug передаётся ЯВНО (а не через modelMap), потому что голосовой
+  // режим сам выбирает модель по тарифу — см. voice-mode.constants.ts.
+  async generateStream(
+    req: { systemPrompt: string; messages: Array<{ role: string; content: string }>; maxTokens?: number; temperature?: number },
+    modelSlug: string,
+    onDelta: (chunk: string) => void,
+  ): Promise<string> {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new ServiceUnavailableException('LLM-провайдер не сконфигурирован');
+
+    const started = Date.now();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    let response: Response;
+    try {
+      response = await fetch(this.apiUrl, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'HTTP-Referer': process.env.APP_URL || 'https://void-code.ru',
+          'X-Title': 'Void Code AI',
+        },
+        body: JSON.stringify({
+          model: modelSlug,
+          messages: [
+            { role: 'system', content: req.systemPrompt },
+            ...req.messages.map((m) => ({ role: m.role, content: m.content })),
+          ],
+          stream: true,
+          // В голосовом режиме ответы короткие по промпту — низкий потолок
+          // дополнительно страхует от простыни, которую пришлось бы долго
+          // озвучивать.
+          max_tokens: req.maxTokens ?? 700,
+          temperature: req.temperature ?? 0.7,
+          provider: { sort: 'throughput', allow_fallbacks: true },
+        }),
+      });
+    } catch (e: any) {
+      clearTimeout(timer);
+      if (e?.name === 'AbortError' || e?.code === 'ABORT_ERR') {
+        throw new ServiceUnavailableException('Модель отвечает слишком долго');
+      }
+      throw new ServiceUnavailableException('Сбой сети при обращении к провайдеру');
+    }
+    clearTimeout(timer);
+
+    if (!response.ok || !response.body) {
+      const errorBody = await response.text().catch(() => '');
+      console.error(`[OpenRouterProvider/${modelSlug}] stream HTTP ${response.status}:`, errorBody.slice(0, 500));
+      if (response.status === 402) throw new ServiceUnavailableException('Нет баланса на OpenRouter — пополни аккаунт');
+      if (response.status === 401) throw new ServiceUnavailableException('Ключ OpenRouter недействителен');
+      if (response.status === 429) throw new ServiceUnavailableException('Слишком много запросов, попробуй через минуту');
+      throw new ServiceUnavailableException(`Ошибка провайдера: HTTP ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let sseBuffer = '';
+    let full = '';
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        // SSE-события разделены пустой строкой; строки данных — "data: {...}".
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop() || ''; // хвост без перевода строки дочитаем в следующей итерации
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const payload = trimmed.slice(5).trim();
+          if (!payload || payload === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(payload);
+            const delta = parsed?.choices?.[0]?.delta?.content;
+            if (delta) { full += delta; onDelta(delta); }
+          } catch { /* неполный/служебный кусок — пропускаем */ }
+        }
+      }
+    } finally {
+      try { reader.cancel(); } catch { /* noop */ }
+    }
+
+    console.log(`[OpenRouterProvider/${modelSlug}] поток завершён за ${Date.now() - started}мс, ${full.length} симв`);
+    return full;
+  }
 }

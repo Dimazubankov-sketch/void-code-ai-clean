@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useVoiceModeRecognition } from '@/shared/lib/useVoiceModeRecognition';
 import { useVoiceModeSpeech } from '@/shared/lib/useVoiceModeSpeech';
 import { playVoiceModeOpenChime, playVoiceModeCloseChime } from '@/shared/lib/voiceModeChime';
+import { createBackendChat, streamVoiceMessage } from '@/shared/api/chat';
 
 // ==========================================
 // useVoiceMode — разговорный голосовой режим чата (hands-free)
@@ -48,8 +49,36 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     const phaseRef = useRef(VOICE_MODE_PHASE.IDLE);
     const mutedRef = useRef(false);
     const pendingReplyRef = useRef(false);
+    const streamAbortRef = useRef(null);
+    const backendChatIdRef = useRef(null);
 
     const speech = useVoiceModeSpeech();
+
+    // Разговор в голосовом режиме ведётся в отдельной серверной сессии
+    // чата — она создаётся один раз за вход в режим и переиспользуется,
+    // чтобы у модели был контекст предыдущих реплик.
+    const ensureBackendChatId = useCallback(async () => {
+        if (!backendChatIdRef.current) backendChatIdRef.current = await createBackendChat();
+        return backendChatIdRef.current;
+    }, []);
+
+    // Дописываем реплики в активный чат, чтобы разговор был виден текстом.
+    // ВАЖНО: updateState в App.jsx принимает только ОБЪЕКТ изменений
+    // (не функцию-апдейтер), поэтому новый список сессий собираем здесь
+    // из актуального state, который приходит пропсом на каждый рендер.
+    const stateRef = useRef(state);
+    stateRef.current = state;
+    const appendVoiceMessage = useCallback((msg) => {
+        const prev = stateRef.current;
+        const sessions = prev.chatSessions || [];
+        if (!sessions.some((c) => c.id === prev.activeChatId)) return;
+        updateState({
+            chatSessions: sessions.map((s) => (
+                s.id === prev.activeChatId ? { ...s, messages: [...s.messages, msg] } : s
+            )),
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [updateState]);
 
     const setPhaseBoth = useCallback((p) => { phaseRef.current = p; setPhase(p); }, []);
 
@@ -63,14 +92,47 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         }
     }, [setPhaseBoth]);
 
-    // Пользователь замолчал — фраза готова, отправляем.
-    const handleUtterance = useCallback((text) => {
+    // Пользователь замолчал — фраза готова, отправляем В ПОТОКОВОМ режиме.
+    // Ответ приходит с бэкенда предложение за предложением (SSE) и сразу
+    // уходит в очередь озвучки — не ждём, пока модель допишет весь ответ.
+    const handleUtterance = useCallback(async (text) => {
         if (!text || !text.trim()) { setPhaseBoth(VOICE_MODE_PHASE.IDLE); return; }
         if (phaseRef.current === VOICE_MODE_PHASE.THINKING) return;
         setPhaseBoth(VOICE_MODE_PHASE.THINKING);
-        pendingReplyRef.current = true;
-        handleSendMessage(text);
-    }, [handleSendMessage, setPhaseBoth]);
+
+        // Глушим распознавание ДО первого звука ответа — иначе микрофон
+        // услышит Сару и сработает ложное перебивание.
+        recognition.pause();
+
+        const controller = new AbortController();
+        streamAbortRef.current = controller;
+        const stream = speech.beginStream(voiceOpts());
+        let sawFirst = false;
+
+        // Показываем реплику пользователя в чате сразу.
+        appendVoiceMessage({ role: 'user', content: text });
+
+        try {
+            const chatId = await ensureBackendChatId();
+            const full = await streamVoiceMessage(chatId, text, {
+                signal: controller.signal,
+                onSentence: (sentence) => {
+                    if (!sawFirst) { sawFirst = true; setPhaseBoth(VOICE_MODE_PHASE.SPEAKING); }
+                    stream.push(sentence);
+                },
+            });
+            stream.finish();
+            if (full) appendVoiceMessage({ role: 'assistant', content: full });
+        } catch (e) {
+            stream.finish();
+            if (e?.name === 'AbortError') return;
+            setErrorMsg(e?.message || 'Не удалось получить ответ');
+            setPhaseBoth(VOICE_MODE_PHASE.ERROR);
+        } finally {
+            streamAbortRef.current = null;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [setPhaseBoth, voiceOpts]);
 
     const recognition = useVoiceModeRecognition({
         lang,
@@ -96,6 +158,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
                 if (!loudSince) loudSince = now;
                 if (now - loudSince >= BARGE_IN_SUSTAIN_MS) {
                     // Перебили — глушим Сару и снова слушаем.
+                    try { streamAbortRef.current?.abort(); } catch { /* noop */ }
                     speech.stop();
                     pendingReplyRef.current = false;
                     recognition.resume();
@@ -112,29 +175,10 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, phase, muted, setPhaseBoth]);
 
-    // ---- Ответ ИИ дописан → озвучиваем ----
-    const wasGeneratingRef = useRef(state.isGenerating);
-    useEffect(() => {
-        const wasGenerating = wasGeneratingRef.current;
-        wasGeneratingRef.current = state.isGenerating;
-        if (!active || !pendingReplyRef.current) return;
-        if (wasGenerating && !state.isGenerating) {
-            pendingReplyRef.current = false;
-            const activeChat = (state.chatSessions || []).find((c) => c.id === state.activeChatId);
-            const messages = activeChat?.messages || [];
-            const last = messages[messages.length - 1];
-            if (last && last.role === 'assistant' && last.content) {
-                // Пауза распознавания ДО старта озвучки — чтобы первые же
-                // слова Сары не попали в её собственный микрофон.
-                recognition.pause();
-                setPhaseBoth(VOICE_MODE_PHASE.SPEAKING);
-                speech.speak(last.content, voiceOpts());
-            } else {
-                setPhaseBoth(VOICE_MODE_PHASE.IDLE);
-            }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [state.isGenerating, active]);
+    // Ответ теперь приходит потоково прямо в handleUtterance (SSE), поэтому
+    // прежний эффект «дождались isGenerating:false → озвучили целиком»
+    // больше не нужен и удалён — он давал ровно ту задержку, от которой
+    // мы уходим.
 
     // ---- Озвучка закончилась сама → снова слушаем ----
     useEffect(() => {
@@ -204,6 +248,8 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     const close = useCallback(() => {
         if (state.voiceModeSounds !== false) playVoiceModeCloseChime();
         setActive(false);
+        try { streamAbortRef.current?.abort(); } catch { /* noop */ }
+        backendChatIdRef.current = null;
         recognition.stop();
         speech.stop();
         speech.clearError();
@@ -221,6 +267,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     const primaryTap = useCallback(() => {
         if (mutedRef.current) return;
         if (phaseRef.current === VOICE_MODE_PHASE.SPEAKING) {
+            try { streamAbortRef.current?.abort(); } catch { /* noop */ }
             speech.stop();
             pendingReplyRef.current = false;
             recognition.resume();

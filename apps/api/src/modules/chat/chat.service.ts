@@ -1,7 +1,9 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LLM_PROVIDER, LlmProvider } from './providers/llm-provider.interface';
+import { OpenRouterProvider } from './providers/openrouter.provider';
 import { postProcessAnswer } from './post-process';
+import { pickVoiceModel, VOICE_SYSTEM_PROMPT } from './voice-mode.constants';
 
 // Лимиты тарифов — источник истины ЗДЕСЬ, на сервере. Множители к базовому
 // плану Free (20/140): Plus ×2, Pro ×5, Ultra ×10. Должно совпадать
@@ -27,7 +29,82 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
+    // Голосовой режим ходит в OpenRouter напрямую, минуя роутинг: модель
+    // там выбирается по тарифу (Grok 4.3/4.6, см. voice-mode.constants.ts),
+    // а не по внутреннему ID Void Mini/Plus/Pro, и нужен потоковый режим,
+    // которого у остальных провайдеров нет.
+    private readonly openrouter: OpenRouterProvider,
   ) {}
+
+  // ==========================================
+  // Голосовой режим: потоковый ответ по предложениям
+  // ==========================================
+  // onSentence вызывается по мере готовности КАЖДОГО законченного
+  // предложения — контроллер тут же отправляет его клиенту, а тот сразу
+  // ставит его в очередь озвучки. Так первое слово звучит через ~секунду
+  // после вопроса, а не после того, как модель дописала весь ответ.
+  async streamVoiceMessage(
+    userId: string,
+    chatId: string,
+    content: string,
+    onSentence: (sentence: string) => void,
+  ): Promise<string> {
+    await this.consumeLimit(userId);
+
+    const [user, chat] = await Promise.all([
+      this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
+      this.prisma.chatSession.findFirstOrThrow({
+        where: { id: chatId, userId },
+        include: { messages: { orderBy: { createdAt: 'asc' }, take: 20 } },
+      }),
+    ]);
+
+    const modelSlug = pickVoiceModel(user.plan, content);
+
+    // Буфер режем по границам предложений. Первое предложение отпускаем
+    // с самым низким порогом (важна задержка до первого звука), дальше
+    // копим чуть больше — так меньше мелких запросов на синтез.
+    let buffer = '';
+    let emitted = 0;
+    const flushSentences = (force = false) => {
+      const minLen = emitted === 0 ? 12 : 40;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const m = buffer.match(/^[\s\S]*?[.!?…](?=\s|$)/);
+        if (!m) break;
+        const sentence = m[0].trim();
+        if (sentence.length < minLen && buffer.length > sentence.length) {
+          // Слишком короткий фрагмент («Да.») — приклеим к следующему,
+          // иначе на синтез уйдёт куча огрызков.
+          const next = buffer.slice(m[0].length);
+          if (next.trim()) { buffer = sentence + ' ' + next.trimStart(); }
+          break;
+        }
+        buffer = buffer.slice(m[0].length);
+        if (sentence) { onSentence(sentence); emitted += 1; }
+      }
+      if (force && buffer.trim()) { onSentence(buffer.trim()); emitted += 1; buffer = ''; }
+    };
+
+    const full = await this.openrouter.generateStream(
+      {
+        systemPrompt: VOICE_SYSTEM_PROMPT,
+        messages: [
+          ...chat.messages.map((m) => ({ role: m.role.toLowerCase(), content: m.content })),
+          { role: 'user', content },
+        ],
+      },
+      modelSlug,
+      (delta) => { buffer += delta; flushSentences(false); },
+    );
+    flushSentences(true);
+
+    await this.prisma.$transaction([
+      this.prisma.message.create({ data: { chatId, role: 'USER', content } }),
+      this.prisma.message.create({ data: { chatId, role: 'ASSISTANT', content: full, model: 'voice' } }),
+    ]);
+    return full;
+  }
 
   async createChat(userId: string) {
     return this.prisma.chatSession.create({ data: { userId } });

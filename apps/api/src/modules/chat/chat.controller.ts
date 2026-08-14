@@ -36,6 +36,13 @@ class SendMessageDto {
   images?: string[];
 }
 
+class VoiceStreamDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(8000)
+  content!: string;
+}
+
 @Controller('chats')
 @UseGuards(JwtAuthGuard)
 export class ChatController {
@@ -96,6 +103,51 @@ export class ChatController {
         // менять поздно, просто закрываем соединение с сообщением об ошибке.
         res.end(JSON.stringify({ statusCode: status, message }));
       }
+    }
+  }
+
+  // ==========================================
+  // Голосовой режим: SSE-поток предложений
+  // ==========================================
+  // Отдельный от обычного /messages эндпоинт — тот отдаёт готовый JSON
+  // целиком, и трогать его нельзя (на нём весь текстовый чат). Здесь
+  // Server-Sent Events: каждое законченное предложение уходит клиенту
+  // сразу, и он ставит его в очередь озвучки, не дожидаясь конца ответа.
+  @Post(':id/voice-stream')
+  async voiceStream(@Req() req: any, @Param('id') chatId: string, @Body() dto: VoiceStreamDto, @Res() res: Response) {
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    // Без этого nginx буферизует поток и вся идея стриминга пропадает.
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof (res as any).flushHeaders === 'function') (res as any).flushHeaders();
+
+    const send = (event: string, data: unknown) => {
+      try { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); } catch { /* клиент отключился */ }
+    };
+
+    // Тот же приём против таймаута Cloudflare, что и в обычном /messages:
+    // SSE-комментарий раз в 15с держит соединение живым в паузах.
+    const heartbeat = setInterval(() => {
+      try { res.write(': keep-alive\n\n'); } catch { /* noop */ }
+    }, 15_000);
+
+    try {
+      const full = await this.chat.streamVoiceMessage(
+        req.user.userId,
+        chatId,
+        dto.content,
+        (sentence) => send('sentence', { text: sentence }),
+      );
+      clearInterval(heartbeat);
+      send('done', { full });
+      res.end();
+    } catch (e) {
+      clearInterval(heartbeat);
+      const message = (e as any)?.message || 'Внутренняя ошибка сервера';
+      const status = (e as any)?.status || 500;
+      send('error', { message, statusCode: status });
+      res.end();
     }
   }
 }
