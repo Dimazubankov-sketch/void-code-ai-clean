@@ -131,39 +131,51 @@ export class FishAudioTtsService {
     this.audioCache.set(key, { at: Date.now(), buf });
   }
 
-  private buildRequestBody(text: string, voice: string | undefined, speed: number): string {
+  // fast=true — «быстрый» набор параметров (см. комментарии внутри):
+  // ускоряет отдачу озвучки, но проходит через отдельный, менее стабильный
+  // путь генерации на стороне Fish. fast=false — параметры, максимально
+  // близкие к дефолтам Fish (тот же режим, что использовался изначально
+  // и был подтверждённо стабилен) — используется как автоматический
+  // fallback при сбое «быстрого» пути (см. requestFish).
+  private buildRequestBody(text: string, voice: string | undefined, speed: number, fast: boolean): string {
     const body: Record<string, unknown> = {
       text,
       format: 'mp3',
-      // Задача — максимально быстрая отдача озвучки (особенно в чате).
-      // Путь остаётся буферизованным целиком (см. tts.controller.ts —
-      // Cloudflare ломает chunked-стрим), поэтому единственный доступный
-      // рычаг скорости — ускорить саму генерацию на стороне Fish:
-      //   • latency: 'balanced' — быстрее дефолтного 'normal', при этом
-      //     задокументированное и уже проверенное в проде значение для
-      //     именно этого эндпоинта (POST /v1/tts). Пробовал 'low' — часть
-      //     документации Fish указывает это значение только для другого
-      //     эндпоинта (стриминг с таймстампами), для обычного /v1/tts оно,
-      //     видимо, не принимается и роняет запрос — возвращаю
-      //     подтверждённое рабочее значение, чтобы не ломать озвучку.
-      //   • chunk_length ниже дефолта (200) — модель быстрее генерирует
-      //     первый и последующие куски.
-      //   • mp3_bitrate 64 вместо дефолтных 128 — меньше байт на скачку
-      //     через Cloudflare/nginx, для речи (не музыки) разница в
-      //     качестве на слух практически незаметна.
+      // latency: 'balanced' — быстрее дефолтного 'normal', при этом
+      // задокументированное и уже проверенное в проде значение для именно
+      // этого эндпоинта (POST /v1/tts). Держим его в ОБОИХ режимах — это
+      // не то, что вызывало сбои (см. ниже про chunk_length/mp3_bitrate).
       latency: 'balanced',
-      chunk_length: 130,
-      mp3_bitrate: 64,
       prosody: { speed },
     };
+    if (fast) {
+      // Проблема: агрессивная связка chunk_length (ниже дефолта 200) +
+      // mp3_bitrate 64 иногда роняет генерацию на стороне Fish с HTTP 500
+      // ("Low latency decode failed... VQGAN decode failed" — их
+      // внутренний вокодер-кластер для быстрого пути периодически
+      // недоступен). Оставляем эту связку как ПЕРВУЮ попытку ради
+      // скорости в штатном случае, но requestFish теперь автоматически
+      // повторяет запрос с fast=false (Fish-дефолты) при сбое именно
+      // этого пути — так и скорость сохраняется, и чат не виснет из-за
+      // временной нестабильности быстрого декодера Fish.
+      body.chunk_length = 130;
+      body.mp3_bitrate = 64;
+    }
     // reference_id не передаём вовсе, если голос не выбран — Fish в этом
     // случае использует голос модели по умолчанию, это валидный запрос.
     if (voice) body.reference_id = voice;
     return JSON.stringify(body);
   }
 
-  private async requestFish(text: string, voice: string | undefined, speed: number): Promise<Response> {
-    const v = this.validate(text, speed);
+  // Статусы, при которых имеет смысл ОДИН автоматический повтор с
+  // безопасными (Fish-дефолтными) параметрами — это транзиентные сбои
+  // на стороне Fish (перегруженный/упавший под-сервис быстрого декодера),
+  // а не проблема с ключом/балансом/лимитом, которые повторять бессмысленно.
+  private isRetryableStatus(status: number): boolean {
+    return status === 500 || status === 502 || status === 503 || status === 504;
+  }
+
+  private async requestFishOnce(text: string, voice: string | undefined, speed: number, fast: boolean): Promise<Response> {
     const apiKey = this.apiKey();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -171,7 +183,7 @@ export class FishAudioTtsService {
     // регулярно звучит «роботизированно» независимо от выбора в UI, это
     // первое, что нужно проверить: либо на бэкенд не долетает voice
     // (баг на фронте/DTO), либо сам список голосов пуст (см. listVoices).
-    console.log(`[FishAudioTtsService] синтез, reference_id=${voice || '(нет — голос модели по умолчанию)'}`);
+    console.log(`[FishAudioTtsService] синтез (${fast ? 'fast' : 'safe-fallback'}), reference_id=${voice || '(нет — голос модели по умолчанию)'}`);
     let response: Response;
     try {
       response = await fetch(TTS_URL, {
@@ -182,7 +194,7 @@ export class FishAudioTtsService {
           Authorization: `Bearer ${apiKey}`,
           model: MODEL_HEADER,
         },
-        body: this.buildRequestBody(text, voice, v.speed),
+        body: this.buildRequestBody(text, voice, speed, fast),
       });
     } catch (e: any) {
       clearTimeout(timer);
@@ -192,6 +204,19 @@ export class FishAudioTtsService {
       throw new ServiceUnavailableException('Сбой сети при обращении к Fish Audio');
     }
     clearTimeout(timer);
+    return response;
+  }
+
+  private async requestFish(text: string, voice: string | undefined, speed: number): Promise<Response> {
+    const v = this.validate(text, speed);
+
+    let response = await this.requestFishOnce(text, voice, v.speed, true);
+    if (!response.ok && this.isRetryableStatus(response.status)) {
+      const errorBody = await response.text().catch(() => '');
+      console.warn(`[FishAudioTtsService] быстрый путь ответил HTTP ${response.status}, повторяю с безопасными параметрами:`, errorBody.slice(0, 300));
+      response = await this.requestFishOnce(text, voice, v.speed, false);
+    }
+
     if (!response.ok) {
       const errorBody = await response.text().catch(() => '');
       console.error(`[FishAudioTtsService] HTTP ${response.status}:`, errorBody.slice(0, 500));
