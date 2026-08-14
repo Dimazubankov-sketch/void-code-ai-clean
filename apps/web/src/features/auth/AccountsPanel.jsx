@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { gsap } from 'gsap';
 import { switchToAccount } from '@/shared/lib/accounts';
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { Icons } from '@/shared/ui/Icons';
@@ -16,6 +17,8 @@ const initials = (str) => (str || '?').replace(/[^a-zA-Zа-яА-Я0-9]/g, '').sl
 export function AccountsPanel({ state, updateState, onClose }) {
     useLockBodyScroll();
     const [manageMode, setManageMode] = useState(false);
+    const [accountsCollapsed, setAccountsCollapsed] = useState(false);
+    const accountsListRef = useRef(null);
     const photoInputRef = useRef(null);
 
     const accounts = state.savedAccounts || [];
@@ -24,6 +27,33 @@ export function AccountsPanel({ state, updateState, onClose }) {
     const doSwitch = (email) => { switchToAccount(state, updateState, email); onClose(); };
     const loginAnother = () => { onClose(); updateState({ showAuthModal: true, authTab: 'login' }); };
     const createNew = () => { onClose(); updateState({ showAuthModal: true, authTab: 'register' }); };
+
+    // Задача 7: сворачивание/разворачивание списка «Сменить аккаунт» —
+    // стрелка без обводки + плавная GSAP-анимация высоты. scrollHeight
+    // всегда отражает истинную высоту содержимого независимо от текущего
+    // inline height/overflow, поэтому его можно безопасно читать что при
+    // сворачивании (текущая высота ещё не обнулена), что при разворачивании
+    // (уже обнулена контейнером) — в обоих случаях получаем нужную цель.
+    const toggleAccountsCollapsed = () => {
+        const el = accountsListRef.current;
+        const next = !accountsCollapsed;
+        setAccountsCollapsed(next);
+        if (!el) return;
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce) {
+            el.style.height = next ? '0px' : 'auto';
+            el.style.opacity = next ? '0' : '1';
+            return;
+        }
+        if (next) {
+            gsap.to(el, { height: 0, opacity: 0, duration: 0.25, ease: 'power2.inOut', overwrite: true });
+        } else {
+            gsap.to(el, {
+                height: el.scrollHeight, opacity: 1, duration: 0.3, ease: 'power2.out', overwrite: true,
+                onComplete: () => { el.style.height = 'auto'; }, // снова "резиновая" высота, если список изменится
+            });
+        }
+    };
 
     const onChangePhoto = (e) => {
         const file = e.target.files?.[0];
@@ -92,26 +122,37 @@ export function AccountsPanel({ state, updateState, onClose }) {
                         </div>
                     )}
 
-                    <p className="text-xs font-bold uppercase tracking-wide text-gray-400 px-1 mb-2 mt-4">Сменить аккаунт</p>
-                    <div className="space-y-1.5 mb-5">
-                        {accounts.length === 0 && <p className="text-sm text-gray-400 px-1">Сохранённых аккаунтов нет</p>}
-                        {accounts.map(acc => (
-                            <div key={acc.email} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors ${state.user?.email === acc.email ? 'bg-[#efecf9] dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
-                                <button onClick={() => doSwitch(acc.email)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                                    {accountPhotos[acc.email] ? (
-                                        <img src={accountPhotos[acc.email]} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
-                                    ) : (
-                                        <div className="w-9 h-9 rounded-full bg-[#5b32d4] text-white flex items-center justify-center font-bold text-xs shrink-0">{initials(acc.name)}</div>
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-sm dark:text-white truncate">{acc.email}</p>
-                                        <p className="text-[11px] text-gray-400">Тариф: {acc.plan}</p>
-                                    </div>
-                                    {state.user?.email === acc.email && <Icons.Check className="w-4 h-4 text-[#5b32d4] shrink-0" />}
-                                </button>
-                                <button onClick={() => deleteAccount(acc.email)} className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0" title="Удалить аккаунт"><Icons.Trash className="w-4 h-4" /></button>
-                            </div>
-                        ))}
+                    <div className="flex items-center justify-between px-1 mb-2 mt-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Сменить аккаунт</p>
+                        <button
+                            onClick={toggleAccountsCollapsed}
+                            title={accountsCollapsed ? 'Развернуть список' : 'Свернуть список'}
+                            className="p-1 text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
+                        >
+                            <Icons.ChevronLeft className={`w-4 h-4 transition-transform duration-200 ${accountsCollapsed ? '-rotate-90' : 'rotate-90'}`} />
+                        </button>
+                    </div>
+                    <div ref={accountsListRef} className="overflow-hidden">
+                        <div className="space-y-1.5 mb-5">
+                            {accounts.length === 0 && <p className="text-sm text-gray-400 px-1">Сохранённых аккаунтов нет</p>}
+                            {accounts.map(acc => (
+                                <div key={acc.email} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors ${state.user?.email === acc.email ? 'bg-[#efecf9] dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+                                    <button onClick={() => doSwitch(acc.email)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                                        {accountPhotos[acc.email] ? (
+                                            <img src={accountPhotos[acc.email]} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                                        ) : (
+                                            <div className="w-9 h-9 rounded-full bg-[#5b32d4] text-white flex items-center justify-center font-bold text-xs shrink-0">{initials(acc.name)}</div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-sm dark:text-white truncate">{acc.email}</p>
+                                            <p className="text-[11px] text-gray-400">Тариф: {acc.plan}</p>
+                                        </div>
+                                        {state.user?.email === acc.email && <Icons.Check className="w-4 h-4 text-[#5b32d4] shrink-0" />}
+                                    </button>
+                                    <button onClick={() => deleteAccount(acc.email)} className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0" title="Удалить аккаунт"><Icons.Trash className="w-4 h-4" /></button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
 

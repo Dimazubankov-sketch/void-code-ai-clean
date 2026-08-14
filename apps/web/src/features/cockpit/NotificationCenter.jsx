@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { MailAgentChat } from '@/features/cockpit/MailAgentChat';
-import { switchToAccount } from '@/shared/lib/accounts';
+import { AccountsPanel } from '@/features/auth/AccountsPanel';
 import { playNotificationSound } from '@/shared/lib/sound';
 import {
     fetchMailAddress,
@@ -135,8 +135,6 @@ export function NotificationCenter({ state, updateState, onClose }) {
     const [composing, setComposing] = useState(false);
     const [draft, setDraft] = useState({ id: null, to: '', subject: '', body: '', attachments: [], replyToId: null });
     const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
-    const [accountManageMode, setAccountManageMode] = useState(false);
-    const photoInputRef = useRef(null);
     const [mailSearch, setMailSearch] = useState('');
     const touchStartX = useRef(null);
 
@@ -463,22 +461,6 @@ export function NotificationCenter({ state, updateState, onClose }) {
         document.addEventListener('visibilitychange', handler);
         return () => document.removeEventListener('visibilitychange', handler);
     }, [composing, draft]);
-
-    // --- Переключатель аккаунтов ---
-    const accounts = state.savedAccounts || [];
-    const accountPhotos = state.accountPhotos || {};
-    const doSwitchAccount = (email) => { switchToAccount(state, updateState, email); setShowAccountSwitcher(false); setAccountManageMode(false); };
-    const loginAnother = () => { setShowAccountSwitcher(false); setAccountManageMode(false); updateState({ showAuthModal: true, authTab: 'login' }); };
-    const createNew = () => { setShowAccountSwitcher(false); setAccountManageMode(false); updateState({ showAuthModal: true, authTab: 'register' }); };
-    const closeAccounts = () => { setShowAccountSwitcher(false); setAccountManageMode(false); };
-    // Смена фото профиля текущего аккаунта — читаем файл в dataURL и кладём в accountPhotos
-    const onChangePhoto = (e) => {
-        const file = e.target.files?.[0];
-        if (!file || !state.user) return;
-        const reader = new FileReader();
-        reader.onload = () => updateState({ accountPhotos: { ...accountPhotos, [state.user.email]: reader.result } });
-        reader.readAsDataURL(file);
-    };
 
     // Комбинированная лента «Все письма»: обновления + личные + отправленные
     // Фильтр поиска по письмам: по теме, тексту и отправителю/адресату
@@ -840,82 +822,16 @@ export function NotificationCenter({ state, updateState, onClose }) {
                     </div>
                 )}
 
-                {/* ===== ОКНО «АККАУНТЫ VOIDOPS» ===== */}
+                {/* ===== ОКНО «АККАУНТЫ VOIDOPS» =====
+                    Задача 8: раньше здесь была отдельная, устаревшая копия
+                    панели аккаунтов с кнопками без обработчиков вообще
+                    («Изменить имя профиля» / «Безопасность и пароль» ничего
+                    не делали). Используем тот же переиспользуемый компонент,
+                    что и в настройках → «Личные данные», чтобы поведение
+                    было идентичным из обеих точек входа. */}
                 {showAccountSwitcher && (
-                    <div className="absolute inset-0 z-30 bg-black/40 flex justify-end sm:justify-start" onClick={closeAccounts}>
-                        <div className="w-full sm:w-1/3 sm:min-w-[340px] h-full bg-white dark:bg-darkCard shadow-2xl slide-in-right flex flex-col" onClick={e => e.stopPropagation()}>
-                            {/* Шапка */}
-                            <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 dark:border-darkBorder shrink-0">
-                                <button onClick={closeAccounts} className="p-1.5 -ml-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.ChevronLeft /></button>
-                                <h4 className="font-extrabold text-lg dark:text-white">Аккаунты Voidops</h4>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto p-5">
-                                {/* Текущий аккаунт с возможностью сменить фото */}
-                                {state.user ? (
-                                    <div className="flex flex-col items-center text-center mb-6">
-                                        <button onClick={() => photoInputRef.current?.click()} className="relative group">
-                                            {accountPhotos[state.user.email] ? (
-                                                <img src={accountPhotos[state.user.email]} alt="" className="w-20 h-20 rounded-full object-cover" />
-                                            ) : (
-                                                <div className="w-20 h-20 rounded-full bg-[#5b32d4] text-white flex items-center justify-center font-extrabold text-2xl">{initials(state.user.name)}</div>
-                                            )}
-                                            <span className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                                <Icons.Pencil className="w-5 h-5 text-white" />
-                                            </span>
-                                        </button>
-                                        <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={onChangePhoto} />
-                                        <p className="font-extrabold text-lg dark:text-white mt-3">{state.user.name}</p>
-                                        <p className="text-sm text-gray-400">{state.user.email}</p>
-                                        <p className="text-[11px] text-gray-400 mt-0.5">Тариф: {state.userPlan}</p>
-                                        <button onClick={() => photoInputRef.current?.click()} className="text-xs font-bold text-[#5b32d4] mt-2">Сменить фото</button>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-400 text-center mb-6">Вы не вошли в аккаунт</p>
-                                )}
-
-                                {/* Управлять аккаунтом */}
-                                {state.user && (
-                                    <button onClick={() => setAccountManageMode(v => !v)} className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-bold dark:text-white transition-colors mb-2">
-                                        <span className="flex items-center gap-2.5"><Icons.Settings className="w-4 h-4" /> Управлять аккаунтом</span>
-                                        <Icons.ChevronLeft className={`w-4 h-4 transition-transform ${accountManageMode ? 'rotate-90' : '-rotate-90'}`} />
-                                    </button>
-                                )}
-                                {accountManageMode && (
-                                    <div className="mb-4 px-4 py-3 rounded-2xl bg-gray-50/60 dark:bg-gray-900/20 space-y-2">
-                                        <button className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Изменить имя профиля</button>
-                                        <button className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Безопасность и пароль</button>
-                                        <button onClick={() => updateState({ currentView: 'pricing', showNotifications: false })} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Управление подпиской</button>
-                                    </div>
-                                )}
-
-                                {/* Сменить аккаунт */}
-                                <p className="text-xs font-bold uppercase tracking-wide text-gray-400 px-1 mb-2 mt-4">Сменить аккаунт</p>
-                                <div className="space-y-1.5 mb-5">
-                                    {accounts.length === 0 && <p className="text-sm text-gray-400 px-1">Сохранённых аккаунтов нет</p>}
-                                    {accounts.map(acc => (
-                                        <button key={acc.email} onClick={() => doSwitchAccount(acc.email)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${state.user?.email === acc.email ? 'bg-[#efecf9] dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
-                                            {accountPhotos[acc.email] ? (
-                                                <img src={accountPhotos[acc.email]} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
-                                            ) : (
-                                                <div className="w-9 h-9 rounded-full bg-[#5b32d4] text-white flex items-center justify-center font-bold text-xs shrink-0">{initials(acc.name)}</div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-sm dark:text-white truncate">{acc.email}</p>
-                                                <p className="text-[11px] text-gray-400">Тариф: {acc.plan}</p>
-                                            </div>
-                                            {state.user?.email === acc.email && <Icons.Check className="w-4 h-4 text-[#5b32d4] shrink-0" />}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Нижние кнопки */}
-                            <div className="p-4 border-t border-gray-100 dark:border-darkBorder shrink-0 flex gap-2">
-                                <button onClick={loginAnother} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-bold text-sm transition-colors">Войти в другой</button>
-                                <button onClick={createNew} className="flex-1 py-3 rounded-xl bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold text-sm transition-colors">Создать новый</button>
-                            </div>
-                        </div>
+                    <div className="absolute inset-0 z-30">
+                        <AccountsPanel state={state} updateState={updateState} onClose={() => setShowAccountSwitcher(false)} />
                     </div>
                 )}
             </div>
