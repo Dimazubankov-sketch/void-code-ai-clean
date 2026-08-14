@@ -7,6 +7,7 @@ import { logoutAccount } from '@/shared/lib/accounts';
 import { formatMoney } from '@/shared/lib/format';
 import { goBack } from '@/shared/lib/navigation';
 import { playNotificationSound } from '@/shared/lib/sound';
+import { playVoiceModeOpenChime } from '@/shared/lib/voiceModeChime';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
 import { ListItem } from '@/shared/ui/ListItem';
@@ -58,6 +59,19 @@ export function SettingsView({ state, updateState }) {
                         }}>
                             <div className="flex items-center gap-4"><div className="p-2 bg-purple-50 dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-400 rounded-xl"><Icons.Bell /></div><span className="font-bold text-[15px] dark:text-white">{t(lang, 'settings.notifications')}</span></div>
                             <div className={`w-12 h-7 rounded-full p-1 transition-colors flex items-center ${state.notificationsEnabled ? 'bg-[#5b32d4]' : 'bg-gray-200 dark:bg-gray-700'}`}><div className={`w-5 h-5 bg-white rounded-full transition-transform ${state.notificationsEnabled ? 'translate-x-5' : 'translate-x-0'}`}></div></div>
+                        </div>
+                        <div className="flex items-center justify-between p-4 border-b border-gray-50 dark:border-gray-800/50 cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-800/50 rounded-2xl transition-colors" onClick={() => {
+                            // По умолчанию звук включён, поэтому сравниваем с
+                            // !== false: у существующих пользователей поля в
+                            // состоянии ещё нет, и они должны слышать звук.
+                            const next = state.voiceModeSounds === false;
+                            updateState({ voiceModeSounds: next });
+                            // Проигрываем при включении — сразу слышно, что именно
+                            // включили (тот же приём, что и с уведомлениями выше).
+                            if (next) playVoiceModeOpenChime();
+                        }}>
+                            <div className="flex items-center gap-4"><div className="p-2 bg-purple-50 dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-400 rounded-xl"><Icons.Waveform /></div><span className="font-bold text-[15px] dark:text-white">Звук голосового режима</span></div>
+                            <div className={`w-12 h-7 rounded-full p-1 transition-colors flex items-center ${state.voiceModeSounds !== false ? 'bg-[#5b32d4]' : 'bg-gray-200 dark:bg-gray-700'}`}><div className={`w-5 h-5 bg-white rounded-full transition-transform ${state.voiceModeSounds !== false ? 'translate-x-5' : 'translate-x-0'}`}></div></div>
                         </div>
                         <div className="flex items-center justify-between p-4 border-b border-gray-50 dark:border-gray-800/50 cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-800/50 rounded-2xl transition-colors" onClick={() => updateState({isDarkMode: !state.isDarkMode})}>
                             <div className="flex items-center gap-4"><div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-xl"><Icons.Moon /></div><span className="font-bold text-[15px] dark:text-white">{t(lang, 'settings.darkTheme')}</span></div>

@@ -85,7 +85,7 @@ export async function apiFetch(path, { method = 'GET', body, auth = true } = {})
 // Как apiFetch, но возвращает Blob — для эндпоинтов, которые отдают
 // бинарный контент (audio/mpeg от TTS, image/png от генератора и т.п.).
 // Если сервер ответил с ошибкой, парсит JSON-ошибку из тела как обычный apiFetch.
-export async function apiFetchBlob(path, { method = 'POST', body, auth = true } = {}) {
+export async function apiFetchBlob(path, { method = 'POST', body, auth = true, signal } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (auth) {
     const token = getToken();
@@ -98,8 +98,15 @@ export async function apiFetchBlob(path, { method = 'POST', body, auth = true } 
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
+      // signal нужен Voice Mode: при перебивании (barge-in) незавершённые
+      // запросы синтеза следующих фраз нужно отменять, иначе они допоются
+      // «в пустоту» и зря сожгут лимит символов озвучки.
+      signal,
     });
-  } catch {
+  } catch (e) {
+    // Отмену через AbortController пробрасываем как есть — вызывающий код
+    // отличает её от реального сбоя сети по e.name === 'AbortError'.
+    if (e?.name === 'AbortError') throw e;
     throw new ApiError(0, 'Не удалось связаться с сервером.');
   }
 

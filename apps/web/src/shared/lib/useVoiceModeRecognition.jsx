@@ -5,15 +5,23 @@ import { useCallback, useEffect, useRef } from 'react';
 // ==========================================
 // Отдельный от useVoiceRecorder.jsx хук — тот сделан под другую модель
 // взаимодействия (явный тап «начать/закончить» для диктовки в поле ввода).
-// Здесь микрофон слушает непрерывно, пока Voice Mode открыт:
-//   • speechActivity — вызывается на КАЖДЫЙ промежуточный кусок речи (в т.ч.
-//     пока Сара говорит) — это и есть сигнал «перебить», которым пользуется
-//     useVoiceMode.jsx.
-//   • silenceMs после последней услышанной речи — фраза считается
-//     законченной, накопленный текст уходит в onUtterance и отправляется.
-// Работает через тот же Web Speech API, что и диктовка (требует HTTPS).
+//
+// Ключевые правки этого раунда (по жалобам на «сырость» режима):
+//   • pause()/resume() — во время речи Сары распознавание ОСТАНАВЛИВАЕТСЯ,
+//     а микрофонный поток остаётся жив. Без этого Сару слышал собственный
+//     микрофон (эхоподавление помогает, но не спасает на громкой связи),
+//     её же слова попадали в распознавание и обрывали её на полуслове —
+//     ровно то, на что жаловался пользователь. Перебивание теперь ловится
+//     не по тексту, а по УРОВНЮ сигнала (см. analyserRef + useVoiceMode).
+//   • MAX_UTTERANCE_MS — жёсткий предохранитель от зависания в «Слушаю…»:
+//     если распознавание что-то услышало, но финал так и не пришёл,
+//     фраза всё равно закрывается по таймауту.
+//   • SILENCE_MS снижен — меньше «мёртвого» ожидания после того, как
+//     пользователь договорил.
 
-const SILENCE_MS = 1100; // тишина после речи, после которой считаем фразу законченной
+const SILENCE_MS = 700;        // было 1100 — пауза после речи до отправки
+const MAX_UTTERANCE_MS = 12000; // предохранитель: максимум одна фраза
+const MIN_UTTERANCE_CHARS = 2;  // отсекаем случайные «а», щелчки, шум
 
 export function useVoiceModeRecognition({ lang = 'ru-RU', onUtterance, onSpeechActivity }) {
     const recognitionRef = useRef(null);
@@ -21,18 +29,18 @@ export function useVoiceModeRecognition({ lang = 'ru-RU', onUtterance, onSpeechA
     const bufferRef = useRef('');
     const interimRef = useRef('');
     const silenceTimerRef = useRef(null);
+    const maxUtterTimerRef = useRef(null);
     const listeningRef = useRef(false); // хотим ли мы сейчас вообще слушать
+    const pausedRef = useRef(false);    // временно молчим (говорит Сара)
 
     const onUtteranceRef = useRef(onUtterance);
     const onSpeechActivityRef = useRef(onSpeechActivity);
     onUtteranceRef.current = onUtterance;
     onSpeechActivityRef.current = onSpeechActivity;
 
-    // Уровень микрофона для визуализации орба — тот же паттерн, что и в
-    // useVoiceRecorder.jsx (отдельный getUserMedia+AnalyserNode, ничего
-    // общего с воспроизведением звука — безопасно). echoCancellation
-    // включён явно: снижает (не гарантированно убирает) риск того, что
-    // микрофон уловит голос самой Сары из динамиков как «речь пользователя».
+    // Микрофонный поток + анализатор уровня. Живёт всё время, пока Voice
+    // Mode открыт (в т.ч. пока распознавание на паузе) — именно по нему
+    // ловится перебивание во время речи Сары.
     const audioCtxRef = useRef(null);
     const analyserRef = useRef(null);
     const audioStreamRef = useRef(null);
@@ -41,12 +49,13 @@ export function useVoiceModeRecognition({ lang = 'ru-RU', onUtterance, onSpeechA
         if (audioCtxRef.current) return;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true, noiseSuppression: true },
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
             });
             audioStreamRef.current = stream;
             const AC = window.AudioContext || window.webkitAudioContext;
             const ctx = new AC();
             audioCtxRef.current = ctx;
+            if (ctx.state === 'suspended') ctx.resume().catch(() => { /* noop */ });
             const source = ctx.createMediaStreamSource(stream);
             const analyser = ctx.createAnalyser();
             analyser.fftSize = 512;
@@ -67,24 +76,35 @@ export function useVoiceModeRecognition({ lang = 'ru-RU', onUtterance, onSpeechA
         analyserRef.current = null;
     }, []);
 
-    const clearSilenceTimer = useCallback(() => {
+    const clearTimers = useCallback(() => {
         if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+        if (maxUtterTimerRef.current) { clearTimeout(maxUtterTimerRef.current); maxUtterTimerRef.current = null; }
     }, []);
 
     const finalizeUtterance = useCallback(() => {
-        clearSilenceTimer();
+        clearTimers();
         const pending = interimRef.current.trim();
         if (pending) bufferRef.current = (bufferRef.current + ' ' + pending).trim();
         interimRef.current = '';
         const text = bufferRef.current.trim();
         bufferRef.current = '';
-        if (text) onUtteranceRef.current?.(text);
-    }, [clearSilenceTimer]);
+        // Слишком короткий результат — это почти всегда шум/щелчок, а не
+        // реплика. Отдаём пустоту, чтобы Voice Mode вернулся в покой,
+        // а не отправлял мусор в чат.
+        if (text.length >= MIN_UTTERANCE_CHARS) onUtteranceRef.current?.(text);
+        else onUtteranceRef.current?.('');
+    }, [clearTimers]);
 
-    const armSilenceTimer = useCallback(() => {
-        clearSilenceTimer();
+    const armTimers = useCallback(() => {
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = setTimeout(finalizeUtterance, SILENCE_MS);
-    }, [clearSilenceTimer, finalizeUtterance]);
+        // Предохранитель ставим один раз на фразу, не сбрасывая его при
+        // каждом слове — иначе долгая непрерывная речь могла бы держать
+        // режим в «Слушаю…» бесконечно.
+        if (!maxUtterTimerRef.current) {
+            maxUtterTimerRef.current = setTimeout(finalizeUtterance, MAX_UTTERANCE_MS);
+        }
+    }, [finalizeUtterance]);
 
     useEffect(() => {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -98,6 +118,9 @@ export function useVoiceModeRecognition({ lang = 'ru-RU', onUtterance, onSpeechA
         rec.maxAlternatives = 1;
 
         rec.onresult = (e) => {
+            // На паузе (говорит Сара) игнорируем всё, что услышали —
+            // с высокой вероятностью это её собственный голос из динамика.
+            if (pausedRef.current) return;
             let finalText = '';
             let interimText = '';
             for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -113,7 +136,7 @@ export function useVoiceModeRecognition({ lang = 'ru-RU', onUtterance, onSpeechA
             }
             if (finalText.trim() || interimText.trim()) {
                 onSpeechActivityRef.current?.();
-                armSilenceTimer();
+                armTimers();
             }
         };
 
@@ -121,51 +144,75 @@ export function useVoiceModeRecognition({ lang = 'ru-RU', onUtterance, onSpeechA
             // continuous:true всё равно иногда останавливается браузером сам —
             // если мы всё ещё должны слушать, перезапускаем без паузы, чтобы
             // разговор ощущался непрерывным, а не «отваливался» тихо.
-            if (listeningRef.current) {
+            if (listeningRef.current && !pausedRef.current) {
                 try { rec.start(); } catch { /* уже запущено — ок, игнорируем */ }
             }
         };
 
         rec.onerror = (e) => {
-            // 'no-speech' — штатная ситуация (просто тишина), не ошибка.
-            if (e?.error === 'no-speech') return;
+            // 'no-speech' / 'aborted' — штатные ситуации, не ошибки.
+            if (e?.error === 'no-speech' || e?.error === 'aborted') return;
         };
 
         recognitionRef.current = rec;
         return () => {
             listeningRef.current = false;
-            clearSilenceTimer();
+            clearTimers();
             try { rec.abort(); } catch { /* noop */ }
             stopLevelMeter();
         };
-    }, [lang, armSilenceTimer, clearSilenceTimer, stopLevelMeter]);
+    }, [lang, armTimers, clearTimers, stopLevelMeter]);
 
     const start = useCallback(() => {
         listeningRef.current = true;
+        pausedRef.current = false;
         bufferRef.current = '';
         interimRef.current = '';
+        clearTimers();
         startLevelMeter();
         if (hasRealApiRef.current && recognitionRef.current) {
             try { recognitionRef.current.start(); } catch { /* уже запущено — ок */ }
         }
-    }, [startLevelMeter]);
+    }, [startLevelMeter, clearTimers]);
 
     const stop = useCallback(() => {
         listeningRef.current = false;
-        clearSilenceTimer();
+        pausedRef.current = false;
+        clearTimers();
         bufferRef.current = '';
         interimRef.current = '';
         if (hasRealApiRef.current && recognitionRef.current) {
             try { recognitionRef.current.stop(); } catch { /* noop */ }
         }
         stopLevelMeter();
-    }, [clearSilenceTimer, stopLevelMeter]);
+    }, [clearTimers, stopLevelMeter]);
+
+    // Пауза на время речи Сары: распознавание глушим, микрофон и
+    // анализатор оставляем живыми (по ним ловим перебивание по уровню).
+    const pause = useCallback(() => {
+        if (pausedRef.current) return;
+        pausedRef.current = true;
+        clearTimers();
+        bufferRef.current = '';
+        interimRef.current = '';
+        if (hasRealApiRef.current && recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch { /* noop */ }
+        }
+    }, [clearTimers]);
+
+    const resume = useCallback(() => {
+        if (!listeningRef.current) return;
+        pausedRef.current = false;
+        bufferRef.current = '';
+        interimRef.current = '';
+        if (hasRealApiRef.current && recognitionRef.current) {
+            try { recognitionRef.current.start(); } catch { /* уже запущено — ок */ }
+        }
+    }, []);
 
     // Принудительно завершить текущую фразу прямо сейчас, не дожидаясь
     // тишины — используется опциональным тапом по орбу.
-    const finalizeNow = useCallback(() => {
-        finalizeUtterance();
-    }, [finalizeUtterance]);
+    const finalizeNow = useCallback(() => { finalizeUtterance(); }, [finalizeUtterance]);
 
-    return { supported: true, start, stop, finalizeNow, analyserRef };
+    return { supported: true, start, stop, pause, resume, finalizeNow, analyserRef };
 }
