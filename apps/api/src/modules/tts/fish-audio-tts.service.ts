@@ -1,4 +1,5 @@
 import { Injectable, ServiceUnavailableException, BadRequestException } from '@nestjs/common';
+import { createHash } from 'crypto';
 import type { Response as ExpressResponse } from 'express';
 
 // ==========================================
@@ -24,7 +25,37 @@ const MODEL_HEADER = 's2.1-pro';
 export interface FishVoice {
   id: string;
   title: string;
+  description: string;
 }
+
+// ------------------------------------------------------------------------
+// Курируемый список голосов (задача: заменить «сырые» тайтлы из публичной
+// библиотеки Fish на понятные англоязычные имена + краткое описание тембра,
+// как у пресетов OpenAI). Реальный id голоса (reference_id) на этапе
+// компиляции неизвестен — Fish не даёт «прикрепить» голос по фиксированному
+// id навсегда, поэтому здесь только ПОИСКОВЫЙ запрос (title) к публичной
+// библиотеке; сам _id резолвится и кэшируется в рантайме (см. listVoices).
+// query — основной поисковый запрос (максимально похож на то, что видно
+// в каталоге Fish); fallbackQuery — более короткий/общий запрос на случай,
+// если точный тайтл не найдётся (напр. другая версия суффикса у автора).
+interface CuratedVoiceDef {
+  query: string;
+  fallbackQuery?: string;
+  name: string;
+  description: string;
+}
+
+const CURATED_VOICES: CuratedVoiceDef[] = [
+  { query: 'Мужской Профессиональный213',              fallbackQuery: 'Мужской Профессиональный', name: 'Marcus',   description: 'Мужской, глубокий, деловой' },
+  { query: 'РасДК-836443 James Baker',                  fallbackQuery: 'James Baker',               name: 'James',    description: 'Мужской, уверенный, чёткий' },
+  { query: 'Сергей Бурунов x1Katari',                   fallbackQuery: 'Сергей Бурунов',            name: 'Sergei',   description: 'Мужской, характерный, живой' },
+  { query: 'Adam Ксения Терехова',                      fallbackQuery: 'Ксения Терехова',           name: 'Ksenia',   description: 'Женский, мягкий, тёплый' },
+  { query: 'Инциденты 2.0 ytwatchingalexandr',          fallbackQuery: 'Инциденты',                 name: 'Alexander',description: 'Мужской, спокойный, размеренный' },
+  { query: 'история от котят Николай Абрамович',        fallbackQuery: 'Николай Абрамович',         name: 'Nikolai',  description: 'Мужской, тёплый, повествовательный' },
+  { query: 'Меллстрой Скуф',                            fallbackQuery: 'Меллстрой',                 name: 'Mellstroy',description: 'Мужской, громкий, энергичный' },
+  { query: 'Рената Литвинова Серафима',                 fallbackQuery: 'Рената Литвинова',          name: 'Serafima', description: 'Женский, глубокий, выразительный' },
+  { query: 'Обычный Голос s2yuzzll',                    fallbackQuery: 'Обычный Голос',             name: 'Olivia',   description: 'Женский, ровный, нейтральный' },
+];
 
 @Injectable()
 export class FishAudioTtsService {
@@ -33,12 +64,24 @@ export class FishAudioTtsService {
   // клиент увидит «бесконечную загрузку» вместо понятной ошибки.
   private readonly timeoutMs = 15_000;
 
-  // Простой in-memory кэш списка публичных голосов — без Redis и очередей,
-  // как и просили. Список голосов Fish меняется редко, поэтому 6 часов
-  // кэша заметно снижает нагрузку на Fish API при каждом открытии
-  // настроек озвучки (иначе это был бы round-trip на каждый рендер модалки).
+  // Простой in-memory кэш списка голосов — без Redis и очередей, как и
+  // просили. Курируемый список голосов меняется только при правке кода,
+  // поэтому 6 часов кэша заметно снижает нагрузку на Fish API (иначе
+  // это было бы 9 поисковых round-trip'ов при каждом открытии настроек).
   private voicesCache: { at: number; items: FishVoice[] } | null = null;
   private readonly voicesCacheTtlMs = 6 * 60 * 60 * 1000;
+
+  // Кэш готового аудио — задача явно требует максимально быстрой отдачи
+  // озвучки в чате. Одно и то же сообщение в чате часто переслушивают
+  // (повторное нажатие на «озвучить»), а во вкладке «Голос» одну и ту же
+  // фразу-пример гоняют по несколько раз подряд при переключении голосов
+  // туда-обратно. Кэшируем готовый MP3-буфер по хэшу (текст+голос+
+  // скорость) на 15 минут — повторный вызов отдаётся мгновенно, без
+  // единого запроса к Fish. Простая Map с ручной эвикцией по лимиту
+  // записей — тот же принцип, что и voicesCache, никакого Redis.
+  private readonly audioCache = new Map<string, { at: number; buf: Buffer }>();
+  private readonly audioCacheTtlMs = 15 * 60 * 1000;
+  private readonly audioCacheMaxEntries = 200;
 
   private apiKey(): string {
     const key = process.env.FISH_AUDIO_API_KEY;
@@ -54,13 +97,52 @@ export class FishAudioTtsService {
     return { speed: Math.max(0.5, Math.min(2.0, speed)) };
   }
 
+  private audioCacheKey(text: string, voice: string | undefined, speed: number): string {
+    return createHash('sha1').update(`${voice || ''}::${speed}::${text}`).digest('hex');
+  }
+
+  private readAudioCache(key: string): Buffer | null {
+    const hit = this.audioCache.get(key);
+    if (!hit) return null;
+    if (Date.now() - hit.at > this.audioCacheTtlMs) {
+      this.audioCache.delete(key);
+      return null;
+    }
+    return hit.buf;
+  }
+
+  private writeAudioCache(key: string, buf: Buffer) {
+    // Грубая эвикция: если лимит превышен, выкидываем самую старую запись
+    // (первый ключ Map — порядок вставки в JS гарантирован). Этого более
+    // чем достаточно для случайного повторного прослушивания, полноценный
+    // LRU здесь избыточен.
+    if (this.audioCache.size >= this.audioCacheMaxEntries) {
+      const oldestKey = this.audioCache.keys().next().value;
+      if (oldestKey) this.audioCache.delete(oldestKey);
+    }
+    this.audioCache.set(key, { at: Date.now(), buf });
+  }
+
   private buildRequestBody(text: string, voice: string | undefined, speed: number): string {
     const body: Record<string, unknown> = {
       text,
       format: 'mp3',
-      // balanced ≈ 300мс до первого байта — заложено на будущее для
-      // стриминга (см. streamTo ниже), сейчас не влияет на буферизованный путь.
-      latency: 'balanced',
+      // Задача — максимально быстрая отдача озвучки (особенно в чате).
+      // Путь остаётся буферизованным целиком (см. tts.controller.ts —
+      // Cloudflare ломает chunked-стрим), поэтому единственный доступный
+      // рычаг скорости — ускорить саму генерацию на стороне Fish:
+      //   • latency: 'low' — самый быстрый режим генерации у Fish (было
+      //     'balanced'); проигрывает 'normal' в качестве, но для
+      //     голосового чата это оправданный компромисс — так и просит
+      //     задача (максимально быстрая отдача).
+      //   • chunk_length ниже дефолта (200) — модель быстрее генерирует
+      //     первый и последующие куски.
+      //   • mp3_bitrate 64 вместо дефолтных 128 — меньше байт на скачку
+      //     через Cloudflare/nginx, для речи (не музыки) разница в
+      //     качестве на слух практически незаметна.
+      latency: 'low',
+      chunk_length: 130,
+      mp3_bitrate: 64,
       prosody: { speed },
     };
     // reference_id не передаём вовсе, если голос не выбран — Fish в этом
@@ -103,6 +185,7 @@ export class FishAudioTtsService {
       const errorBody = await response.text().catch(() => '');
       console.error(`[FishAudioTtsService] HTTP ${response.status}:`, errorBody.slice(0, 500));
       if (response.status === 401) throw new ServiceUnavailableException('Ключ Fish Audio недействителен');
+      if (response.status === 402) throw new ServiceUnavailableException('На балансе Fish Audio закончились кредиты');
       if (response.status === 429) throw new ServiceUnavailableException('Слишком много запросов к Fish Audio. Попробуй через минуту.');
       throw new ServiceUnavailableException(`Ошибка Fish Audio TTS: HTTP ${response.status}`);
     }
@@ -112,10 +195,18 @@ export class FishAudioTtsService {
   // Буферизованный синтез — основной путь. Тот же паттерн, что и у
   // OpenAI-провайдера: контроллер сейчас всегда использует именно его
   // (см. комментарий про Cloudflare в tts.controller.ts), не streamTo().
+  // Теперь сначала проверяем audioCache — при повторном запросе того же
+  // текста+голоса+скорости отдаём мгновенно, без обращения к Fish вообще.
   async synthesize(text: string, voice: string | undefined, speed: number = 1.0): Promise<Buffer> {
+    const cacheKey = this.audioCacheKey(text, voice, speed);
+    const cached = this.readAudioCache(cacheKey);
+    if (cached) return cached;
+
     const response = await this.requestFish(text, voice, speed);
     const arrayBuf = await response.arrayBuffer();
-    return Buffer.from(arrayBuf);
+    const buf = Buffer.from(arrayBuf);
+    this.writeAudioCache(cacheKey, buf);
+    return buf;
   }
 
   // Стриминговый вариант — подготовлен на будущее (задача явно просит
@@ -147,10 +238,53 @@ export class FishAudioTtsService {
     }
   }
 
-  // Список публичных голосов Fish Audio для UI выбора голоса. Кэшируем на
-  // процесс (см. voicesCache выше). При сбое сети/лимите отдаём последний
-  // успешный кэш, если он есть — интерфейс не должен падать из-за
-  // временной недоступности Fish API.
+  // Ищет ОДИН голос в публичной библиотеке Fish по текстовому запросу.
+  // page_size=5 — берём небольшой запас на случай, если самый релевантный
+  // результат не первый в выдаче; используем первый, т.к. Fish уже
+  // сортирует по релевантности при заданном title.
+  private async searchVoice(apiKey: string, query: string): Promise<{ id: string; title: string } | null> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const url = `${VOICES_URL}?title=${encodeURIComponent(query)}&page_size=5`;
+      const response = await fetch(url, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      clearTimeout(timer);
+      if (!response.ok) return null;
+      const data: any = await response.json().catch(() => null);
+      const first = Array.isArray(data?.items) ? data.items[0] : null;
+      const id = first?._id || first?.id;
+      if (!id) return null;
+      return { id, title: first?.title || query };
+    } catch {
+      clearTimeout(timer);
+      return null;
+    }
+  }
+
+  // Резолвит один пункт курируемого списка: сначала точный запрос, если
+  // пусто — короткий fallbackQuery. Возвращает готовый FishVoice с НАШИМ
+  // именем и описанием (не сырым тайтлом из каталога Fish).
+  private async resolveCuratedVoice(apiKey: string, def: CuratedVoiceDef): Promise<FishVoice | null> {
+    let found = await this.searchVoice(apiKey, def.query);
+    if (!found && def.fallbackQuery) found = await this.searchVoice(apiKey, def.fallbackQuery);
+    if (!found) {
+      console.warn(`[FishAudioTtsService/listVoices] голос не найден в каталоге: "${def.query}"`);
+      return null;
+    }
+    return { id: found.id, title: def.name, description: def.description };
+  }
+
+  // Список голосов для UI выбора голоса (VoiceSettings). Теперь это не
+  // «топ по популярности» из общей библиотеки Fish, а курируемый набор
+  // (см. CURATED_VOICES) — каждый резолвится поиском по названию и
+  // переименовывается в понятное английское имя + краткое описание тембра.
+  // Кэшируем на процесс (см. voicesCache выше). При полном сбое сети/ключа
+  // отдаём последний успешный кэш, если он есть — интерфейс не должен
+  // падать из-за временной недоступности Fish API.
   async listVoices(): Promise<FishVoice[]> {
     if (this.voicesCache && Date.now() - this.voicesCache.at < this.voicesCacheTtlMs) {
       return this.voicesCache.items;
@@ -161,47 +295,26 @@ export class FishAudioTtsService {
     } catch {
       return this.voicesCache?.items ?? [];
     }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      // sort_by=task_count — самые используемые публичные голоса первыми,
-      // разумный дефолт для витрины без ручной курации списка.
-      const url = `${VOICES_URL}?page_size=8&sort_by=task_count`;
-      const response = await fetch(url, {
-        method: 'GET',
-        signal: controller.signal,
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      clearTimeout(timer);
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => '');
-        // Подробный лог тела ответа — единственный способ понять причину
-        // сбоя без доступа к живому Fish API из среды разработки (ключ и
-        // сеть есть только на проде). Смотреть через `pm2 logs void-code-api`.
-        console.error(`[FishAudioTtsService/listVoices] HTTP ${response.status}:`, errorBody.slice(0, 500));
-        return this.voicesCache?.items ?? [];
-      }
-      const data: any = await response.json().catch(() => null);
-      const items: FishVoice[] = Array.isArray(data?.items)
-        ? data.items
-            .map((it: any) => ({ id: it?._id || it?.id, title: it?.title || 'Voice' }))
-            .filter((v: FishVoice) => !!v.id)
-        : [];
-      if (!items.length) {
-        // Ответ 200, но пустой/неожиданной формы список — логируем сырой
-        // JSON (обрезанный), чтобы увидеть реальные имена полей Fish API,
-        // если они отличаются от ожидаемых (_id/id, items).
-        console.warn('[FishAudioTtsService/listVoices] пустой список голосов, сырой ответ:', JSON.stringify(data)?.slice(0, 500));
-      }
-      if (items.length) this.voicesCache = { at: Date.now(), items };
-      // Полезно видеть в логах, что список реально пришёл и сколько голосов
-      // в нём — без этого «тихий успех» неотличим от «тихого падения».
-      if (items.length) console.log(`[FishAudioTtsService/listVoices] получено голосов: ${items.length}`);
-      return items.length ? items : (this.voicesCache?.items ?? []);
-    } catch (e: any) {
-      clearTimeout(timer);
-      console.error('[FishAudioTtsService/listVoices] сбой:', e?.message || e);
+
+    // Резолвим все 9 голосов параллельно — иначе открытие настроек
+    // озвучки ждало бы 9 последовательных round-trip'ов до Fish.
+    const settled = await Promise.allSettled(
+      CURATED_VOICES.map((def) => this.resolveCuratedVoice(apiKey, def)),
+    );
+    const items: FishVoice[] = settled
+      .map((r) => (r.status === 'fulfilled' ? r.value : null))
+      .filter((v): v is FishVoice => !!v);
+
+    if (!items.length) {
+      // Ни один курируемый голос не нашёлся (ключ/сеть/каталог недоступен
+      // целиком) — не оставляем UI совсем без голосов, отдаём последний
+      // рабочий кэш, если есть.
+      console.warn('[FishAudioTtsService/listVoices] курируемые голоса не резолвнулись, отдаю последний кэш');
       return this.voicesCache?.items ?? [];
     }
+
+    this.voicesCache = { at: Date.now(), items };
+    console.log(`[FishAudioTtsService/listVoices] резолвнуто курируемых голосов: ${items.length}/${CURATED_VOICES.length}`);
+    return items;
   }
 }

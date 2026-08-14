@@ -120,6 +120,30 @@ function VoiceLanguageModal({ uiLang, current, onChoose, onClose }) {
     );
 }
 
+// Полноэкранная модалка выбора модели озвучки — та же механика, что и у
+// VoiceLanguageModal (список + чекмарка у текущего выбора), но без поиска:
+// пунктов всего два, искать среди них незачем.
+function VoiceModelModal({ uiLang, current, onChoose, onClose }) {
+    return (
+        <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in" onClick={onClose}>
+            <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl slide-in-right flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-3 p-5 pb-3 shrink-0">
+                    <h4 className="font-extrabold text-lg dark:text-white flex-1">Модель озвучки</h4>
+                    <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.X /></button>
+                </div>
+                <div className="px-3 pb-5">
+                    {TTS_MODELS.map(m => (
+                        <button key={m.id} onClick={() => onChoose(m.id)} className={`w-full flex items-center justify-between px-3.5 py-3.5 rounded-xl text-left transition-colors ${current === m.id ? 'bg-[#efecf9] dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}>
+                            <span className="font-semibold text-sm dark:text-white">{m.name}</span>
+                            {current === m.id && <Icons.Check className="w-4 h-4 text-[#5b32d4] shrink-0" />}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export function VoiceSettings({ state, updateState, onClose }) {
     useLockBodyScroll();
     const tts = useOpenAiTts();
@@ -128,6 +152,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const rate = state.voiceRate || 1;
     const [testing, setTesting] = useState(false);
     const [showLangModal, setShowLangModal] = useState(false);
+    const [showModelModal, setShowModelModal] = useState(false);
 
     // Fish Audio S2.1 Pro — провайдер по умолчанию, в т.ч. для уже
     // существующих пользователей без сохранённого выбора (см. App.jsx).
@@ -141,7 +166,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const currentList = provider === 'openai'
         ? VOICE_PRESETS
         : (fishVoices.length
-            ? fishVoices.map((v, i) => ({ id: v.id, name: v.title, desc: 'Fish Audio', ...FISH_COLOR_PALETTE[i % FISH_COLOR_PALETTE.length] }))
+            ? fishVoices.map((v, i) => ({ id: v.id, name: v.title, desc: v.description || 'Fish Audio', ...FISH_COLOR_PALETTE[i % FISH_COLOR_PALETTE.length] }))
             : [FISH_DEFAULT_VOICE]);
 
     // Выбранный голос хранится ОТДЕЛЬНО для каждого провайдера
@@ -152,6 +177,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const presetIdx = Math.max(0, currentList.findIndex(p => p.id === selectedVoiceId));
     const preset = currentList[presetIdx] || currentList[0];
     const langLabel = (VOICE_LANGS.find(l => l.id === lang) || VOICE_LANGS[0]).name;
+    const modelLabel = (TTS_MODELS.find(m => m.id === provider) || TTS_MODELS[0]).name;
 
     const applyPreset = (idx) => {
         const list = currentList;
@@ -190,6 +216,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
     };
 
     const setVoiceLang = (id) => { updateState({ voiceLang: id }); setShowLangModal(false); };
+    const chooseModel = (id) => { selectProvider(id); setShowModelModal(false); };
 
     const test = () => {
         const sample = SAMPLE[lang] || SAMPLE.default;
@@ -225,23 +252,20 @@ export function VoiceSettings({ state, updateState, onClose }) {
                         </div>
                     )}
 
-                    {/* Модель озвучки: Fish Audio S2.1 Pro (по умолчанию) / OpenAI TTS.
-                        Переключение сразу меняет список голосов ниже — у каждой модели
-                        свой набор и свой последний выбранный голос (см. selectedVoiceId). */}
-                    <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">TTS Model</p>
-                        <div className="grid grid-cols-2 gap-2">
-                            {TTS_MODELS.map(m => (
-                                <button
-                                    key={m.id}
-                                    onClick={() => selectProvider(m.id)}
-                                    className={`px-3 py-2.5 rounded-2xl text-sm font-bold transition-colors ${provider === m.id ? 'bg-[#5b32d4] text-white' : 'bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-                                >
-                                    {m.name}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                    {/* Модель озвучки: одна строка-кнопка вместо грид-переключателя —
+                        открывает список из двух моделей (Fish Audio S2.1 Pro / OpenAI TTS).
+                        По умолчанию выбран Fish Audio. Переключение сразу меняет список
+                        голосов ниже — у каждой модели свой набор и свой последний
+                        выбранный голос (см. selectedVoiceId). */}
+                    <button onClick={() => setShowModelModal(true)} className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <span className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center"><Icons.Volume2 className="w-4 h-4" /></div>
+                            <span className="font-bold text-sm dark:text-white">Модель</span>
+                        </span>
+                        <span className="flex items-center gap-1.5 text-sm text-gray-400">
+                            {modelLabel} <Icons.ChevronRight className="w-4 h-4" />
+                        </span>
+                    </button>
 
                     {/* Свайпаемая карусель голоса — единая для всех языков, набор
                         голосов зависит от выбранной модели озвучки (provider) выше. */}
@@ -257,7 +281,6 @@ export function VoiceSettings({ state, updateState, onClose }) {
                                 <VoiceOrb
                                     colorFrom={preset.colorFrom}
                                     colorTo={preset.colorTo}
-                                    active={testing}
                                     size={128}
                                 />
                                 <div className="text-center">
@@ -298,6 +321,9 @@ export function VoiceSettings({ state, updateState, onClose }) {
 
             {showLangModal && (
                 <VoiceLanguageModal uiLang={uiLang} current={lang} onChoose={setVoiceLang} onClose={() => setShowLangModal(false)} />
+            )}
+            {showModelModal && (
+                <VoiceModelModal uiLang={uiLang} current={provider} onChoose={chooseModel} onClose={() => setShowModelModal(false)} />
             )}
         </div>
     );
