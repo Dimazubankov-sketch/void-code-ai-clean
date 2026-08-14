@@ -133,15 +133,21 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     // избавлен от таймеров, а пользователь видит плавное появление И
     // плавное исчезновение (раньше пропадало резко).
 
-    const voiceOpts = () => ({
-        // OpenAI TTS: голос по имени (alloy/echo/fable/onyx/nova/shimmer),
-        // скорость 0.25-4.0. Пресеты голосов теперь мапятся 1:1 на голоса OpenAI —
-        // см. VoiceSettings.
-        voice: state.voicePreset || 'nova',
-        speed: state.voiceRate || 1.0,
-        // Оставляем lang для Web Speech-фолбэка.
-        lang: state.voiceLang || 'ru-RU',
-    });
+    const voiceOpts = () => {
+        // Fish Audio S2.1 Pro — провайдер по умолчанию (в т.ч. для уже
+        // существующих пользователей без сохранённого выбора, см. App.jsx).
+        const provider = state.ttsProvider || 'fish';
+        return {
+            provider,
+            // Fish: reference_id голоса (или undefined — голос модели по
+            // умолчанию). OpenAI: имя голоса (alloy/echo/fable/onyx/nova/shimmer).
+            // Голос хранится отдельно для каждого провайдера — см. VoiceSettings.
+            voice: provider === 'fish' ? (state.voicePresetFish || undefined) : (state.voicePreset || 'nova'),
+            speed: state.voiceRate || 1.0,
+            // Оставляем lang для Web Speech-фолбэка.
+            lang: state.voiceLang || 'ru-RU',
+        };
+    };
 
     const speakMessage = (idx, text) => {
         if (ttsMsgIdx === idx && tts.speaking) { tts.stop(); setTtsMsgIdx(null); return; }

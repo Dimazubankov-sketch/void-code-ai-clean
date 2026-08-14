@@ -12,7 +12,7 @@ export const STORAGE_KEY = 'voidcode_session_v1';
 // всегда стартует "с чистого листа" — так и должно быть.
 export const PERSISTED_KEYS = [
     'user', 'userPlan', 'accountPlans', 'usedDailyLimits', 'usedWeeklyLimits', 'dailyLimitExceededAt', 'isDarkMode', 'notificationsEnabled',
-    'chatSessions', 'activeChatId', 'selectedModelId', 'reasoningByModel', 'lang', 'voiceLang', 'voiceURI', 'voiceRate', 'voicePitch', 'voicePreset',
+    'chatSessions', 'activeChatId', 'selectedModelId', 'reasoningByModel', 'lang', 'voiceLang', 'voiceURI', 'voiceRate', 'voicePitch', 'voicePreset', 'ttsProvider', 'voicePresetFish',
     'generatedImages', 'generatedDocuments', 'aiAgents', 'activeAgentId',
     'walletBalance', 'walletTransactions',
     'projects', 'connectedPlugins', 'activeSkills', 'customSkills',

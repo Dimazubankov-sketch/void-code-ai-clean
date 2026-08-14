@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
+import { useOpenAiTts, useFishVoices } from '@/shared/lib/useOpenAiTts';
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
@@ -53,6 +53,33 @@ const SAMPLE = {
     default: 'Hello! This is how the selected voice sounds.',
 };
 
+// Модели озвучки. Fish Audio S2.1 Pro — по умолчанию (задача явно требует
+// именно это, в т.ч. для существующих пользователей без сохранённого
+// выбора — см. App.jsx: state.ttsProvider фолбэчится на 'fish').
+const TTS_MODELS = [
+    { id: 'fish',   name: 'Fish Audio S2.1 Pro' },
+    { id: 'openai', name: 'OpenAI TTS' },
+];
+
+// Палитра для карточек голосов Fish Audio — список голосов динамический
+// (приходит с бэкенда, см. useFishVoices), поэтому цвета просто циклически
+// переиспользуют ту же гамму, что и у пресетов OpenAI, вместо жёсткой
+// привязки цвета к конкретному id голоса.
+const FISH_COLOR_PALETTE = [
+    { colorFrom: '#5eead4', colorTo: '#5b32d4' },
+    { colorFrom: '#22d3ee', colorTo: '#5b32d4' },
+    { colorFrom: '#93c5fd', colorTo: '#5b32d4' },
+    { colorFrom: '#c4b5fd', colorTo: '#5b32d4' },
+    { colorFrom: '#a78bfa', colorTo: '#5b32d4' },
+    { colorFrom: '#3b82f6', colorTo: '#5b32d4' },
+];
+
+// «Голос по умолчанию» — используется, если список голосов Fish ещё
+// грузится, недоступен, или пользователь явно ничего не выбирал: id пустой
+// строкой, бэкенд в этом случае просто не передаёт reference_id в запрос
+// к Fish Audio, что для их API валидно (голос модели по умолчанию).
+const FISH_DEFAULT_VOICE = { id: '', name: 'Голос по умолчанию', desc: 'Fish Audio S2.1 Pro' };
+
 // Полноэкранная модалка выбора языка озвучки: поиск сверху + список в
 // столбик, отсортированный по алфавиту с учётом текущего языка интерфейса.
 function VoiceLanguageModal({ uiLang, current, onChoose, onClose }) {
@@ -102,14 +129,44 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const [testing, setTesting] = useState(false);
     const [showLangModal, setShowLangModal] = useState(false);
 
-    const presetIdx = Math.max(0, VOICE_PRESETS.findIndex(p => p.id === (state.voicePreset || 'nova')));
-    const preset = VOICE_PRESETS[presetIdx] || VOICE_PRESETS[0];
+    // Fish Audio S2.1 Pro — провайдер по умолчанию, в т.ч. для уже
+    // существующих пользователей без сохранённого выбора (см. App.jsx).
+    const provider = state.ttsProvider || 'fish';
+    const { voices: fishVoices, loading: fishVoicesLoading } = useFishVoices();
+
+    // Список голосов текущего провайдера. Для Fish он динамический
+    // (приходит с бэкенда — см. useFishVoices) — пока грузится или если
+    // Fish недоступен, показываем один пункт «Голос по умолчанию», чтобы
+    // карусель никогда не оставалась пустой.
+    const currentList = provider === 'openai'
+        ? VOICE_PRESETS
+        : (fishVoices.length
+            ? fishVoices.map((v, i) => ({ id: v.id, name: v.title, desc: 'Fish Audio', ...FISH_COLOR_PALETTE[i % FISH_COLOR_PALETTE.length] }))
+            : [FISH_DEFAULT_VOICE]);
+
+    // Выбранный голос хранится ОТДЕЛЬНО для каждого провайдера
+    // (voicePreset — для OpenAI, voicePresetFish — для Fish), поэтому при
+    // переключении модели пользователь возвращается к своему последнему
+    // выбору для неё, а не сбрасывается на первый голос в списке.
+    const selectedVoiceId = provider === 'openai' ? (state.voicePreset || 'nova') : (state.voicePresetFish || currentList[0]?.id || '');
+    const presetIdx = Math.max(0, currentList.findIndex(p => p.id === selectedVoiceId));
+    const preset = currentList[presetIdx] || currentList[0];
     const langLabel = (VOICE_LANGS.find(l => l.id === lang) || VOICE_LANGS[0]).name;
 
     const applyPreset = (idx) => {
-        const p = VOICE_PRESETS[(idx + VOICE_PRESETS.length) % VOICE_PRESETS.length];
-        // Для OpenAI TTS сохраняем только id голоса — pitch/URI больше не нужны.
-        updateState({ voicePreset: p.id });
+        const list = currentList;
+        const p = list[(idx + list.length) % list.length];
+        // Сохраняем голос в поле, привязанное к текущему провайдеру — выбор
+        // для другого провайдера при этом не трогаем.
+        if (provider === 'openai') updateState({ voicePreset: p.id });
+        else updateState({ voicePresetFish: p.id });
+    };
+
+    const selectProvider = (id) => {
+        if (id === provider) return;
+        tts.stop();
+        setTesting(false);
+        updateState({ ttsProvider: id });
     };
 
     // Свайп пальцем
@@ -137,7 +194,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const test = () => {
         const sample = SAMPLE[lang] || SAMPLE.default;
         setTesting(true);
-        tts.speak(sample, { voice: preset.id, speed: rate, lang });
+        tts.speak(sample, { provider, voice: preset.id || undefined, speed: rate, lang });
     };
 
     // Раньше «активность» орба (testing) сбрасывалась жёстким setTimeout
@@ -168,7 +225,26 @@ export function VoiceSettings({ state, updateState, onClose }) {
                         </div>
                     )}
 
-                    {/* Свайпаемая карусель голоса — единая для всех языков */}
+                    {/* Модель озвучки: Fish Audio S2.1 Pro (по умолчанию) / OpenAI TTS.
+                        Переключение сразу меняет список голосов ниже — у каждой модели
+                        свой набор и свой последний выбранный голос (см. selectedVoiceId). */}
+                    <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">TTS Model</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            {TTS_MODELS.map(m => (
+                                <button
+                                    key={m.id}
+                                    onClick={() => selectProvider(m.id)}
+                                    className={`px-3 py-2.5 rounded-2xl text-sm font-bold transition-colors ${provider === m.id ? 'bg-[#5b32d4] text-white' : 'bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                                >
+                                    {m.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Свайпаемая карусель голоса — единая для всех языков, набор
+                        голосов зависит от выбранной модели озвучки (provider) выше. */}
                     <div
                         className="select-none"
                         onTouchStart={onTouchStart}
@@ -193,10 +269,13 @@ export function VoiceSettings({ state, updateState, onClose }) {
                             <button onClick={() => applyPreset(presetIdx + 1)} className="p-2 rounded-full text-gray-300 hover:text-[#5b32d4] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"><Icons.ChevronRight className="w-6 h-6" /></button>
                         </div>
                         <div className="flex items-center justify-center gap-1.5 mt-4">
-                            {VOICE_PRESETS.map((p, i) => (
-                                <button key={p.id} onClick={() => applyPreset(i)} className={`rounded-full transition-all ${i === presetIdx ? 'w-4 h-1.5 bg-[#5b32d4]' : 'w-1.5 h-1.5 bg-gray-300 dark:bg-gray-700'}`} />
+                            {currentList.map((p, i) => (
+                                <button key={p.id || 'default'} onClick={() => applyPreset(i)} className={`rounded-full transition-all ${i === presetIdx ? 'w-4 h-1.5 bg-[#5b32d4]' : 'w-1.5 h-1.5 bg-gray-300 dark:bg-gray-700'}`} />
                             ))}
                         </div>
+                        {provider === 'fish' && fishVoicesLoading && (
+                            <p className="text-center text-xs text-gray-400 mt-2">Загружаю голоса Fish Audio…</p>
+                        )}
                     </div>
 
                     {/* Язык — одна строка, открывает модалку со списком и поиском */}

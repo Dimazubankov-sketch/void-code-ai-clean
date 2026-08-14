@@ -1,20 +1,26 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { apiFetchBlob, ApiError } from '@/shared/api/client';
+import { apiFetch, apiFetchBlob, ApiError } from '@/shared/api/client';
 
 // ==========================================
-// useOpenAiTts — озвучка через OpenAI TTS-1
+// useOpenAiTts — озвучка через бэкенд (Fish Audio S2.1 Pro / OpenAI TTS-1)
 // ==========================================
-// Клиент шлёт POST /tts/synthesize с текстом+голосом, получает MP3 blob и
-// играет через <audio>. По сравнению с Web Speech API это даёт:
+// Клиент шлёт POST /tts/synthesize с текстом+провайдером+голосом, получает
+// MP3 blob и играет через <audio>. По сравнению с Web Speech API это даёт:
 //   • одинаковое качество на любом устройстве и в любом браузере,
-//   • шесть голосов OpenAI (alloy/echo/fable/onyx/nova/shimmer),
+//   • несколько голосов на выбор (Fish Audio — динамический список,
+//     OpenAI — шесть фиксированных: alloy/echo/fable/onyx/nova/shimmer),
 //   • корректный русский и подхват любого языка входного текста.
+//
+// Оба провайдера идут через один и тот же buffered-путь (см. комментарий
+// в tts.controller.ts про Cloudflare) — hook про это не знает, для него
+// это просто «эндпоинт вернул MP3 blob».
 //
 // Если бэкенд TTS недоступен (нет ключа, ошибка сети, лимит) — молча
 // откатываемся на Web Speech API как раньше, чтобы не ломать UX. О лимите
 // уведомляем текстом, чтобы пользователь понял почему TTS сдался.
 
-// Официальные голоса OpenAI TTS-1.
+// Официальные голоса OpenAI TTS-1 — фиксированный список, в отличие от
+// Fish Audio (см. useFishVoices ниже) он не меняется и не требует запроса.
 export const OPENAI_TTS_VOICES = [
     { id: 'alloy',   name: 'Alloy',   desc: 'Универсальный, нейтральный' },
     { id: 'echo',    name: 'Echo',    desc: 'Мужской, спокойный' },
@@ -23,6 +29,41 @@ export const OPENAI_TTS_VOICES = [
     { id: 'nova',    name: 'Nova',    desc: 'Женский, живой' },
     { id: 'shimmer', name: 'Shimmer', desc: 'Женский, мягкий' },
 ];
+
+// Модуль-level кэш списка голосов Fish Audio — переживает
+// размонтирование/повторное открытие настроек озвучки в рамках одной
+// вкладки, чтобы не дёргать /tts/fish/voices при каждом открытии модалки.
+let fishVoicesCache = null;   // Array<{id,title}> | null
+let fishVoicesPromise = null; // in-flight запрос, чтобы не дублировать
+
+// Хук отдельно от useOpenAiTts — только подтягивает список голосов Fish
+// Audio с бэкенда (реальный список приходит из /model Fish Audio, id
+// голосов туда «зашиты» быть не могут — они произвольные и могут
+// меняться, поэтому список именно динамический, а не хардкод).
+export function useFishVoices() {
+    const [voices, setVoices] = useState(fishVoicesCache || []);
+    const [loading, setLoading] = useState(!fishVoicesCache);
+
+    useEffect(() => {
+        if (fishVoicesCache) { setVoices(fishVoicesCache); setLoading(false); return; }
+        let cancelled = false;
+        if (!fishVoicesPromise) {
+            fishVoicesPromise = apiFetch('/tts/fish/voices', { method: 'POST' })
+                .then(res => Array.isArray(res?.items) ? res.items : [])
+                .catch(() => [])
+                .finally(() => { fishVoicesPromise = null; });
+        }
+        fishVoicesPromise.then(items => {
+            if (cancelled) return;
+            fishVoicesCache = items;
+            setVoices(items);
+            setLoading(false);
+        });
+        return () => { cancelled = true; };
+    }, []);
+
+    return { voices, loading };
+}
 
 export function useOpenAiTts() {
     const [speaking, setSpeaking] = useState(false);
@@ -142,11 +183,19 @@ export function useOpenAiTts() {
         const safeText = text.length > 4096 ? text.slice(0, 4096) : text;
 
         try {
+            // Провайдер: 'fish' (Fish Audio S2.1 Pro) по умолчанию для новых
+            // и уже существующих пользователей без сохранённого выбора —
+            // opts.provider приходит из state.ttsProvider, который так же
+            // фолбэчится на 'fish' на уровне ChatView/VoiceSettings.
+            const provider = opts.provider === 'openai' ? 'openai' : 'fish';
             const blob = await apiFetchBlob('/tts/synthesize', {
                 method: 'POST',
                 body: {
                     text: safeText,
-                    voice: opts.voice || 'nova',
+                    provider,
+                    // Для OpenAI — имя голоса (nova и т.п.), для Fish —
+                    // reference_id голоса или undefined (голос по умолчанию).
+                    voice: opts.voice || (provider === 'openai' ? 'nova' : undefined),
                     speed: opts.speed || 1.0,
                 },
             });

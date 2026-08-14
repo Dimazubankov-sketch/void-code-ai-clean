@@ -67,7 +67,9 @@ export function App() {
             voiceURI: null,                    // выбранный голос (voiceURI)
             voiceRate: 1,                      // скорость речи
             voicePitch: 1,                     // высота голоса (для пресетов)
-            voicePreset: 'default',            // выбранный пресет русского голоса
+            voicePreset: 'default',            // выбранный пресет голоса OpenAI TTS
+            ttsProvider: 'fish',               // 'fish' (Fish Audio S2.1 Pro, по умолчанию) | 'openai'
+            voicePresetFish: null,             // выбранный голос Fish Audio (reference_id), null = голос по умолчанию
             isRightMenuOpen: false,
             showAuthModal: false,
             checkoutPlan: null,

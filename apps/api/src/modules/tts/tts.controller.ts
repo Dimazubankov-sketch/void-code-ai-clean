@@ -3,6 +3,7 @@ import { IsString, MinLength, MaxLength, IsOptional, IsIn, IsNumber, Min, Max } 
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TtsService } from './tts.service';
+import { FishAudioTtsService } from './fish-audio-tts.service';
 import type { Response } from 'express';
 
 // Лимиты озвучки — количество СИМВОЛОВ, доступных пользователю в сутки.
@@ -21,9 +22,21 @@ export class TtsRequestDto {
   @MaxLength(4096)
   text!: string;
 
+  // Провайдер синтеза. Fish Audio — основной по умолчанию (см. ниже),
+  // OpenAI — второй, полностью рабочий как раньше.
   @IsOptional()
   @IsString()
-  @IsIn(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'])
+  @IsIn(['fish', 'openai'])
+  provider?: string;
+
+  // Голос: для OpenAI — один из шести фиксированных имён (сам сервис
+  // TtsService дополнительно подстрахует невалидное значение дефолтом
+  // 'nova'). Для Fish — произвольный reference_id голоса из списка
+  // /tts/fish/voices, поэтому здесь просто строка без enum-проверки —
+  // список голосов Fish динамический и не known на этапе компиляции DTO.
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
   voice?: string;
 
   @IsOptional()
@@ -38,6 +51,7 @@ export class TtsRequestDto {
 export class TtsController {
   constructor(
     private readonly tts: TtsService,
+    private readonly fishTts: FishAudioTtsService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -50,6 +64,11 @@ export class TtsController {
     const userId = req.user.userId;
     await this.consumeTtsLimit(userId, dto.text.length);
 
+    // Fish Audio — провайдер по умолчанию (в т.ч. для существующих
+    // пользователей, у которых ещё не сохранён выбор провайдера на клиенте:
+    // фронтенд в этом случае просто не пришлёт поле provider вовсе).
+    const provider = dto.provider === 'openai' ? 'openai' : 'fish';
+
     // ВАЖНО: раньше здесь был потоковый (streaming) ответ через tts.streamTo()
     // ради более быстрого старта воспроизведения. После подключения домена
     // через Cloudflare пользователи стали часто получать «Не удалось
@@ -57,22 +76,32 @@ export class TtsController {
     // не всегда корректно доставляет chunked audio/mpeg стрим целиком:
     // соединение могло обрываться до конца потока, и клиент получал
     // усечённый/повреждённый MP3, который браузер не мог декодировать.
-    // Возвращаемся на простой буферизованный ответ: сервис полностью
-    // получает файл от OpenAI, ЗАТЕМ единым куском с Content-Length
+    // Возвращаемся на простой буферизованный ответ для ОБОИХ провайдеров:
+    // сервис полностью получает файл, ЗАТЕМ единым куском с Content-Length
     // отправляет клиенту. Это гарантирует целостность файла ценой
     // небольшой доп. задержки перед стартом воспроизведения — для
     // короткой фразы (проверка голоса, разовое сообщение в чате) это
-    // разница в десятые доли секунды, а корректность важнее.
-    const buf = await this.tts.synthesize(
-      dto.text,
-      dto.voice || 'nova',
-      dto.speed ?? 1.0,
-    );
+    // разница в десятые доли секунды, а корректность важнее. Оба сервиса
+    // уже готовы к стримингу (streamTo) — включить можно точечно, заменив
+    // synthesize() на streamTo() ниже, когда путь через Cloudflare починят.
+    const buf = provider === 'openai'
+      ? await this.tts.synthesize(dto.text, dto.voice || 'nova', dto.speed ?? 1.0)
+      : await this.fishTts.synthesize(dto.text, dto.voice, dto.speed ?? 1.0);
 
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Length', String(buf.length));
     res.end(buf);
+  }
+
+  // Список публичных голосов Fish Audio для UI (VoiceSettings подтягивает
+  // его при переключении на провайдера Fish). Для OpenAI список голосов
+  // фиксирован и захардкожен на фронтенде (VOICE_PRESETS) — отдельный
+  // эндпоинт под него не нужен.
+  @Post('fish/voices')
+  async fishVoices() {
+    const items = await this.fishTts.listVoices();
+    return { items };
   }
 
   // GET-эндпоинт: сколько символов пользователь уже израсходовал сегодня.
