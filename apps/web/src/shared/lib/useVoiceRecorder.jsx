@@ -27,7 +27,15 @@ export const VOICE_PHASE = {
     TRANSCRIBING: 'transcribing',
 };
 
-export function useVoiceRecorder(onText, lang = 'ru-RU') {
+export function useVoiceRecorder(onText, lang = 'ru-RU', opts = {}) {
+    // instantTranscribe: пропускает декоративную задержку в 1800мс перед
+    // фазой TRANSCRIBING → IDLE. Она изначально добавлена ради красивого
+    // спиннера «Преобразование в текст» при диктовке в поле ввода — там
+    // это уместно (глаз успевает увидеть анимацию). В Voice Mode это чистая
+    // потерянная секунда-полторы на каждую реплику разговора, поэтому Voice
+    // Mode передаёт instantTranscribe: true и получает текст сразу же, как
+    // только браузер закончил распознавание — без искусственного ожидания.
+    const instantTranscribe = !!opts.instantTranscribe;
     const [phase, setPhase] = useState(VOICE_PHASE.IDLE);
 
     const recognitionRef = useRef(null);
@@ -132,14 +140,24 @@ export function useVoiceRecorder(onText, lang = 'ru-RU') {
                 const pending = interimRef.current.trim();
                 if (pending) bufferRef.current = (bufferRef.current + ' ' + pending).trim();
                 interimRef.current = '';
-                // Фаза «Преобразование в текст»: индикатор крутится пару секунд
-                setPhaseBoth(VOICE_PHASE.TRANSCRIBING);
-                transcribeTimerRef.current = setTimeout(() => {
+                if (instantTranscribe) {
+                    // Voice Mode: без декоративной паузы — текст уже готов,
+                    // отдаём его сразу же.
                     const text = bufferRef.current.trim();
                     bufferRef.current = '';
                     setPhaseBoth(VOICE_PHASE.IDLE);
                     if (text) onTextRef.current?.(text);
-                }, 1800);
+                } else {
+                    // Диктовка в поле ввода: фаза «Преобразование в текст» —
+                    // индикатор крутится пару секунд, это часть UX.
+                    setPhaseBoth(VOICE_PHASE.TRANSCRIBING);
+                    transcribeTimerRef.current = setTimeout(() => {
+                        const text = bufferRef.current.trim();
+                        bufferRef.current = '';
+                        setPhaseBoth(VOICE_PHASE.IDLE);
+                        if (text) onTextRef.current?.(text);
+                    }, 1800);
+                }
             } else {
                 // Отмена крестиком или ошибка — всё отбрасываем
                 bufferRef.current = '';

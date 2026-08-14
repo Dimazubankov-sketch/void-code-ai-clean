@@ -41,11 +41,14 @@ export const VOICE_MODE_PHASE = {
     ERROR: 'error',
 };
 
-export function useVoiceMode({ state, handleSendMessage, voiceOpts, lang = 'ru-RU' }) {
+export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts, lang = 'ru-RU' }) {
     const [active, setActive] = useState(false);
     const [phase, setPhase] = useState(VOICE_MODE_PHASE.IDLE);
     const [muted, setMuted] = useState(false);
     const [errorMsg, setErrorMsg] = useState(null);
+    // Запоминаем модель, которая была выбрана в обычном чате ДО входа в
+    // Voice Mode — чтобы вернуть её при выходе (см. open/close ниже).
+    const savedModelIdRef = useRef(null);
 
     const tts = useOpenAiTts();
     // Ждём ли мы прямо сейчас ответ ИИ, чтобы озвучить его, как только он
@@ -58,7 +61,7 @@ export function useVoiceMode({ state, handleSendMessage, voiceOpts, lang = 'ru-R
         setPhase(VOICE_MODE_PHASE.THINKING);
         pendingReplyRef.current = true;
         handleSendMessage(text);
-    }, lang);
+    }, lang, { instantTranscribe: true });
 
     // Фаза записи/распознавания текста — просто зеркалим состояние recorder.
     useEffect(() => {
@@ -111,11 +114,21 @@ export function useVoiceMode({ state, handleSendMessage, voiceOpts, lang = 'ru-R
     }, [tts.error, active]);
 
     const open = useCallback(() => {
+        // Voice Mode всегда переключает на Void Mini (id 'flash') — самую
+        // быструю модель (Groq), безлимитную и бесплатную на любом тарифе.
+        // Для живого разговора скорость ответа важнее глубины рассуждений;
+        // «тяжёлая» модель здесь ощущается именно как «тормозит». Модель,
+        // выбранную в обычном чате, запоминаем и возвращаем при закрытии
+        // Voice Mode (см. close ниже) — выбор пользователя вне Voice Mode
+        // не теряется.
+        savedModelIdRef.current = state.selectedModelId;
+        if (state.selectedModelId !== 'flash') updateState({ selectedModelId: 'flash' });
         setActive(true);
         setPhase(VOICE_MODE_PHASE.IDLE);
         setErrorMsg(null);
         pendingReplyRef.current = false;
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.selectedModelId, updateState]);
 
     const close = useCallback(() => {
         setActive(false);
@@ -124,8 +137,12 @@ export function useVoiceMode({ state, handleSendMessage, voiceOpts, lang = 'ru-R
         pendingReplyRef.current = false;
         setPhase(VOICE_MODE_PHASE.IDLE);
         setErrorMsg(null);
+        if (savedModelIdRef.current && savedModelIdRef.current !== 'flash') {
+            updateState({ selectedModelId: savedModelIdRef.current });
+        }
+        savedModelIdRef.current = null;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [updateState]);
 
     // Главное действие — тап по орбу:
     //   • Сара говорит  → прервать TTS и сразу начать слушать (barge-in)
