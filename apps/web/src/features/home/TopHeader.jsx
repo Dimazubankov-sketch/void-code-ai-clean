@@ -80,7 +80,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                             {limitExhausted && (
                                 <div className="mx-2 mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/40 rounded-2xl flex gap-2 items-start">
                                     <Icons.Info className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" style={{width:'16px',height:'16px',minWidth:'16px'}} />
-                                    <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold">Дневной лимит исчерпан. Доступна только модель Void Mini — остальные вернутся через 8 часов (см. вкладку «Лимиты»).</p>
+                                    <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold">Дневной лимит исчерпан. Доступна только модель Void Mini — остальные вернутся через 6 часов (см. вкладку «Лимиты»).</p>
                                 </div>
                             )}
                             <div className="p-2 flex flex-col gap-1 max-h-[70vh] overflow-y-auto">
@@ -88,7 +88,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                                     const locked = limitExhausted && m.cost > 0;
                                     return (
                                         <button key={m.id} onClick={() => {
-                                            if (locked) { alert('Вы исчерпали дневной лимит. Лимиты обновятся автоматически через 8 часов — доступна модель Void Mini без ограничений.'); return; }
+                                            if (locked) { alert('Вы исчерпали дневной лимит. Лимиты обновятся автоматически через 6 часов — доступна модель Void Mini без ограничений.'); return; }
                                             updateState({selectedModelId: m.id}); setShowDropdown(false);
                                         }} className={`text-left p-4 rounded-2xl transition-colors flex flex-col gap-1 ${locked ? 'opacity-40 cursor-not-allowed' : ''} ${state.selectedModelId === m.id ? 'bg-[#efecf9] dark:bg-purple-900/20' : (locked ? '' : 'hover:bg-gray-50 dark:hover:bg-gray-800')}`}>
                                             <div className="flex justify-between w-full">
