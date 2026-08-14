@@ -29,7 +29,12 @@ export class AuthService {
     let user;
     try {
       user = await this.prisma.user.create({
-        data: { email, passwordHash, name: email.split('@')[0] },
+        data: {
+          email,
+          passwordHash,
+          name: (dto.name && dto.name.trim()) || email.split('@')[0],
+          phone: dto.phone?.trim() || null,
+        },
       });
     } catch (e: any) {
       // Страховка от гонки: если два запроса регистрации с одним и тем же

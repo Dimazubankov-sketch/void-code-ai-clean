@@ -2,10 +2,12 @@ import { apiFetch, setToken, clearToken } from '@/shared/api/client';
 
 // Регистрация нового пользователя на сервере. Бросает ApiError, если
 // пользователь с таким email уже существует (обрабатывается вызывающим кодом).
-export async function registerAccount(email, password) {
+// name/phone — задача 9: собираются на форме регистрации, опциональны на
+// уровне API (см. RegisterDto на бэкенде).
+export async function registerAccount(email, password, name, phone) {
   const data = await apiFetch('/auth/register', {
     method: 'POST',
-    body: { email, password },
+    body: { email, password, name, phone },
     auth: false,
   });
   setToken(data.accessToken);
@@ -25,6 +27,13 @@ export async function loginAccount(email, password) {
 
 export function logoutAccount() {
   clearToken();
+}
+
+// Профиль текущего пользователя с сервера — источник истины для имени и
+// телефона (переживает смену браузера/устройства, в отличие от локального
+// savedAccounts/accountData в state). См. GET /users/me на бэкенде.
+export async function fetchCurrentUser() {
+  return apiFetch('/users/me', { method: 'GET' });
 }
 
 export async function changePassword(currentPassword, newPassword) {

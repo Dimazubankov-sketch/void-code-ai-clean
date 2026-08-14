@@ -6,7 +6,7 @@
 // текущего аккаунта сохраняются в accountData[email], а данные целевого
 // аккаунта загружаются на их место.
 
-import { registerAccount, loginAccount, logoutAccount as clearBackendToken } from '@/shared/api/auth';
+import { registerAccount, loginAccount, logoutAccount as clearBackendToken, fetchCurrentUser } from '@/shared/api/auth';
 import { generateUniqueAgentName } from '@/shared/lib/agent-naming';
 
 export const DOMAIN = '@voidops.ru';
@@ -102,23 +102,43 @@ const extractAccountData = (state) => {
 // по-прежнему хранится по аккаунтам в браузере, как и раньше.
 // Бросает ApiError (см. shared/api/client.jsx) при неверном пароле, уже
 // занятом email и т.п. — вызывающий код (AuthModal) должен её ловить.
-export const applyAccountLogin = async (state, updateState, { username, password, isNewAccount }) => {
+export const applyAccountLogin = async (state, updateState, { username, password, isNewAccount, name, phone }) => {
     const fullEmail = `${username.trim().toLowerCase()}${DOMAIN}`;
     const key = fullEmail;
 
     if (isNewAccount) {
-        await registerAccount(fullEmail, password);
+        await registerAccount(fullEmail, password, name, phone);
     } else {
         await loginAccount(fullEmail, password);
+    }
+
+    // Профиль с бэкенда — источник истины для имени/телефона. Если запрос
+    // не удался (например, сеть моргнула сразу после успешной
+    // регистрации/входа) — не блокируем вход, остаёмся с тем, что ввёл
+    // пользователь на форме (для входа в существующий аккаунт телефон в
+    // этом случае останется пустым до следующего успешного /users/me).
+    let profileName = isNewAccount ? ((name && name.trim()) || username) : username;
+    let profilePhone = isNewAccount ? (phone || '') : '';
+    try {
+        const profile = await fetchCurrentUser();
+        if (profile?.name) profileName = profile.name;
+        if (profile?.phone) profilePhone = profile.phone;
+    } catch {
+        // См. комментарий выше — не критично.
     }
 
     const accountPlans = state.accountPlans || {};
     const plan = isNewAccount ? 'free' : (accountPlans[key] || 'free');
     const savedAccounts = state.savedAccounts || [];
-    const exists = savedAccounts.some(a => a.email === fullEmail);
+    const existingAccount = savedAccounts.find(a => a.email === fullEmail);
+    const exists = !!existingAccount;
+    // Дата рождения бэкендом не хранится (см. ProfileEditView) — переживает
+    // только смену аккаунта НА ЭТОМ устройстве через savedAccounts, как и
+    // accountPhotos. При регистрации нового аккаунта её ещё не может быть.
+    const birthDate = isNewAccount ? undefined : existingAccount?.birthDate;
     const nextAccounts = exists
-        ? savedAccounts.map(a => a.email === fullEmail ? { ...a, plan } : a)
-        : [...savedAccounts, { email: fullEmail, name: username, plan }];
+        ? savedAccounts.map(a => a.email === fullEmail ? { ...a, plan, name: profileName, phone: profilePhone } : a)
+        : [...savedAccounts, { email: fullEmail, name: profileName, plan, phone: profilePhone }];
 
     // Сохраняем данные того аккаунта, из которого выходим (если был вход)
     const accountData = { ...(state.accountData || {}) };
@@ -142,7 +162,7 @@ export const applyAccountLogin = async (state, updateState, { username, password
     }
 
     updateState({
-        user: { name: username, email: fullEmail },
+        user: { name: profileName, email: fullEmail, phone: profilePhone || undefined, birthDate: birthDate || undefined },
         userPlan: plan,
         accountPlans: { ...accountPlans, [key]: plan },
         savedAccounts: nextAccounts,
@@ -170,7 +190,7 @@ export const switchToAccount = (state, updateState, email) => {
     clearBackendToken();
 
     updateState({
-        user: { name: account.name, email: account.email },
+        user: { name: account.name, email: account.email, phone: account.phone || undefined, birthDate: account.birthDate || undefined },
         userPlan: accountPlans[email] || account.plan || 'free',
         accountData,
         ...targetData,

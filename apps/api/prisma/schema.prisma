@@ -66,6 +66,9 @@ model User {
   email         String   @unique
   passwordHash  String   // bcrypt, сырой пароль не хранится НИКОГДА
   name          String?
+  phone         String?  // Телефон, привязанный при регистрации (задача 9).
+                         // На один номер разрешено неограниченное число
+                         // аккаунтов — намеренно НЕТ @unique/@@index здесь.
   plan          Plan     @default(FREE)
   walletKopecks Int      @default(0)
   createdAt     DateTime @default(now())

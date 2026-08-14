@@ -35,12 +35,22 @@ export function ProfileEditView({ state, updateState }) {
 
     const handleSave = () => {
         if (!canSave) return;
-        const patch = { user: { ...state.user, name: name.trim() } };
+        const nextUser = { ...state.user, name: name.trim() };
         // Дату рождения фиксируем только если её ещё не было — повторные
         // сохранения поля не трогают (оно и так заблокировано на UI, но
         // проверяем и здесь на случай гонки состояний).
         if (!birthDateLocked && birthDate) {
-            patch.user.birthDate = birthDate;
+            nextUser.birthDate = birthDate;
+        }
+        const patch = { user: nextUser };
+        // Синхронизируем savedAccounts — иначе имя/дата рождения потеряются
+        // при следующем переключении аккаунта (см. switchToAccount в
+        // shared/lib/accounts.jsx, который пересобирает user именно из
+        // savedAccounts).
+        if (state.savedAccounts?.length) {
+            patch.savedAccounts = state.savedAccounts.map(a =>
+                a.email === state.user?.email ? { ...a, name: nextUser.name, birthDate: nextUser.birthDate ?? a.birthDate } : a
+            );
         }
         updateState(patch);
         setSaved(true);
