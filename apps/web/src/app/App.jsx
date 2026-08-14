@@ -24,7 +24,7 @@ import { PluginsView } from '@/features/plugins/PluginsView';
 import { WalletView } from '@/features/wallet/WalletView';
 import { createBackendChat, sendBackendMessage, generateBackendImage, fetchWebPage } from '@/shared/api/chat';
 import { ApiError, onSessionExpired } from '@/shared/api/client';
-import { AI_MODELS, getPlanLimits, defaultReasoningFor } from '@/shared/config/models';
+import { AI_MODELS, getPlanLimits, defaultReasoningFor, estimateRequestWeight } from '@/shared/config/models';
 import { buildReasoningScript, levelDelayMs } from '@/shared/config/reasoningScript';
 import { buildAgentSystemPrompt } from '@/shared/lib/agentPrompt';
 import { splitMessageContent } from '@/shared/lib/documents';
@@ -409,12 +409,21 @@ export function App() {
 
         const activeModel = AI_MODELS.find(m => m.id === state.selectedModelId) || AI_MODELS[1];
         const maxLimits = getPlanLimits(state.userPlan);
-        
-        // ПРОВЕРКА ЛИМИТОВ (дневной лимит остаётся основным ограничителем)
-        if (state.usedDailyLimits + activeModel.cost > maxLimits.daily && activeModel.cost > 0) {
-            alert('Вы исчерпали дневной лимит. Лимиты обновятся автоматически через 8 часов — можно отслеживать обратный отсчёт во вкладке «Лимиты», либо переключитесь на бесплатную модель Flash.');
+
+        // ПРОВЕРКА ЛИМИТОВ (задача 6): список списывается по фактическому
+        // весу запроса (см. estimateRequestWeight в models.jsx) ПОСЛЕ
+        // получения ответа — заранее мы ещё не знаем, каким окажется
+        // ответ. Поэтому здесь только предварительная проверка: если
+        // дневной бюджет уже исчерпан, а модель платная (не Mini/Flash) —
+        // блокируем отправку до восстановления лимита.
+        if (activeModel.id !== 'flash' && state.usedDailyLimits >= maxLimits.daily) {
+            alert('Вы исчерпали дневной лимит. Лимиты обновятся автоматически через 6 часов — можно отслеживать обратный отсчёт во вкладке «Лимиты», либо переключитесь на бесплатную модель Flash.');
             return;
         }
+        // Уровень рассуждений влияет на вес запроса (см. models.jsx) —
+        // фиксируем его здесь же, до отправки, чтобы использовать то же
+        // значение и при пост-расчёте списания после ответа.
+        const reasoningLevelForWeight = (state.reasoningByModel || {})[state.selectedModelId] || defaultReasoningFor(state.selectedModelId);
         
         // image — первое вложение (для обратной совместимости со старым
         // UI сообщения), images — полный массив (используется превью
@@ -437,7 +446,9 @@ export function App() {
 
         let messagesForApi = [];
 
-        // 1. Оптимистично добавляем запрос юзера
+        // 1. Оптимистично добавляем запрос юзера (списание лимита теперь
+        // происходит ПОСЛЕ получения ответа — см. шаг 3 ниже, по факту
+        // веса запроса, а не здесь заранее).
         setState(prev => {
             let currentMessages = [];
             let newSessions;
@@ -461,9 +472,6 @@ export function App() {
 
             messagesForApi = currentMessages; 
 
-            const newUsedDaily = prev.usedDailyLimits + activeModel.cost;
-            const justExceeded = maxLimits.daily !== Infinity && newUsedDaily >= maxLimits.daily && !prev.dailyLimitExceededAt;
-
             return {
                 ...prev,
                 chatSessions: newSessions,
@@ -473,10 +481,6 @@ export function App() {
                 selectedImages: [],
                 isGenerating: true,
                 currentView: 'chat',
-                usedDailyLimits: newUsedDaily,
-                usedWeeklyLimits: (prev.usedWeeklyLimits || 0) + activeModel.cost,
-                dailyLimitExceededAt: justExceeded ? Date.now() : prev.dailyLimitExceededAt,
-                selectedModelId: justExceeded ? 'flash' : prev.selectedModelId
             };
         });
         
@@ -617,12 +621,30 @@ export function App() {
                 }
             }
 
+            // Задача 6: списываем лимит по ФАКТИЧЕСКОМУ весу запроса —
+            // теперь, когда известна реальная длина ответа. Void Mini
+            // (modelId 'flash') возвращает вес 0 — остаётся безлимитной.
+            const weight = estimateRequestWeight({
+                inputText: textToSend,
+                responseText,
+                imagesCount: attachedImages.length,
+                reasoningLevel: reasoningLevelForWeight,
+                modelId: activeModel.id,
+            });
+            const planLimitsNow = getPlanLimits(prev.userPlan);
+            const newUsedDaily = (prev.usedDailyLimits || 0) + weight;
+            const justExceeded = weight > 0 && planLimitsNow.daily !== Infinity && newUsedDaily >= planLimitsNow.daily && !prev.dailyLimitExceededAt;
+
             return {
                 ...prev,
                 chatSessions: newSessions,
                 projects: updatedProjects,
                 isGenerating: false,
-                generatedDocuments: foundDocs.length > 0 ? [...foundDocs, ...(prev.generatedDocuments || [])] : prev.generatedDocuments
+                generatedDocuments: foundDocs.length > 0 ? [...foundDocs, ...(prev.generatedDocuments || [])] : prev.generatedDocuments,
+                usedDailyLimits: newUsedDaily,
+                usedWeeklyLimits: (prev.usedWeeklyLimits || 0) + weight,
+                dailyLimitExceededAt: justExceeded ? Date.now() : prev.dailyLimitExceededAt,
+                selectedModelId: justExceeded ? 'flash' : prev.selectedModelId,
             };
         });
     };
