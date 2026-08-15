@@ -17,8 +17,10 @@ export async function getVoiceQuota() {
 }
 
 // audio — data-URL записи (audio/webm | audio/wav | audio/mpeg)
-export async function cloneVoice(title, audio) {
-    return apiFetch('/voices/clone', { method: 'POST', body: { title, audio } });
+// consent — подтверждение прав на голос. Дублируется проверкой на
+// сервере: без него запрос в Fish Audio не уходит вообще.
+export async function cloneVoice(title, audio, consent) {
+    return apiFetch('/voices/clone', { method: 'POST', body: { title, audio, consent: !!consent } });
 }
 
 // Предпрослушка: возвращает варианты голоса (WAV в base64), постоянная
@@ -27,8 +29,8 @@ export async function designVoicePreview(instruction, referenceText, language = 
     return apiFetch('/voices/design/preview', { method: 'POST', body: { instruction, referenceText, language } });
 }
 
-export async function designVoiceSave(title, audioBase64, instruction) {
-    return apiFetch('/voices/design/save', { method: 'POST', body: { title, audioBase64, instruction } });
+export async function designVoiceSave(title, audioBase64, instruction, consent) {
+    return apiFetch('/voices/design/save', { method: 'POST', body: { title, audioBase64, instruction, consent: !!consent } });
 }
 
 export async function deleteUserVoice(id) {

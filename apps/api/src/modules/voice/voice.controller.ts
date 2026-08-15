@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
-import { IsString, IsOptional, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, MinLength, MaxLength } from 'class-validator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { VoiceService } from './voice.service';
 
@@ -12,6 +12,11 @@ class CloneDto {
 
   @IsString() @MaxLength(20_000_000)
   audio!: string; // data:audio/...;base64,...
+
+  // Подтверждение прав на голос. Проверяется на сервере: без него запрос
+  // в Fish Audio не уходит (см. VoiceComplianceService).
+  @IsBoolean()
+  consent!: boolean;
 }
 
 class DesignPreviewDto {
@@ -34,12 +39,25 @@ class DesignSaveDto {
 
   @IsOptional() @IsString() @MaxLength(800)
   instruction?: string;
+
+  @IsBoolean()
+  consent!: boolean;
 }
 
 @Controller('voices')
 @UseGuards(JwtAuthGuard)
 export class VoiceController {
   constructor(private readonly voices: VoiceService) {}
+
+  // IP и user-agent сохраняем вместе с согласием — согласие должно быть
+  // привязано к обстоятельствам, при которых оно дано.
+  private meta(req: any, consent: boolean) {
+    return {
+      consent,
+      ip: req.ip || req.headers?.['x-forwarded-for'] || undefined,
+      userAgent: req.headers?.['user-agent'] || undefined,
+    };
+  }
 
   @Get()
   list(@Req() req: any) {
@@ -53,21 +71,23 @@ export class VoiceController {
 
   @Post('clone')
   clone(@Req() req: any, @Body() dto: CloneDto) {
-    return this.voices.cloneVoice(req.user.userId, dto.title, dto.audio);
+    return this.voices.cloneVoice(req.user.userId, dto.title, dto.audio, this.meta(req, dto.consent));
   }
 
   @Post('design/preview')
   designPreview(@Req() req: any, @Body() dto: DesignPreviewDto) {
     return this.voices.designPreview(
+      req.user.userId,
       dto.instruction,
       dto.referenceText || 'Привет! Это пример звучания моего голоса.',
       dto.language || 'ru',
+      this.meta(req, true),
     );
   }
 
   @Post('design/save')
   designSave(@Req() req: any, @Body() dto: DesignSaveDto) {
-    return this.voices.designSave(req.user.userId, dto.title, dto.audioBase64, dto.instruction);
+    return this.voices.designSave(req.user.userId, dto.title, dto.audioBase64, dto.instruction, this.meta(req, dto.consent));
   }
 
   @Delete(':id')

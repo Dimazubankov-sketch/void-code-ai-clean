@@ -12,6 +12,6 @@ import { MailProvisioningService } from './mail-provisioning.service';
   // принимает входящие письма напрямую от Resend.
   controllers: [MailController, MailWebhookController],
   providers: [MailService, MailStoreService, MailProvisioningService],
-  exports: [MailProvisioningService],
+  exports: [MailProvisioningService, MailService],
 })
 export class MailModule {}

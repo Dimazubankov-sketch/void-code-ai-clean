@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException, BadRequestException, ServiceUnavailableException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { todayDayKey } from '../tts/tts.constants';
+import { VoiceComplianceService } from './voice-compliance.service';
 
 // ==========================================
 // Создание пользовательских голосов (Fish Audio)
@@ -29,6 +30,13 @@ export const VOICE_CREATION_LIMITS: Record<string, number> = {
   PRO: 3,
   ULTRA: 6,
 };
+
+// Данные о согласии и клиенте, сопровождающие каждый запрос на создание.
+export interface ConsentMeta {
+  consent: boolean;
+  ip?: string;
+  userAgent?: string;
+}
 
 export function voiceCreationLimit(plan?: string): number {
   const p = (plan || 'FREE').toUpperCase();
@@ -100,7 +108,10 @@ export class VoiceService {
     } catch { /* счётчик мог быть уже сброшен — не критично */ }
   }
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly compliance: VoiceComplianceService,
+  ) {}
 
   // ---- Создание модели голоса в Fish из аудио ----
   private async createFishModel(title: string, audio: Buffer, mime: string, description?: string): Promise<string> {
@@ -144,14 +155,22 @@ export class VoiceService {
   }
 
   // ---- 1. Клонирование голоса из записи пользователя ----
-  async cloneVoice(userId: string, title: string, audioDataUrl: string) {
+  async cloneVoice(userId: string, title: string, audioDataUrl: string, meta: ConsentMeta) {
+    // Порядок важен: согласие и запрет проверяем ДО декодирования аудио и
+    // до любого обращения к Fish — запрос к провайдеру без валидного
+    // согласия уходить не должен вовсе.
+    await this.compliance.assertConsentAndContent({
+      userId, consent: meta.consent, title, ip: meta.ip, userAgent: meta.userAgent,
+    });
     const { buf, mime } = this.decodeAudio(audioDataUrl);
     const counterId = await this.assertCanCreate(userId);
     try {
       const fishVoiceId = await this.createFishModel(title, buf, mime, 'Cloned from user recording');
-      return this.prisma.userVoice.create({
+      const voice = await this.prisma.userVoice.create({
         data: { userId, fishVoiceId, title: title.slice(0, 60), source: 'clone' },
       });
+      await this.compliance.saveConsent({ userId, voiceId: voice.id, ip: meta.ip, userAgent: meta.userAgent });
+      return voice;
     } catch (e) {
       await this.releaseSlot(counterId);
       throw e;
@@ -161,7 +180,11 @@ export class VoiceService {
   // ---- 2а. Генерация кандидатов по описанию ----
   // Лимит здесь НЕ расходуется: это предпрослушка, постоянная модель ещё
   // не создаётся. Слот займётся на шаге сохранения (designSave).
-  async designPreview(instruction: string, referenceText: string, language: string) {
+  async designPreview(userId: string, instruction: string, referenceText: string, language: string, meta: ConsentMeta) {
+    // Даже на этапе предпрослушки не даём описывать чужой/публичный голос.
+    await this.compliance.assertConsentAndContent({
+      userId, consent: true, title: instruction, ip: meta.ip, userAgent: meta.userAgent,
+    });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -202,15 +225,20 @@ export class VoiceService {
   }
 
   // ---- 2б. Сохранение выбранного кандидата постоянным голосом ----
-  async designSave(userId: string, title: string, audioBase64: string, instruction?: string) {
+  async designSave(userId: string, title: string, audioBase64: string, instruction: string | undefined, meta: ConsentMeta) {
+    await this.compliance.assertConsentAndContent({
+      userId, consent: meta.consent, title, description: instruction, ip: meta.ip, userAgent: meta.userAgent,
+    });
     if (!audioBase64) throw new BadRequestException('Не передан выбранный вариант голоса');
     const counterId = await this.assertCanCreate(userId);
     try {
       const buf = Buffer.from(audioBase64, 'base64');
       const fishVoiceId = await this.createFishModel(title, buf, 'audio/wav', instruction);
-      return this.prisma.userVoice.create({
+      const voice = await this.prisma.userVoice.create({
         data: { userId, fishVoiceId, title: title.slice(0, 60), source: 'design' },
       });
+      await this.compliance.saveConsent({ userId, voiceId: voice.id, ip: meta.ip, userAgent: meta.userAgent });
+      return voice;
     } catch (e) {
       await this.releaseSlot(counterId);
       throw e;

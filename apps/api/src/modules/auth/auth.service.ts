@@ -25,6 +25,19 @@ export class AuthService {
     const exists = await this.prisma.user.findUnique({ where: { email } });
     if (exists) throw new ConflictException(EMAIL_TAKEN_MESSAGE);
 
+    // Заблокированный аккаунт нельзя «переоткрыть» на тот же телефон.
+    // По email это и так закрыто уникальностью выше — запись
+    // забаненного пользователя остаётся в базе и занимает адрес.
+    const phone = dto.phone?.trim();
+    if (phone) {
+      const bannedSamePhone = await this.prisma.user.findFirst({
+        where: { phone, NOT: { bannedAt: null } } as any,
+      });
+      if (bannedSamePhone) {
+        throw new ConflictException('Регистрация недоступна: аккаунт с этими данными заблокирован');
+      }
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 12);
     let user;
     try {
@@ -66,6 +79,18 @@ export class AuthService {
 
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Неверный email или пароль');
+
+    // Блокировка за повторное нарушение правил создания голосов.
+    // Сообщение здесь намеренно КОНКРЕТНОЕ (в отличие от обобщённой
+    // ошибки выше): пароль уже проверен, скрывать нечего, а человек
+    // должен понимать, почему его не пускают.
+    if ((user as any).bannedAt) {
+      throw new UnauthorizedException(
+        (user as any).banReason
+          ? `Аккаунт заблокирован: ${(user as any).banReason}`
+          : 'Аккаунт заблокирован за нарушение Условий пользования',
+      );
+    }
 
     return this.issueToken(user.id, user.email);
   }

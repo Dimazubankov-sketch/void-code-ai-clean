@@ -23,6 +23,50 @@ import { cloneVoice, designVoicePreview, designVoiceSave, getVoiceQuota } from '
 const PANEL = 'w-full h-full bg-white dark:bg-[#0d0819] flex flex-col md:w-[560px] md:h-[600px] md:rounded-3xl md:shadow-2xl md:overflow-hidden';
 const MAX_RECORD_MS = 30_000;
 
+export const CONSENT_TEXT =
+    'Я подтверждаю, что это мой голос / у меня есть все права на этот голос, ' +
+    'и я разрешаю Void Code использовать его для синтеза речи в рамках моего аккаунта.';
+
+const CLONING_WARNING_TEXT =
+    'Запрещено клонировать чужие голоса, голоса публичных персон и персонажей ' +
+    'без документального разрешения правообладателя.';
+
+// Метка синтетической речи — по умолчанию видна везде, где звучит
+// сгенерированный голос: в превью при создании и в плеере озвучки.
+export function SyntheticBadge({ className = '' }) {
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-white/60 ${className}`}>
+            <Icons.Sparkles className="w-3 h-3" />
+            Синтетическая речь
+        </span>
+    );
+}
+
+// Правила + согласие. Общий блок для обоих способов создания, чтобы
+// формулировки нигде не разошлись.
+function ConsentBlock({ checked, onChange, onOpenLegal }) {
+    return (
+        <div className="space-y-3">
+            <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20">
+                <p className="text-xs text-amber-900 dark:text-amber-200/90 leading-relaxed">{CLONING_WARNING_TEXT}</p>
+            </div>
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+                <span className={`mt-0.5 w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors ${checked ? 'bg-[#5b32d4] border-[#5b32d4] text-white' : 'border-gray-300 dark:border-white/25'}`}>
+                    {checked && <Icons.Check className="w-3 h-3" />}
+                </span>
+                <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="hidden" />
+                <span className="text-xs text-gray-600 dark:text-white/70 leading-relaxed">{CONSENT_TEXT}</span>
+            </label>
+            <p className="text-[11px] text-gray-400">
+                Продолжая, вы принимаете{' '}
+                <button onClick={() => onOpenLegal('terms')} className="text-[#5b32d4] font-semibold underline">Условия пользования</button>
+                {' '}и{' '}
+                <button onClick={() => onOpenLegal('privacy')} className="text-[#5b32d4] font-semibold underline">Политику конфиденциальности</button>.
+            </p>
+        </div>
+    );
+}
+
 // Тестовый текст для записи — один и тот же по смыслу на разных языках,
 // чтобы пользователь читал привычную ему речь: на родном языке дикция
 // естественнее, а значит и клон получается точнее.
@@ -105,7 +149,7 @@ function Progress({ stage }) {
 }
 
 // ---- Клонирование ----
-function CloneScreen({ onBack, onCreated }) {
+function CloneScreen({ onBack, onCreated, onOpenLegal }) {
     const [langId, setLangId] = useState('ru');
     const [recording, setRecording] = useState(false);
     const [elapsed, setElapsed] = useState(0);
@@ -113,6 +157,7 @@ function CloneScreen({ onBack, onCreated }) {
     const [title, setTitle] = useState('');
     const [stage, setStage] = useState(null);
     const [error, setError] = useState(null);
+    const [consent, setConsent] = useState(false);
 
     const recorderRef = useRef(null);
     const chunksRef = useRef([]);
@@ -171,13 +216,13 @@ function CloneScreen({ onBack, onCreated }) {
     };
 
     const submit = async () => {
-        if (!audio || !title.trim() || stage) return;
+        if (!audio || !title.trim() || !consent || stage) return;
         setError(null);
         try {
             setStage('Загрузка');
             await new Promise((r) => setTimeout(r, 250));
             setStage('Обработка');
-            const created = await cloneVoice(title.trim(), audio);
+            const created = await cloneVoice(title.trim(), audio, consent);
             setStage('Готово');
             onCreated(created);
         } catch (e) {
@@ -228,6 +273,7 @@ function CloneScreen({ onBack, onCreated }) {
                 {audio && !recording && (
                     <div className="space-y-3 fade-in">
                         <audio src={audio} controls className="w-full" />
+                        <ConsentBlock checked={consent} onChange={setConsent} onOpenLegal={onOpenLegal} />
                         <input
                             value={title}
                             onChange={(e) => setTitle(e.target.value.slice(0, 60))}
@@ -236,7 +282,7 @@ function CloneScreen({ onBack, onCreated }) {
                         />
                         <button
                             onClick={submit}
-                            disabled={!title.trim()}
+                            disabled={!title.trim() || !consent}
                             className="void-tap-target w-full py-3.5 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-white/10 disabled:text-gray-400 text-white font-bold text-sm transition-colors"
                         >
                             Создать голос
@@ -251,7 +297,7 @@ function CloneScreen({ onBack, onCreated }) {
 }
 
 // ---- Генерация по описанию ----
-function DesignScreen({ onBack, onCreated }) {
+function DesignScreen({ onBack, onCreated, onOpenLegal }) {
     const [instruction, setInstruction] = useState('');
     const [candidates, setCandidates] = useState(null);
     const [chosen, setChosen] = useState(0);
@@ -259,6 +305,7 @@ function DesignScreen({ onBack, onCreated }) {
     const [stage, setStage] = useState(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(null);
+    const [consent, setConsent] = useState(false);
 
     const generate = async () => {
         if (instruction.trim().length < 3 || busy) return;
@@ -273,13 +320,13 @@ function DesignScreen({ onBack, onCreated }) {
     };
 
     const save = async () => {
-        if (!candidates || !title.trim() || stage) return;
+        if (!candidates || !title.trim() || !consent || stage) return;
         setError(null);
         try {
             setStage('Загрузка');
             await new Promise((r) => setTimeout(r, 200));
             setStage('Создание голоса');
-            const created = await designVoiceSave(title.trim(), candidates[chosen].audioBase64, instruction.trim());
+            const created = await designVoiceSave(title.trim(), candidates[chosen].audioBase64, instruction.trim(), consent);
             setStage('Готово');
             onCreated(created);
         } catch (e) {
@@ -312,7 +359,10 @@ function DesignScreen({ onBack, onCreated }) {
 
                 {candidates && (
                     <div className="space-y-3 fade-in">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Выберите вариант</p>
+                        <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Выберите вариант</p>
+                            <SyntheticBadge />
+                        </div>
                         {candidates.map((c, i) => (
                             <button
                                 key={i}
@@ -337,9 +387,10 @@ function DesignScreen({ onBack, onCreated }) {
                             placeholder="Название голоса, например «Сара»"
                             className="w-full px-4 py-3 rounded-2xl bg-gray-100 dark:bg-white/[0.06] text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#5b32d4]"
                         />
+                        <ConsentBlock checked={consent} onChange={setConsent} onOpenLegal={onOpenLegal} />
                         <button
                             onClick={save}
-                            disabled={!title.trim()}
+                            disabled={!title.trim() || !consent}
                             className="void-tap-target w-full py-3.5 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-white/10 disabled:text-gray-400 text-white font-bold text-sm transition-colors"
                         >
                             Сохранить голос
@@ -354,6 +405,7 @@ function DesignScreen({ onBack, onCreated }) {
 }
 
 export function CreateVoice({ updateState, onClose, onCreated }) {
+    const openLegal = (section) => { onClose(); updateState({ currentView: 'info', infoSection: section }); };
     const [mode, setMode] = useState(null); // 'clone' | 'design'
     const [quota, setQuota] = useState(null);
     const scope = useRef(null);
@@ -379,9 +431,9 @@ export function CreateVoice({ updateState, onClose, onCreated }) {
                     <><Header title="Создать голос" onBack={onClose} />
                         <Paywall onClose={onClose} onUpgrade={() => { onClose(); updateState({ currentView: 'pricing' }); }} /></>
                 ) : mode === 'clone' ? (
-                    <CloneScreen onBack={() => setMode(null)} onCreated={handleCreated} />
+                    <CloneScreen onBack={() => setMode(null)} onCreated={handleCreated} onOpenLegal={openLegal} />
                 ) : mode === 'design' ? (
-                    <DesignScreen onBack={() => setMode(null)} onCreated={handleCreated} />
+                    <DesignScreen onBack={() => setMode(null)} onCreated={handleCreated} onOpenLegal={openLegal} />
                 ) : (
                     <>
                         <Header title="Создать голос" onBack={onClose} />

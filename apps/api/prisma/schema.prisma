@@ -92,6 +92,14 @@ model User {
   providerKeys  ProviderKey[]
   emails        Email[]
   userVoices    UserVoice[]
+  voiceConsents   VoiceConsent[]
+  voiceViolations VoiceViolation[]
+  // Compliance: счётчик вынесенных предупреждений и блокировка аккаунта.
+  // bannedAt заполняется при повторном нарушении; banReason нужен, чтобы
+  // человек в поддержке видел причину без раскопок по логам.
+  warningsCount Int       @default(0)
+  bannedAt      DateTime?
+  banReason     String?
 }
 
 // ==========================================
@@ -183,6 +191,37 @@ model UsageCounter {
 // он же используется как reference_id и в обычной озвучке, и в Voice Mode
 // (одна система голосов, а не две). Привязка к userId обязательна: чужой
 // voice ID подставить нельзя, все обращения фильтруются по владельцу.
+// Юридически значимое согласие владельца голоса. Хранится отдельной
+// записью, а не флагом в UserVoice: согласие даётся ДО создания модели и
+// должно сохраняться даже если голос потом удалён.
+model VoiceConsent {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voiceId        String?  // UserVoice.id, если голос в итоге создан
+  consentVersion String   // версия текста согласия, с которым согласились
+  consentText    String   // сам текст на момент согласия
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Зафиксированное нарушение правил создания голосов.
+model VoiceViolation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String   // 'prohibited_voice' | 'no_consent' | 'bypass_attempt'
+  details   String   // что именно пытались сделать (обрезанный payload)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
 model UserVoice {
   id          String   @id @default(cuid())
   userId      String
