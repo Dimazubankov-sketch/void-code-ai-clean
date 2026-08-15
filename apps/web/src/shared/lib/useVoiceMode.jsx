@@ -59,6 +59,13 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     const videoStreamRef = useRef(null);
     const videoElRef = useRef(null);
     const [videoSource, setVideoSource] = useState(null); // 'camera' | 'screen' | null
+    // Параметры голоса фиксируются ОДИН РАЗ при входе в режим. Раньше
+    // voiceOpts() вызывался на каждую реплику и читал state, где голос мог
+    // быть ещё не выбран явно (voicePresetFish пустой) — тогда на бэкенд
+    // уходил undefined, Fish брал голос по умолчанию, и от реплики к
+    // реплике голос менялся. Теперь одна сессия — один голос.
+    const sessionVoiceRef = useRef(null);
+    const sessionVoiceOpts = useCallback(() => sessionVoiceRef.current || voiceOpts(), [voiceOpts]);
 
     const speech = useVoiceModeSpeech();
 
@@ -81,7 +88,9 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     const stopVideo = useCallback(() => {
         try { videoStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* noop */ }
         videoStreamRef.current = null;
-        if (videoElRef.current) { try { videoElRef.current.srcObject = null; } catch { /* noop */ } }
+        if (videoElRef.current) {
+            try { videoElRef.current.srcObject = null; videoElRef.current.remove(); } catch { /* noop */ }
+        }
         videoElRef.current = null;
         setVideoSource(null);
     }, []);
@@ -100,7 +109,23 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
             video.srcObject = stream;
             video.muted = true;
             video.playsInline = true;
+            // Видео ОБЯЗАТЕЛЬНО должно быть в DOM: у полностью отсоединённого
+            // элемента часть браузеров не начинает декодирование, и
+            // videoWidth остаётся 0 — кадр тогда снять невозможно, ИИ
+            // «не видит» ни камеру, ни экран. Прячем его вне области
+            // видимости, а не через display:none (скрытое таким образом
+            // видео браузер тоже вправе не декодировать).
+            video.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+            document.body.appendChild(video);
             await video.play().catch(() => { /* noop */ });
+            // Ждём первый готовый кадр, иначе первый же captureFrame вернёт пустоту.
+            if (!video.videoWidth) {
+                await new Promise((resolve) => {
+                    const done = () => resolve();
+                    video.addEventListener('loadeddata', done, { once: true });
+                    setTimeout(done, 1500);
+                });
+            }
             videoElRef.current = video;
             setVideoSource(source);
             // Пользователь может остановить демонстрацию системной кнопкой
@@ -165,7 +190,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
 
         const controller = new AbortController();
         streamAbortRef.current = controller;
-        const stream = speech.beginStream(voiceOpts());
+        const stream = speech.beginStream(sessionVoiceOpts());
         let sawFirst = false;
 
         // Показываем реплику пользователя в чате сразу.
@@ -297,6 +322,23 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         savedModelIdRef.current = state.selectedModelId;
         if (state.selectedModelId !== 'flash') updateState({ selectedModelId: 'flash' });
 
+        // Фиксируем голос сессии. Если явный голос ещё не выбран, берём
+        // текущие настройки как есть — важно, что дальше он не меняется.
+        sessionVoiceRef.current = voiceOpts();
+
+        // Из Хаба голосовой разговор начинается в НОВОМ чате (иначе реплики
+        // улетали бы в последний открытый). Из чата — продолжаем тот, в
+        // котором пользователь уже находится.
+        const prevState = stateRef.current;
+        if (prevState.currentView !== 'chat' || !prevState.activeChatId) {
+            const nid = Date.now();
+            updateState({
+                chatSessions: [{ id: nid, title: 'Голосовой разговор', messages: [] }, ...(prevState.chatSessions || [])],
+                activeChatId: nid,
+                currentView: 'chat',
+            });
+        }
+
         setActive(true);
         setErrorMsg(null);
         speech.clearError();
@@ -372,7 +414,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         if (!text) return;
         recognition.pause();
         setPhaseBoth(VOICE_MODE_PHASE.SPEAKING);
-        speech.speak(text, voiceOpts());
+        speech.speak(text, sessionVoiceOpts());
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setPhaseBoth, voiceOpts]);
 

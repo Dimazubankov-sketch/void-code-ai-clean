@@ -169,13 +169,13 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         key={logoPlayKey}
                         onClick={() => { setLogoPopped(true); setLogoPlayKey(k => k + 1); }}
                         title="Нажмите, чтобы повторить анимацию"
-                        className={`${logoPopped ? 'void-home-logo-pop' : 'void-home-logo'} w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex-shrink-0 cursor-pointer`}
+                        className={`${logoPopped ? 'void-home-logo-pop' : 'void-home-logo'} w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 flex-shrink-0 cursor-pointer`}
                     />
                     <div className="min-w-0">
-                        <div className="void-title-rise font-extrabold tracking-tight leading-[1.05] text-2xl sm:text-3xl md:text-4xl">
+                        <div className="void-title-rise font-extrabold tracking-tight leading-[1.05] text-3xl sm:text-4xl md:text-5xl">
                             <span className="void-grad-text">VOID</span> <span className="text-[#1a1a2e] dark:text-white">CODE AI</span>
                         </div>
-                        <div className="void-subtitle-rise mt-1 text-[10px] sm:text-[11px] md:text-xs font-bold uppercase tracking-[0.22em] text-gray-400 dark:text-gray-500">
+                        <div className="void-subtitle-rise mt-1.5 text-[11px] sm:text-xs md:text-sm font-bold uppercase tracking-[0.22em] text-gray-400 dark:text-gray-500">
                             {t(lang, 'home.subtitle')}
                         </div>
                     </div>

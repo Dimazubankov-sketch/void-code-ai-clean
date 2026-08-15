@@ -562,8 +562,13 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             ))}
                         </div>
                     )}
+                    {/* В голосовом режиме поле ввода одно — то, что в
+                        оверлее Voice Mode (сжатая полоса внизу). Свой
+                        композер чата в это время не рисуем, иначе два поля
+                        наслаивались бы друг на друга. */}
                     <div
                         ref={composerWrapRef}
+                        hidden={!!voiceMode?.active}
                         /* Спокойная серая рамка вместо фиолетового кольца и
                            тяжёлой тени: раньше focus-within:ring-4 + shadow-2xl
                            притягивали к себе всё внимание. min-h при развёрнутой

@@ -89,7 +89,7 @@ function LimitModal({ onClose }) {
     );
 }
 
-export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
+export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSendText }) {
     const {
         phase, muted, errorMsg, primaryTap, toggleMute, analyserRef,
         speechAudioRef, speechEnvelopeRef, videoSource, startVideo,
@@ -155,21 +155,25 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
         <div className={`fixed inset-0 z-[220] flex flex-col ${minimized ? 'pointer-events-none' : ''}`}>
             <div ref={backdropRef} className="absolute inset-0 bg-white dark:bg-gradient-to-b dark:from-[#1a1030] dark:to-[#0d0819]" />
 
-            {/* Шапка: слева голосовые настройки, справа меню — как в чате */}
-            <div className={`relative w-full flex items-center justify-between px-6 pt-8 sm:pt-10 pointer-events-auto ${minimized ? 'opacity-0 pointer-events-none' : ''}`}>
+            {/* Голосовые настройки — слева. Кнопка меню вынесена отдельно
+                (ниже), чтобы стоять ровно там же, где в хабе и в чате:
+                fixed top-5 right-4, а не в потоке шапки оверлея. */}
+            <div className={`relative w-full flex items-center px-4 sm:px-6 pt-5 sm:pt-6 pointer-events-auto ${minimized ? 'opacity-0 pointer-events-none' : ''}`}>
                 <PressIconButton
                     onClick={() => setShowVoiceSettings(true)}
                     title="Голосовые настройки"
-                    className="void-tap-target w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-white flex items-center justify-center transition-colors"
+                    className="void-tap-target p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder"
                 >
-                    <Icons.Sliders className="w-5 h-5" />
+                    <Icons.Sliders className="w-6 h-6" />
                 </PressIconButton>
+            </div>
+            <div className={`fixed top-5 right-4 sm:top-6 sm:right-6 z-30 pointer-events-auto ${minimized ? 'opacity-0 pointer-events-none' : ''}`}>
                 <PressIconButton
-                    onClick={() => updateState({ isSidebarOpen: true })}
+                    onClick={() => updateState({ isRightMenuOpen: true })}
                     title="Меню"
-                    className="void-tap-target w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-white flex items-center justify-center transition-colors"
+                    className="void-tap-target p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder"
                 >
-                    <Icons.Menu className="w-5 h-5" />
+                    <Icons.TwoLines className="w-6 h-6" />
                 </PressIconButton>
             </div>
 
@@ -201,7 +205,7 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
                             <PressIconButton
                                 onClick={() => setShowMediaMenu((v) => !v)}
                                 title="Камера или экран"
-                                className={`void-tap-target w-8 h-8 rounded-full flex items-center justify-center transition-colors ${videoSource ? 'bg-[#5b32d4] text-white' : 'text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10'}`}
+                                className={`void-tap-target w-8 h-8 rounded-full flex items-center justify-center transition-colors ${videoSource ? 'bg-[#5b32d4] text-white' : 'text-[#5b32d4] hover:bg-[#5b32d4]/10'}`}
                             >
                                 <Icons.Plus className="w-5 h-5" />
                             </PressIconButton>
@@ -223,6 +227,12 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
                         <input
                             value={state.inputValue}
                             onChange={(e) => updateState({ inputValue: e.target.value })}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey && state.inputValue.trim()) {
+                                    e.preventDefault();
+                                    onSendText?.(state.inputValue.trim());
+                                }
+                            }}
                             placeholder={videoSource ? (videoSource === 'screen' ? 'Вижу твой экран…' : 'Вижу камеру…') : 'Спросить Void Code'}
                             className="flex-1 min-w-0 bg-transparent text-[15px] text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
                         />

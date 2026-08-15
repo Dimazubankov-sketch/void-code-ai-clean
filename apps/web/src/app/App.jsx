@@ -754,7 +754,13 @@ export function App() {
                 комментарий у useVoiceMode выше): не должен размонтироваться
                 при переключении currentView. */}
             {voiceMode.active && (
-                <VoiceModeOverlay state={state} updateState={updateState} voiceMode={voiceMode} onClose={voiceMode.close} />
+                <VoiceModeOverlay
+                    state={state}
+                    updateState={updateState}
+                    voiceMode={voiceMode}
+                    onClose={voiceMode.close}
+                    onSendText={(text) => { updateState({ inputValue: '' }); handleSendMessage(text); }}
+                />
             )}
 
             <main className="flex-1 flex flex-col h-full w-full relative z-10 transition-transform">

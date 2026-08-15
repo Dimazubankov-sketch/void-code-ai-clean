@@ -72,7 +72,7 @@ export class ImageService {
     // ключа, сеть, лимит) — просто идём дальше без описания, как раньше.
     let visionNote = '';
     if (refs.length > 0) {
-      const described = await this.describeReference(refs[0]).catch(() => '');
+      const described = await this.describeReference(refs[0], safePrompt).catch(() => '');
       if (described) {
         visionNote = ` Вот что изображено на приложенном фото (описание получено анализом самого изображения): ${described}`;
       }
@@ -139,7 +139,7 @@ export class ImageService {
   // Ошибки намеренно не пробрасываем наружу: описание — это улучшение
   // качества промпта, а не обязательный этап; без него генерация должна
   // работать ровно как раньше.
-  private async describeReference(dataUrl: string): Promise<string> {
+  private async describeReference(dataUrl: string, userPrompt = ''): Promise<string> {
     const key = process.env.OPENROUTER_API_KEY?.trim();
     if (!key) return '';
     const controller = new AbortController();
@@ -160,7 +160,16 @@ export class ImageService {
           messages: [{
             role: 'user',
             content: [
-              { type: 'text', text: 'Опиши это изображение для художника, который будет его перерисовывать: главный объект, поза/ракурс, фон, освещение, палитра, стиль. Пиши сжато, одним абзацем, без вступлений и без markdown.' },
+              {
+                type: 'text',
+                text: userPrompt
+                  // Промежуточный разбор с УЧЁТОМ запроса: раньше описание
+                  // строилось «вслепую», без понимания, что именно просит
+                  // пользователь, и генератор получал общие слова вместо
+                  // ответа на конкретную задачу.
+                  ? `Пользователь прислал это изображение и просит: "${userPrompt}". Опиши изображение для художника, который будет выполнять эту просьбу: главный объект, поза/ракурс, фон, освещение, палитра, стиль. Отдельно уточни, что именно на изображении затрагивает просьба пользователя и что должно остаться нетронутым. Сжато, одним абзацем, без вступлений и markdown.`
+                  : 'Опиши это изображение для художника, который будет его перерисовывать: главный объект, поза/ракурс, фон, освещение, палитра, стиль. Пиши сжато, одним абзацем, без вступлений и без markdown.',
+              },
               { type: 'image_url', image_url: { url: dataUrl } },
             ],
           }],
