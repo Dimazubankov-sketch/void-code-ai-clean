@@ -126,9 +126,9 @@ export function AccountsPanel({ state, updateState, onClose, onNavigateAway }) {
                     )}
                     {manageMode && (
                         <div className="mb-4 px-4 py-3 rounded-2xl bg-gray-50/60 dark:bg-gray-900/20 space-y-2">
-                            <button onClick={() => { onClose(); onNavigateAway?.(); updateState({ currentView: 'profile-edit', reopenAccountsPanel: true }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Личная информация</button>
-                            <button onClick={() => { onClose(); onNavigateAway?.(); updateState({ currentView: 'security', reopenAccountsPanel: true }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Безопасность и пароль</button>
-                            <button onClick={() => { onClose(); updateState({ currentView: 'pricing' }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Управление подпиской</button>
+                            <button onClick={() => { onClose(); onNavigateAway?.(); updateState({ currentView: 'profile-edit', reopenAccountsPanel: true, returnToMailAccounts: !!onNavigateAway }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Личная информация</button>
+                            <button onClick={() => { onClose(); onNavigateAway?.(); updateState({ currentView: 'security', reopenAccountsPanel: true, returnToMailAccounts: !!onNavigateAway }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Безопасность и пароль</button>
+                            <button onClick={() => { onClose(); onNavigateAway?.(); updateState({ currentView: 'pricing', returnToMailAccounts: !!onNavigateAway }); }} className="w-full text-left text-sm text-gray-600 dark:text-gray-300 py-1.5">Управление подпиской</button>
                         </div>
                     )}
 

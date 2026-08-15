@@ -566,9 +566,14 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         оверлее Voice Mode (сжатая полоса внизу). Свой
                         композер чата в это время не рисуем, иначе два поля
                         наслаивались бы друг на друга. */}
+                    {/* Атрибут hidden здесь НЕ работал: у элемента классом
+                        задан display:flex, а CSS перебивает hidden. Поэтому
+                        композер чата в голосовом режиме именно НЕ
+                        РЕНДЕРИТСЯ — поле ввода остаётся ровно одно (полоса
+                        в оверлее Voice Mode). */}
                     <div
                         ref={composerWrapRef}
-                        hidden={!!voiceMode?.active}
+                        style={voiceMode?.active ? { display: 'none' } : undefined}
                         /* Спокойная серая рамка вместо фиолетового кольца и
                            тяжёлой тени: раньше focus-within:ring-4 + shadow-2xl
                            притягивали к себе всё внимание. min-h при развёрнутой

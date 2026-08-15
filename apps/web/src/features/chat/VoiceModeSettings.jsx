@@ -99,7 +99,7 @@ function PickerSheet({ title, items, selectedId, onChoose, onClose }) {
                     <h4 className="font-extrabold text-gray-900 dark:text-white">{title}</h4>
                     <button onClick={onClose} className="void-tap-target w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10"><Icons.X className="w-4 h-4" /></button>
                 </div>
-                <div className="flex-1 overflow-y-auto px-3 pb-4">
+                <div className="flex-1 overflow-y-auto void-no-scrollbar px-3 pb-4">
                     {items.map((it) => (
                         <button key={it.id || 'default'} onClick={() => onChoose(it.id)} className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-left transition-colors ${selectedId === it.id ? 'bg-gray-100 dark:bg-white/10' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
                             <span className="min-w-0">
@@ -190,12 +190,12 @@ function PersonaEditor({ onSave, onClose }) {
                 </PressButton>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto void-no-scrollbar">
                 <div className={`${COL} pb-10`}>
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Стикер</p>
 
                     {/* Телефон: горизонтальная лента со свайпом */}
-                    <div className="md:hidden flex gap-3 overflow-x-auto py-2 -mx-4 px-4 mb-6">
+                    <div className="md:hidden flex gap-3 overflow-x-auto void-no-scrollbar py-2 -mx-4 px-4 mb-6">
                         {PERSONA_STICKERS.map((st) => (
                             <StickerTile key={st.id} stickerId={st.id} selected={sticker === st.id} onClick={() => setSticker(st.id)} />
                         ))}
@@ -216,7 +216,7 @@ function PersonaEditor({ onSave, onClose }) {
                             <Icons.ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${deskOpen ? 'rotate-90' : ''}`} />
                         </PressButton>
                         <div ref={deskListRef} className="overflow-hidden" style={{ height: 0, opacity: 0 }}>
-                            <div className="max-h-56 overflow-y-auto mt-3 p-3 rounded-2xl bg-gray-50 dark:bg-white/[0.04]">
+                            <div className="max-h-56 overflow-y-auto void-no-scrollbar mt-3 p-3 rounded-2xl bg-gray-50 dark:bg-white/[0.04]">
                                 <div className="grid grid-cols-6 gap-3">
                                     {PERSONA_STICKERS.map((st) => (
                                         <StickerTile key={st.id} stickerId={st.id} selected={sticker === st.id} onClick={() => setSticker(st.id)} />
@@ -353,7 +353,7 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
                 <div className="w-10 shrink-0" />
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto void-no-scrollbar">
                 <div className={`${COL} pb-10 space-y-6`}>
                     <div className="vm-anim"><Row label="Голос" value={voiceLabel} onClick={() => setPicker('voice')} /></div>
 
@@ -361,7 +361,7 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Личность</p>
                         {/* py-2 и отсутствие вертикального overflow — чтобы кольцо
                             выделения и галочка не срезались краем ленты. */}
-                        <div className="flex gap-3 overflow-x-auto overflow-y-visible py-2 -mx-4 px-4 md:-mx-6 md:px-6">
+                        <div className="flex gap-3 overflow-x-auto overflow-y-visible void-no-scrollbar py-2 -mx-4 px-4 md:-mx-6 md:px-6">
                             <CreateTile onClick={() => setEditorOpen(true)} />
                             {allPersonas.map((p) => (
                                 <StickerTile

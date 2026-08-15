@@ -135,6 +135,14 @@ export function NotificationCenter({ state, updateState, onClose }) {
     const [composing, setComposing] = useState(false);
     const [draft, setDraft] = useState({ id: null, to: '', subject: '', body: '', attachments: [], replyToId: null });
     const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+    // Вернулись из «Личной информации»/«Безопасности»/«Тарифов», куда ушли
+    // отсюда же — сразу открываем ту панель аккаунтов, из которой уходили.
+    useEffect(() => {
+        if (!state.reopenMailAccounts) return;
+        setShowAccountSwitcher(true);
+        updateState({ reopenMailAccounts: false });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.reopenMailAccounts]);
     const [mailSearch, setMailSearch] = useState('');
     const touchStartX = useRef(null);
 

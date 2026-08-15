@@ -36,9 +36,6 @@ export function ImageGenLoader({ lang = 'ru' }) {
         gsap.to('.igl-blob-2', { scale: 1.25, x: -14, y: 10, duration: 3.1, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.4 });
         gsap.to('.igl-blob-3', { scale: 1.4, x: 6, y: 12, duration: 2.9, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.8 });
 
-        // Тонкая полоска прогресса — бесконечно наполняется и сбрасывается.
-        gsap.fromTo('.igl-bar', { scaleX: 0.05 }, { scaleX: 1, duration: 2.2, ease: 'power1.inOut', repeat: -1, transformOrigin: 'left center' });
-
         // Точки у подписи.
         gsap.to('.igl-dot', { autoAlpha: 1, y: -3, duration: 0.4, ease: 'sine.inOut', yoyo: true, repeat: -1, stagger: { each: 0.15, repeat: -1 } });
     }, { scope });
@@ -64,10 +61,6 @@ export function ImageGenLoader({ lang = 'ru' }) {
                     <span className="igl-sweep absolute inset-y-[-30%] w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/55 dark:via-white/10 to-transparent" />
                 </div>
 
-                {/* Полоска прогресса */}
-                <div className="mt-3 h-1 rounded-full bg-gray-100 dark:bg-white/10 overflow-hidden">
-                    <div className="igl-bar h-full rounded-full bg-gradient-to-r from-[#5b32d4] to-fuchsia-500" />
-                </div>
             </div>
         </div>
     );

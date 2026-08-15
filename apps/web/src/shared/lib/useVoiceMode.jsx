@@ -59,6 +59,9 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     const videoStreamRef = useRef(null);
     const videoElRef = useRef(null);
     const [videoSource, setVideoSource] = useState(null); // 'camera' | 'screen' | null
+    // Сам поток отдаём наружу, чтобы оверлей мог показать превью, не
+    // запрашивая у браузера второе разрешение на камеру/экран.
+    const [videoStream, setVideoStream] = useState(null);
     // Параметры голоса фиксируются ОДИН РАЗ при входе в режим. Раньше
     // voiceOpts() вызывался на каждую реплику и читал state, где голос мог
     // быть ещё не выбран явно (voicePresetFish пустой) — тогда на бэкенд
@@ -88,6 +91,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     const stopVideo = useCallback(() => {
         try { videoStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* noop */ }
         videoStreamRef.current = null;
+        setVideoStream(null);
         if (videoElRef.current) {
             try { videoElRef.current.srcObject = null; videoElRef.current.remove(); } catch { /* noop */ }
         }
@@ -105,6 +109,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
                 ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
                 : await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
             videoStreamRef.current = stream;
+            setVideoStream(stream);
             const video = document.createElement('video');
             video.srcObject = stream;
             video.muted = true;
@@ -420,7 +425,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
 
     return {
         active, phase, muted, errorMsg,
-        videoSource, startVideo, stopVideo, replay,
+        videoSource, videoStream, startVideo, stopVideo, replay,
         open, close, primaryTap, toggleMute,
         analyserRef: recognition.analyserRef,
         speechAudioRef: speech.audioRef,

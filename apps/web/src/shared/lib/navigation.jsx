@@ -9,11 +9,19 @@ import { App } from '@/app/App';
 // выйдя из "Кошелька", пользователь возвращается туда, откуда зашёл
 // (чат, конструктор агентов, главная — куда угодно), а не всегда на Главную.
 export const goBack = (state, updateState, fallback = 'home') => {
+    // Почта — не экран (currentView), а оверлей поверх любого экрана.
+    // Поэтому одного восстановления currentView мало: если пользователь
+    // ушёл на «Личную информацию» / «Безопасность» / «Тарифы» именно из
+    // почты, надо ещё и вернуть саму почту с открытой панелью аккаунтов,
+    // иначе он оказывается на голом Хабе (см. returnToMailAccounts).
+    const mailReturn = state.returnToMailAccounts
+        ? { showNotifications: true, reopenMailAccounts: true, returnToMailAccounts: false }
+        : {};
     const hist = state.viewHistory || [];
     if (hist.length > 0) {
         const target = hist[hist.length - 1];
-        updateState({ currentView: target, viewHistory: hist.slice(0, -1) });
+        updateState({ currentView: target, viewHistory: hist.slice(0, -1), ...mailReturn });
     } else {
-        updateState({ currentView: fallback });
+        updateState({ currentView: fallback, ...mailReturn });
     }
 };

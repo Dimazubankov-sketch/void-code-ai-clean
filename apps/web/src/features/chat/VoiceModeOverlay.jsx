@@ -104,6 +104,22 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
     const orbWrapRef = useRef(null);
     const backdropRef = useRef(null);
     const mediaMenuRef = useRef(null);
+    const previewRef = useRef(null);
+
+    // Подключаем тот же MediaStream, что уже захвачен хуком, ко второму
+    // <video> — для показа пользователю. Отдельный поток не запрашиваем:
+    // это второе разрешение браузера и лишняя нагрузка.
+    useEffect(() => {
+        const el = previewRef.current;
+        const stream = voiceMode.videoStream;
+        if (!el) return;
+        if (stream && !minimized) {
+            el.srcObject = stream;
+            el.play?.().catch(() => { /* автоплей может отклониться — не критично */ });
+        } else {
+            el.srcObject = null;
+        }
+    }, [voiceMode.videoStream, videoSource, minimized]);
 
     useEffect(() => {
         const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -153,12 +169,28 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
         // проходили в чат под оверлеем; сами наши элементы возвращают себе
         // pointer-events-auto.
         <div className={`fixed inset-0 z-[220] flex flex-col ${minimized ? 'pointer-events-none' : ''}`}>
-            <div ref={backdropRef} className="absolute inset-0 bg-white dark:bg-gradient-to-b dark:from-[#1a1030] dark:to-[#0d0819]" />
+            <div ref={backdropRef} className="absolute inset-0 bg-white dark:bg-gradient-to-b dark:from-[#1a1030] dark:to-[#0d0819]">
+                {/* Живое превью камеры/экрана. Показываем только в
+                    РАЗВЁРНУТОМ режиме: в свёрнутом пользователь смотрит
+                    чат, и видео там только мешало бы. Затемняющая плёнка
+                    сверху — чтобы орб и подписи оставались читаемыми. */}
+                {videoSource && (
+                    <>
+                        <video
+                            ref={previewRef}
+                            autoPlay muted playsInline
+                            className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/45" />
+                    </>
+                )}
+            </div>
 
-            {/* Голосовые настройки — слева. Кнопка меню вынесена отдельно
-                (ниже), чтобы стоять ровно там же, где в хабе и в чате:
-                fixed top-5 right-4, а не в потоке шапки оверлея. */}
-            <div className={`relative w-full flex items-center px-4 sm:px-6 pt-5 sm:pt-6 pointer-events-auto ${minimized ? 'opacity-0 pointer-events-none' : ''}`}>
+            {/* Голосовые настройки — в правом верхнем углу, ровно там же,
+                где в хабе и в чате стоит кнопка меню (fixed top-5 right-4).
+                Самой кнопки меню здесь нет: в разговоре она не нужна, а
+                занимала единственное удобное место. */}
+            <div className={`fixed top-5 right-4 sm:top-6 sm:right-6 z-30 pointer-events-auto ${minimized ? 'opacity-0 pointer-events-none' : ''}`}>
                 <PressIconButton
                     onClick={() => setShowVoiceSettings(true)}
                     title="Голосовые настройки"
@@ -167,18 +199,19 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                     <Icons.Sliders className="w-6 h-6" />
                 </PressIconButton>
             </div>
-            <div className={`fixed top-5 right-4 sm:top-6 sm:right-6 z-30 pointer-events-auto ${minimized ? 'opacity-0 pointer-events-none' : ''}`}>
-                <PressIconButton
-                    onClick={() => updateState({ isRightMenuOpen: true })}
-                    title="Меню"
-                    className="void-tap-target p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder"
-                >
-                    <Icons.TwoLines className="w-6 h-6" />
-                </PressIconButton>
-            </div>
 
             {/* Орб. В свёрнутом виде уезжает вниз и остаётся кликабельным —
                 повторный тап разворачивает режим обратно. */}
+            {/* Явный индикатор, что видео сейчас передаётся ИИ */}
+            {videoSource && !minimized && (
+                <div className="relative z-10 flex justify-center pointer-events-none">
+                    <span className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/55 text-white text-xs font-bold backdrop-blur-sm">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        {videoSource === 'screen' ? 'Демонстрация экрана' : 'Камера включена'}
+                    </span>
+                </div>
+            )}
+
             <div className="relative flex-1 flex flex-col items-center justify-center gap-8 pointer-events-none">
                 <div ref={orbWrapRef} className="pointer-events-auto">
                     <VoiceModeOrb
@@ -214,14 +247,14 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                                 style={{ opacity: 0, visibility: 'hidden' }}
                                 className="absolute bottom-11 left-0 w-52 bg-white dark:bg-[#150d28] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 p-1.5 z-10"
                             >
-                                <button onClick={() => chooseMedia('camera')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 text-left">
+                                <PressIconButton onClick={() => chooseMedia('camera')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 text-left">
                                     <Icons.Camera className="w-4 h-4 text-[#5b32d4] shrink-0" />
                                     <span className="text-sm font-semibold text-gray-900 dark:text-white">{videoSource === 'camera' ? 'Выключить камеру' : 'Камера'}</span>
-                                </button>
-                                <button onClick={() => chooseMedia('screen')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 text-left">
+                                </PressIconButton>
+                                <PressIconButton onClick={() => chooseMedia('screen')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 text-left">
                                     <Icons.Monitor className="w-4 h-4 text-[#5b32d4] shrink-0" />
-                                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{videoSource === 'screen' ? 'Остановить показ' : 'Поделиться экраном'}</span>
-                                </button>
+                                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{videoSource === 'screen' ? 'Отключить экран' : 'Поделиться экраном'}</span>
+                                </PressIconButton>
                             </div>
                         </div>
                         <input
