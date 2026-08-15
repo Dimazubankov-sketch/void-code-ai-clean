@@ -186,7 +186,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             ))}
                         </div>
                     )}
-                    <div ref={homeComposerWrapRef} className="flex items-end bg-white dark:bg-darkCard rounded-3xl border border-gray-200 dark:border-darkBorder shadow-md focus-within:ring-4 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4] transition-colors relative">
+                    <div ref={homeComposerWrapRef} className="flex items-end bg-white dark:bg-darkCard rounded-3xl border border-gray-200 dark:border-darkBorder focus-within:border-gray-300 dark:focus-within:border-gray-600 transition-colors relative">
 
                         {/* accept="image/*" (не список конкретных MIME) — именно
                             эта маска даёт iOS Safari/WebKit сразу открыть

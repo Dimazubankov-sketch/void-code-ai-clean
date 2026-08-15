@@ -72,20 +72,6 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
         return () => { coreTween.kill(); halo1.kill(); halo2.kill(); idleTweensRef.current = []; };
     }, { scope });
 
-    // ---- Появление орба при входе в режим ----
-    // Мягкое всплытие снизу с лёгким увеличением — играет один раз при
-    // монтировании (Voice Mode только что открыли). clearProps в конце
-    // возвращает управление фазовым анимациям, чтобы они не подрались за
-    // те же свойства.
-    useGSAP(() => {
-        const targets = [coreRef.current, halo1Ref.current, halo2Ref.current].filter(Boolean);
-        if (!targets.length) return;
-        gsap.from(targets, {
-            scale: 0.72, y: 26, autoAlpha: 0,
-            duration: 0.55, ease: 'back.out(1.6)', stagger: 0.05, clearProps: 'y,opacity,visibility',
-        });
-    }, { scope });
-
     // ---- Плавная смена цвета по фазе ----
     useGSAP(() => {
         const c = PHASE_COLORS[phase] || PHASE_COLORS.idle;

@@ -557,7 +557,16 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             ))}
                         </div>
                     )}
-                    <div ref={composerWrapRef} className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border shadow-2xl focus-within:ring-4 transition-colors relative ${state.imageGenMode ? 'border-[#5b32d4]/40 focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]' : 'border-gray-200 dark:border-darkBorder focus-within:ring-[#5b32d4]/10 focus-within:border-[#5b32d4]'}`}>
+                    <div
+                        ref={composerWrapRef}
+                        /* Спокойная серая рамка вместо фиолетового кольца и
+                           тяжёлой тени: раньше focus-within:ring-4 + shadow-2xl
+                           притягивали к себе всё внимание. min-h при развёрнутой
+                           кнопке — чтобы верхняя кнопка «на весь экран» и нижний
+                           ряд кнопок физически не могли наложиться друг на друга
+                           (см. задачу 6). */
+                        className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border transition-colors relative ${composerManyChars ? 'min-h-[104px]' : ''} ${state.imageGenMode ? 'border-[#5b32d4]/30 focus-within:border-[#5b32d4]/50' : 'border-gray-200 dark:border-darkBorder focus-within:border-gray-300 dark:focus-within:border-gray-600'}`}
+                    >
                         {/* multiple — нативный мультивыбор из галереи: пользователь
                             отмечает галочками несколько фото за один заход системного
                             пикера (задача 2-4). Лимит по тарифу применяется в
@@ -619,7 +628,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         )}
                         <textarea 
                             ref={editableTextareaRef}
-                            className={`w-full pl-14 pr-28 py-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[64px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
+                            className={`w-full pl-14 pr-28 pb-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[64px] text-[16px] void-input-scroll ${composerManyChars ? 'pt-11' : 'pt-5'} ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
                             placeholder={voice.busy ? '' : (state.imageGenMode ? t(lang, 'chat.imagePlaceholder') : t(lang, 'home.inputPlaceholder'))}
                             readOnly={voice.busy}
                             value={state.inputValue}
@@ -666,7 +675,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             <button
                                 onClick={composerEnterFullscreen}
                                 title="Развернуть на весь экран"
-                                className="void-tap-target absolute z-30 top-2 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
+                                className="void-tap-target absolute z-30 top-2.5 right-3 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
                             >
                                 <Icons.Maximize className="w-5 h-5" />
                             </button>

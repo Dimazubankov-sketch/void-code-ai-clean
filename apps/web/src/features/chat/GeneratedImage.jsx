@@ -161,7 +161,7 @@ export function GeneratedImage({ url, prompt = '', idx = 0, onEdit }) {
                     те же классы использует «холст»-скелетон в
                     ImageGenLoader, поэтому в момент появления готовой
                     картинки макет не «прыгает». */}
-                <button type="button" onClick={() => onEdit?.(url)} className="block w-full max-w-sm">
+                <button type="button" onClick={() => onEdit?.(url)} className="block w-full max-w-[15rem] sm:max-w-[17rem]">
                     <img
                         src={url}
                         alt={prompt || 'Сгенерированное изображение'}

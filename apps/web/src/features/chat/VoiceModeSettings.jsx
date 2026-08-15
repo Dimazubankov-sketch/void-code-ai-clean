@@ -20,7 +20,12 @@ import { PERSONA_STICKERS, StickerIcon } from '@/features/chat/PersonaStickers';
 
 // Стандартные горизонтальные отступы + ограничение ширины на десктопе.
 // Держим в одной константе, чтобы все секции экрана были выровнены.
-const COL = 'w-full md:max-w-[50vw] px-4 md:px-6';
+const COL = 'w-full px-4 md:px-6';
+
+// На десктопе настройки — не полноэкранный слой, а КВАДРАТНОЕ окно по
+// центру поверх затемнения (на телефоне остаётся полный экран: окно на
+// маленьком экране только сжимало бы и без того тесный список).
+const PANEL_DESKTOP = 'md:w-[560px] md:h-[560px] md:rounded-3xl md:shadow-2xl md:overflow-hidden';
 
 export const BUILTIN_PERSONAS = [
     { id: 'assistant', sticker: 'smile', name: 'Ассистент', instructions: 'Ты обычный дружелюбный ассистент. Отвечай коротко и по делу, без лишних вступлений.' },
@@ -132,6 +137,20 @@ function StickerTile({ stickerId, label, selected, onClick }) {
     );
 }
 
+// Плитка «Создать» — плюс, а не стикер: это действие, а не личность.
+function CreateTile({ onClick }) {
+    const ref = useRef(null);
+    const press = usePressAnimation(ref);
+    return (
+        <button ref={ref} onClick={onClick} {...press} className="shrink-0 flex flex-col items-center gap-1.5 w-20">
+            <span className="w-16 h-16 rounded-full bg-gray-100 dark:bg-white/[0.06] hover:bg-gray-200 dark:hover:bg-white/10 text-gray-700 dark:text-white flex items-center justify-center transition-colors">
+                <Icons.Plus className="w-7 h-7" />
+            </span>
+            <span className="text-[11px] text-gray-500 dark:text-white/60 text-center leading-tight">Создать</span>
+        </button>
+    );
+}
+
 // ---- Экран создания личности ----
 function PersonaEditor({ onSave, onClose }) {
     const [sticker, setSticker] = useState(PERSONA_STICKERS[0].id);
@@ -156,7 +175,8 @@ function PersonaEditor({ onSave, onClose }) {
     }, { dependencies: [deskOpen] });
 
     return (
-        <div className="fixed inset-0 z-[260] bg-white dark:bg-[#0d0819] flex flex-col fade-in">
+        <div className="fixed inset-0 z-[260] md:bg-black/40 md:backdrop-blur-sm flex md:items-center md:justify-center fade-in" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div className={`w-full h-full bg-white dark:bg-[#0d0819] flex flex-col ${PANEL_DESKTOP}`} onClick={(e) => e.stopPropagation()}>
             <div className={`${COL} flex items-center gap-3 py-4 shrink-0`}>
                 <button onClick={onClose} className="void-tap-target w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-700 dark:text-white">
                     <Icons.ChevronLeft className="w-5 h-5" />
@@ -227,6 +247,7 @@ function PersonaEditor({ onSave, onClose }) {
                     />
                 </div>
             </div>
+        </div>
         </div>
     );
 }
@@ -322,7 +343,8 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
     };
 
     return createPortal(
-        <div ref={scope} className="fixed inset-0 z-[240] bg-white dark:bg-[#0d0819] flex flex-col fade-in">
+        <div className="fixed inset-0 z-[240] md:bg-black/40 md:backdrop-blur-sm flex md:items-center md:justify-center fade-in" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div ref={scope} className={`w-full h-full bg-white dark:bg-[#0d0819] flex flex-col ${PANEL_DESKTOP}`} onClick={(e) => e.stopPropagation()}>
             <div className={`${COL} flex items-center gap-3 py-4 shrink-0`}>
                 <button onClick={onClose} className="void-tap-target w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-700 dark:text-white">
                     <Icons.ChevronLeft className="w-5 h-5" />
@@ -340,7 +362,7 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
                         {/* py-2 и отсутствие вертикального overflow — чтобы кольцо
                             выделения и галочка не срезались краем ленты. */}
                         <div className="flex gap-3 overflow-x-auto overflow-y-visible py-2 -mx-4 px-4 md:-mx-6 md:px-6">
-                            <StickerTile stickerId="bolt" label="Создать" selected={false} onClick={() => setEditorOpen(true)} />
+                            <CreateTile onClick={() => setEditorOpen(true)} />
                             {allPersonas.map((p) => (
                                 <StickerTile
                                     key={p.id}
@@ -387,6 +409,7 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
             )}
             {editorOpen && <PersonaEditor onSave={savePersona} onClose={() => setEditorOpen(false)} />}
             {micOpen && <MicCheck onClose={() => setMicOpen(false)} />}
+        </div>
         </div>,
         document.body,
     );
