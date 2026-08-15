@@ -5,6 +5,8 @@ import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
 import { VoiceOrb } from '@/features/settings/VoiceOrb';
 import { EmotionSettings } from '@/features/settings/EmotionSettings';
+import { CreateVoice } from '@/features/settings/CreateVoice';
+import { useUserVoices } from '@/shared/lib/useUserVoices';
 import { EMOTION_MODES, EMOTION_PRESETS, getEmotionSettings } from '@/shared/config/voiceEmotions';
 
 // ==========================================
@@ -156,6 +158,8 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const [showLangModal, setShowLangModal] = useState(false);
     const [showModelModal, setShowModelModal] = useState(false);
     const [showEmotions, setShowEmotions] = useState(false);
+    const [showCreateVoice, setShowCreateVoice] = useState(false);
+    const { voices: myVoices, add: addMyVoice, remove: removeMyVoice } = useUserVoices();
 
     const emo = getEmotionSettings(state);
     const emotionLabel = emo.mode === EMOTION_MODES.AUTO
@@ -173,8 +177,12 @@ export function VoiceSettings({ state, updateState, onClose }) {
     // карусель никогда не оставалась пустой.
     const currentList = provider === 'openai'
         ? VOICE_PRESETS
-        : (fishVoices.length
-            ? fishVoices.map((v, i) => ({ id: v.id, name: v.title, desc: v.description || 'Fish Audio', ...FISH_COLOR_PALETTE[i % FISH_COLOR_PALETTE.length] }))
+        : ((fishVoices.length || myVoices.length)
+            ? [
+                // «Мои голоса» идут первыми — их немного и они самые нужные.
+                ...myVoices.map((v, i) => ({ id: v.fishVoiceId, name: v.title, desc: 'Мой голос', myVoiceId: v.id, ...FISH_COLOR_PALETTE[i % FISH_COLOR_PALETTE.length] })),
+                ...fishVoices.map((v, i) => ({ id: v.id, name: v.title, desc: v.description || 'Fish Audio', ...FISH_COLOR_PALETTE[(i + myVoices.length) % FISH_COLOR_PALETTE.length] })),
+            ]
             : [FISH_DEFAULT_VOICE]);
 
     // Выбранный голос хранится ОТДЕЛЬНО для каждого провайдера
@@ -275,6 +283,44 @@ export function VoiceSettings({ state, updateState, onClose }) {
                         </span>
                     </button>
 
+                    {/* Создание своего голоса: клон по записи или генерация по
+                        описанию. Доступность и суточный лимит проверяет сервер —
+                        здесь кнопка есть всегда, а неоплаченный тариф увидит
+                        объяснение внутри. */}
+                    <button onClick={() => setShowCreateVoice(true)} className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <span className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center"><Icons.Mic className="w-4 h-4" /></div>
+                            <span className="font-bold text-sm dark:text-white">Создать голос</span>
+                        </span>
+                        <span className="flex items-center gap-1.5 text-sm text-gray-400">
+                            Клон или описание <Icons.ChevronRight className="w-4 h-4" />
+                        </span>
+                    </button>
+
+                    {/* Мои голоса — с возможностью удалить. */}
+                    {myVoices.length > 0 && (
+                        <div>
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">Мои голоса</p>
+                            <div className="space-y-1.5">
+                                {myVoices.map((v) => (
+                                    <div key={v.id} className="flex items-center justify-between px-4 py-3 rounded-2xl bg-gray-50 dark:bg-gray-800/60">
+                                        <button onClick={() => updateState({ ttsProvider: 'fish', voicePresetFish: v.fishVoiceId })} className="flex-1 text-left min-w-0">
+                                            <span className="block font-bold text-sm dark:text-white truncate">{v.title}</span>
+                                            <span className="block text-[11px] text-gray-400">{v.source === 'clone' ? 'Клонированный' : 'Сгенерированный'}</span>
+                                        </button>
+                                        <button
+                                            onClick={() => removeMyVoice(v.id).catch(() => { /* уже удалён — не мешаем */ })}
+                                            title="Удалить голос"
+                                            className="void-tap-target p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors shrink-0"
+                                        >
+                                            <Icons.Trash className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Эмоции и тон голоса. Общий компонент с голосовыми
                         настройками Voice Mode — второй реализации нет. */}
                     <button onClick={() => setShowEmotions(true)} className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
@@ -341,6 +387,13 @@ export function VoiceSettings({ state, updateState, onClose }) {
 
             {showLangModal && (
                 <VoiceLanguageModal uiLang={uiLang} current={lang} onChoose={setVoiceLang} onClose={() => setShowLangModal(false)} />
+            )}
+            {showCreateVoice && (
+                <CreateVoice
+                    updateState={updateState}
+                    onClose={() => setShowCreateVoice(false)}
+                    onCreated={(v) => { addMyVoice(v); updateState({ ttsProvider: 'fish', voicePresetFish: v.fishVoiceId }); }}
+                />
             )}
             {showEmotions && (
                 <EmotionSettings state={state} updateState={updateState} onClose={() => setShowEmotions(false)} />

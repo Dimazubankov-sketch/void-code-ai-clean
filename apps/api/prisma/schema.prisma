@@ -91,6 +91,7 @@ model User {
   usage         UsageCounter[]
   providerKeys  ProviderKey[]
   emails        Email[]
+  userVoices    UserVoice[]
 }
 
 // ==========================================
@@ -171,9 +172,27 @@ model UsageCounter {
   weeklyUsed    Int    @default(0) // сообщений чата за неделю
   imagesUsed    Int    @default(0) // сгенерированных картинок за день (DALL-E)
   ttsCharsUsed  Int    @default(0) // символов озвучки за день (OpenAI TTS)
+  voicesCreated Int    @default(0) // созданных голосов за день (клон/дизайн)
 
   @@unique([userId, dayKey])
   @@index([userId, weekKey])
+}
+
+// Голос, созданный пользователем: клонированный с записи или
+// сгенерированный по описанию. Хранит ID модели на стороне Fish Audio —
+// он же используется как reference_id и в обычной озвучке, и в Voice Mode
+// (одна система голосов, а не две). Привязка к userId обязательна: чужой
+// voice ID подставить нельзя, все обращения фильтруются по владельцу.
+model UserVoice {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fishVoiceId String   // _id модели в Fish Audio
+  title       String
+  source      String   // 'clone' | 'design'
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
 }
 
 model ChatSession {

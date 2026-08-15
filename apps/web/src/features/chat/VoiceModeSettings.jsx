@@ -7,6 +7,8 @@ import { VOICE_PRESETS } from '@/features/settings/VoiceSettings';
 import { useFishVoices } from '@/shared/lib/useOpenAiTts';
 import { PERSONA_STICKERS, StickerIcon } from '@/features/chat/PersonaStickers';
 import { EmotionSettings } from '@/features/settings/EmotionSettings';
+import { CreateVoice } from '@/features/settings/CreateVoice';
+import { useUserVoices } from '@/shared/lib/useUserVoices';
 import { EMOTION_MODES, EMOTION_PRESETS, getEmotionSettings } from '@/shared/config/voiceEmotions';
 
 // ==========================================
@@ -314,6 +316,7 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
     const [editorOpen, setEditorOpen] = useState(false);
     const [micOpen, setMicOpen] = useState(false);
     const [emotionsOpen, setEmotionsOpen] = useState(false);
+    const [createVoiceOpen, setCreateVoiceOpen] = useState(false);
     const scope = useRef(null);
 
     // Появление блоков сверху вниз по очереди при входе в настройки.
@@ -325,9 +328,15 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
 
     const provider = state.ttsProvider || 'fish';
     const { voices: fishVoices } = useFishVoices();
+    // Пользовательские голоса подмешиваются к стандартным — один список,
+    // как и требует единая система голосов.
+    const { voices: myVoices, add: addMyVoice } = useUserVoices();
     const voiceList = provider === 'openai'
         ? VOICE_PRESETS.map((v) => ({ id: v.id, name: v.name, desc: v.desc }))
-        : fishVoices.map((v) => ({ id: v.id, name: v.title, desc: v.description }));
+        : [
+            ...myVoices.map((v) => ({ id: v.fishVoiceId, name: v.title, desc: 'Мой голос' })),
+            ...fishVoices.map((v) => ({ id: v.id, name: v.title, desc: v.description })),
+        ];
     const selectedVoiceId = provider === 'openai' ? (state.voicePreset || 'nova') : (state.voicePresetFish || voiceList[0]?.id || '');
     const voiceLabel = (voiceList.find((v) => v.id === selectedVoiceId) || voiceList[0])?.name || 'Голос';
 
@@ -383,6 +392,10 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
                         </div>
                     </div>
 
+                    {/* Создание своего голоса — тот же общий компонент, что и
+                        в Настройках → Голос (второй реализации нет). */}
+                    <div className="vm-anim"><Row label="Создать голос" value="Клон или описание" onClick={() => setCreateVoiceOpen(true)} /></div>
+
                     {/* Эмоции — сразу после блока «Личность», как и в общих
                         настройках голоса. Компонент общий, второй копии нет. */}
                     <div className="vm-anim"><Row label="Эмоции" value={emotionLabel} onClick={() => setEmotionsOpen(true)} /></div>
@@ -421,6 +434,13 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
             )}
             {editorOpen && <PersonaEditor onSave={savePersona} onClose={() => setEditorOpen(false)} />}
             {micOpen && <MicCheck onClose={() => setMicOpen(false)} />}
+            {createVoiceOpen && (
+                <CreateVoice
+                    updateState={updateState}
+                    onClose={() => setCreateVoiceOpen(false)}
+                    onCreated={(v) => { addMyVoice(v); updateState({ voicePresetFish: v.fishVoiceId }); }}
+                />
+            )}
             {emotionsOpen && <EmotionSettings state={state} updateState={updateState} onClose={() => setEmotionsOpen(false)} />}
         </div>
         </div>,

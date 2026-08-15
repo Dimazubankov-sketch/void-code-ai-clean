@@ -6,6 +6,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { ImageModule } from './modules/image/image.module';
 import { TtsModule } from './modules/tts/tts.module';
+import { VoiceModule } from './modules/voice/voice.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { WebFetchModule } from './modules/webfetch/webfetch.module';
 import { BillingModule } from './modules/billing/billing.module';
@@ -22,6 +23,7 @@ import { MailModule } from './modules/mail/mail.module';
     ChatModule,
     ImageModule,
     TtsModule,
+    VoiceModule,
     TasksModule,
     WebFetchModule,
     BillingModule,
