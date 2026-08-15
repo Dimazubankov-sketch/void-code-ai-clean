@@ -20,15 +20,24 @@ import {
 // достаточно одной проверки в getVoiceOpts — интерфейс трогать не нужно.
 
 function Slider({ label, value, onChange }) {
+    // Короткий отклик на изменение: цифра «подпрыгивает». Без этого при
+    // перетаскивании непонятно, зафиксировалось ли значение — особенно на
+    // телефоне, где палец закрывает сам ползунок.
+    const valueRef = useRef(null);
+    const bump = () => {
+        if (valueRef.current) {
+            gsap.fromTo(valueRef.current, { scale: 1.25 }, { scale: 1, duration: 0.28, ease: 'back.out(3)', overwrite: 'auto' });
+        }
+    };
     return (
         <div className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-white/[0.06]">
             <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">{label}</span>
-                <span className="text-xs font-bold text-gray-400 tabular-nums">{value}%</span>
+                <span ref={valueRef} className="text-xs font-bold text-[#5b32d4] tabular-nums inline-block">{value}%</span>
             </div>
             <input
                 type="range" min="0" max="100" step="5" value={value}
-                onChange={(e) => onChange(parseInt(e.target.value, 10))}
+                onChange={(e) => { onChange(parseInt(e.target.value, 10)); bump(); }}
                 className="w-full accent-[#5b32d4]"
             />
         </div>

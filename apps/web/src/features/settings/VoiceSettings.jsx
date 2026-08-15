@@ -1,4 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { useOpenAiTts, useFishVoices } from '@/shared/lib/useOpenAiTts';
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { t } from '@/shared/lib/i18n';
@@ -160,6 +162,17 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const [showEmotions, setShowEmotions] = useState(false);
     const [showCreateVoice, setShowCreateVoice] = useState(false);
     const { voices: myVoices, add: addMyVoice, remove: removeMyVoice } = useUserVoices();
+    // Только что созданный голос подсвечиваем всплытием: список может быть
+    // длинным, и без этого непонятно, что именно добавилось.
+    const myVoicesRef = useRef(null);
+    const prevMyCountRef = useRef(myVoices.length);
+    useGSAP(() => {
+        const grew = myVoices.length > prevMyCountRef.current;
+        prevMyCountRef.current = myVoices.length;
+        const first = myVoicesRef.current?.firstElementChild;
+        if (!grew || !first) return;
+        gsap.from(first, { y: -14, autoAlpha: 0, scale: 0.96, duration: 0.45, ease: 'back.out(1.7)', clearProps: 'all' });
+    }, { dependencies: [myVoices.length] });
 
     const emo = getEmotionSettings(state);
     const emotionLabel = emo.mode === EMOTION_MODES.AUTO
@@ -301,7 +314,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
                     {myVoices.length > 0 && (
                         <div>
                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">Мои голоса</p>
-                            <div className="space-y-1.5">
+                            <div ref={myVoicesRef} className="space-y-1.5">
                                 {myVoices.map((v) => (
                                     <div key={v.id} className="flex items-center justify-between px-4 py-3 rounded-2xl bg-gray-50 dark:bg-gray-800/60">
                                         <button onClick={() => updateState({ ttsProvider: 'fish', voicePresetFish: v.fishVoiceId })} className="flex-1 text-left min-w-0">

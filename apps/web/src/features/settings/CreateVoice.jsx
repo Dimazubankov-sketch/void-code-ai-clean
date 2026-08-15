@@ -71,9 +71,25 @@ function Paywall({ onClose, onUpgrade }) {
 function Progress({ stage }) {
     const stages = ['Загрузка', 'Обработка', 'Создание голоса', 'Готово'];
     const idx = stages.indexOf(stage);
+    const listRef = useRef(null);
+
+    // Список этапов выезжает по очереди при первом показе, а активная
+    // строка мягко подсвечивается при каждой смене этапа — процесс
+    // «живой», и видно, что он не завис.
+    useGSAP(() => {
+        if (!listRef.current) return;
+        gsap.from(listRef.current.children, { x: -12, autoAlpha: 0, duration: 0.3, ease: 'power2.out', stagger: 0.08, clearProps: 'all' });
+    }, { scope: listRef });
+
+    useGSAP(() => {
+        const active = listRef.current?.children?.[idx];
+        if (!active) return;
+        gsap.fromTo(active, { scale: 0.97 }, { scale: 1, duration: 0.35, ease: 'back.out(2)', clearProps: 'transform' });
+    }, { dependencies: [idx] });
+
     return (
         <div className="flex-1 flex flex-col items-center justify-center px-8">
-            <div className="w-full max-w-xs space-y-3">
+            <div ref={listRef} className="w-full max-w-xs space-y-3">
                 {stages.map((st, i) => (
                     <div key={st} className="flex items-center gap-3">
                         <span className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors ${i < idx ? 'bg-[#5b32d4] text-white' : i === idx ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4]' : 'bg-gray-100 dark:bg-white/10 text-gray-300'}`}>
