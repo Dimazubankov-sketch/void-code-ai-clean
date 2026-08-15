@@ -52,8 +52,66 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     const pendingReplyRef = useRef(false);
     const streamAbortRef = useRef(null);
     const backendChatIdRef = useRef(null);
+    // Видеоконтекст разговора: камера или демонстрация экрана. Держим
+    // живой поток и снимаем с него КАДР в момент отправки реплики —
+    // непрерывно слать видео в модель и дорого, и незачем: вопрос всегда
+    // привязан к тому, что в кадре именно сейчас.
+    const videoStreamRef = useRef(null);
+    const videoElRef = useRef(null);
+    const [videoSource, setVideoSource] = useState(null); // 'camera' | 'screen' | null
 
     const speech = useVoiceModeSpeech();
+
+    // Снять текущий кадр в data-URL. Возвращает null, если видео не
+    // подключено или кадр ещё не готов.
+    const captureFrame = useCallback(() => {
+        const video = videoElRef.current;
+        if (!video || !video.videoWidth) return null;
+        try {
+            const maxW = 960; // больше модели не нужно, а трафик экономим
+            const scale = Math.min(1, maxW / video.videoWidth);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', 0.7);
+        } catch { return null; }
+    }, []);
+
+    const stopVideo = useCallback(() => {
+        try { videoStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* noop */ }
+        videoStreamRef.current = null;
+        if (videoElRef.current) { try { videoElRef.current.srcObject = null; } catch { /* noop */ } }
+        videoElRef.current = null;
+        setVideoSource(null);
+    }, []);
+
+    // Включить камеру или демонстрацию экрана. Повторный вызов того же
+    // источника выключает его (кнопка работает как переключатель).
+    const startVideo = useCallback(async (source) => {
+        if (videoSource === source) { stopVideo(); return; }
+        stopVideo();
+        try {
+            const stream = source === 'screen'
+                ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+                : await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+            videoStreamRef.current = stream;
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.muted = true;
+            video.playsInline = true;
+            await video.play().catch(() => { /* noop */ });
+            videoElRef.current = video;
+            setVideoSource(source);
+            // Пользователь может остановить демонстрацию системной кнопкой
+            // браузера — тогда поток «умирает» сам, надо сбросить состояние.
+            stream.getVideoTracks()[0]?.addEventListener('ended', () => stopVideo());
+        } catch {
+            stopVideo();
+            setErrorMsg(source === 'screen' ? 'Не удалось начать демонстрацию экрана' : 'Нет доступа к камере');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [videoSource, stopVideo]);
 
     // Разговор в голосовом режиме ведётся в отдельной серверной сессии
     // чата — она создаётся один раз за вход в режим и переиспользуется,
@@ -120,8 +178,12 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
             const prev = stateRef.current;
             const personas = [...BUILTIN_PERSONAS, ...(prev.voicePersonas || [])];
             const persona = personas.find((x) => x.id === (prev.activePersonaId || BUILTIN_PERSONAS[0].id));
+            // Кадр с камеры/экрана, если видео включено — модель увидит,
+            // о чём именно идёт речь.
+            const frame = captureFrame();
             const full = await streamVoiceMessage(chatId, text, {
                 persona: persona?.instructions || undefined,
+                image: frame || undefined,
                 signal: controller.signal,
                 onSentence: (sentence) => {
                     if (!sawFirst) { sawFirst = true; setPhaseBoth(VOICE_MODE_PHASE.SPEAKING); }
@@ -260,6 +322,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         setActive(false);
         try { streamAbortRef.current?.abort(); } catch { /* noop */ }
         backendChatIdRef.current = null;
+        stopVideo();
         recognition.stop();
         speech.stop();
         speech.clearError();
@@ -303,8 +366,19 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setPhaseBoth]);
 
+    // Повторно озвучить уже сказанный ответ (кнопка у сообщения в чате,
+    // когда голосовой режим свёрнут).
+    const replay = useCallback((text) => {
+        if (!text) return;
+        recognition.pause();
+        setPhaseBoth(VOICE_MODE_PHASE.SPEAKING);
+        speech.speak(text, voiceOpts());
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [setPhaseBoth, voiceOpts]);
+
     return {
         active, phase, muted, errorMsg,
+        videoSource, startVideo, stopVideo, replay,
         open, close, primaryTap, toggleMute,
         analyserRef: recognition.analyserRef,
         speechAudioRef: speech.audioRef,

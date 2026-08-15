@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LLM_PROVIDER, LlmProvider } from './providers/llm-provider.interface';
 import { OpenRouterProvider } from './providers/openrouter.provider';
 import { postProcessAnswer } from './post-process';
-import { pickVoiceModel, VOICE_SYSTEM_PROMPT } from './voice-mode.constants';
+import { pickVoiceModel, VOICE_SYSTEM_PROMPT, VOICE_VISION_MODEL } from './voice-mode.constants';
 
 // Лимиты тарифов — источник истины ЗДЕСЬ, на сервере. Множители к базовому
 // плану Free (20/140): Plus ×2, Pro ×5, Ultra ×10. Должно совпадать
@@ -49,6 +49,7 @@ export class ChatService {
     content: string,
     onSentence: (sentence: string) => void,
     persona?: string,
+    image?: string,
   ): Promise<string> {
     await this.consumeLimit(userId);
 
@@ -60,7 +61,12 @@ export class ChatService {
       }),
     ]);
 
-    const modelSlug = pickVoiceModel(user.plan, content);
+    // Когда в разговоре включена камера/экран, обычная текстовая модель
+    // кадр не увидит — переключаемся на мультимодальную. Отдельная
+    // константа, а не «пусть выберет pickVoiceModel»: там раскладка по
+    // тарифам, а тут жёсткое техническое требование к модели.
+    const hasFrame = typeof image === 'string' && image.startsWith('data:image/');
+    const modelSlug = hasFrame ? VOICE_VISION_MODEL : pickVoiceModel(user.plan, content);
 
     // Буфер режем по границам предложений. Первое предложение отпускаем
     // с самым низким порогом (важна задержка до первого звука), дальше
@@ -97,7 +103,15 @@ export class ChatService {
           : VOICE_SYSTEM_PROMPT,
         messages: [
           ...chat.messages.map((m) => ({ role: m.role.toLowerCase(), content: m.content })),
-          { role: 'user', content },
+          hasFrame
+            ? {
+                role: 'user',
+                content: [
+                  { type: 'text', text: content },
+                  { type: 'image_url', image_url: { url: image } },
+                ] as any,
+              }
+            : { role: 'user', content },
         ],
       },
       modelSlug,

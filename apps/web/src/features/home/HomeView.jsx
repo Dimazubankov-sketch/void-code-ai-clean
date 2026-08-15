@@ -155,13 +155,29 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
             </div>
 
             <div className="px-6 pt-16 sm:pt-20 max-w-4xl mx-auto">
+                {/* Логотип и текст — единый блок, а не две независимые
+                    детали. Раньше логотип был крупнее текста и висел с
+                    произвольным mt, из-за чего смотрелся отдельно от
+                    подписи. Теперь: логотип соразмерен блоку текста,
+                    выравнивание по центру по вертикали, а заголовок и
+                    подзаголовок связаны единой оптической сеткой —
+                    подзаголовок растянут по ширине заголовка
+                    (tracking + uppercase), поэтому читается как его
+                    основание, а не как случайная строка снизу. */}
                 <div className="flex items-center gap-3 sm:gap-4 mb-8 sm:mb-10">
-                    <Icons.VoidLogo key={logoPlayKey} onClick={() => { setLogoPopped(true); setLogoPlayKey(k => k + 1); }} title="Нажмите, чтобы повторить анимацию" className={`${logoPopped ? 'void-home-logo-pop' : 'void-home-logo'} w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 flex-shrink-0 mt-1.5 sm:mt-2 cursor-pointer`} />
-                    <div className="leading-none">
-                        <div className="void-title-rise font-extrabold tracking-tight text-2xl sm:text-3xl md:text-4xl">
+                    <Icons.VoidLogo
+                        key={logoPlayKey}
+                        onClick={() => { setLogoPopped(true); setLogoPlayKey(k => k + 1); }}
+                        title="Нажмите, чтобы повторить анимацию"
+                        className={`${logoPopped ? 'void-home-logo-pop' : 'void-home-logo'} w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex-shrink-0 cursor-pointer`}
+                    />
+                    <div className="min-w-0">
+                        <div className="void-title-rise font-extrabold tracking-tight leading-[1.05] text-2xl sm:text-3xl md:text-4xl">
                             <span className="void-grad-text">VOID</span> <span className="text-[#1a1a2e] dark:text-white">CODE AI</span>
                         </div>
-                        <div className="void-subtitle-rise mt-1.5 sm:mt-2 text-xs sm:text-sm md:text-base font-semibold tracking-wide text-gray-400 dark:text-gray-500">{t(lang, 'home.subtitle')}</div>
+                        <div className="void-subtitle-rise mt-1 text-[10px] sm:text-[11px] md:text-xs font-bold uppercase tracking-[0.22em] text-gray-400 dark:text-gray-500">
+                            {t(lang, 'home.subtitle')}
+                        </div>
                     </div>
                 </div>
 

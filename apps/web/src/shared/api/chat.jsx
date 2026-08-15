@@ -27,7 +27,7 @@ export async function sendBackendMessage(chatId, content, model, systemPrompt, i
 //
 // EventSource не используем: он умеет только GET и не даёт передать
 // заголовок Authorization. Поэтому обычный fetch + ручной разбор SSE.
-export async function streamVoiceMessage(chatId, content, { onSentence, signal, persona } = {}) {
+export async function streamVoiceMessage(chatId, content, { onSentence, signal, persona, image } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -37,7 +37,7 @@ export async function streamVoiceMessage(chatId, content, { onSentence, signal, 
     response = await fetch(`/api/v1/chats/${chatId}/voice-stream`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ content, persona }),
+      body: JSON.stringify({ content, persona, image }),
       signal,
     });
   } catch (e) {

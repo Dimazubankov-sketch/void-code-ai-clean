@@ -25,6 +25,11 @@ export const VOICE_MODELS = {
 
 // Внутренние ID, которые фронтенд шлёт в поле model. Наружу настоящие
 // имена моделей не раскрываются (см. анти-дисклоуз в промпте ниже).
+// Модель для разговоров с включённой камерой/демонстрацией экрана: нужна
+// мультимодальная, принимающая image_url. Grok/DeepSeek в голосовой
+// раскладке текстовые, поэтому на такие запросы уходим сюда.
+export const VOICE_VISION_MODEL = 'qwen/qwen-2.5-vl-72b-instruct';
+
 export const VOICE_MODEL_IDS = {
   FAST: 'voice_fast',
   DEEP: 'voice_deep',

@@ -49,6 +49,14 @@ class VoiceStreamDto {
   @IsString()
   @MaxLength(1500)
   persona?: string;
+
+  // Кадр с камеры или демонстрации экрана (data-URL JPEG). Присылается
+  // только когда пользователь включил видео в голосовом режиме — тогда
+  // запрос уходит vision-модели, чтобы ИИ реально видел, о чём речь.
+  @IsOptional()
+  @IsString()
+  @MaxLength(8_000_000)
+  image?: string;
 }
 
 @Controller('chats')
@@ -147,6 +155,7 @@ export class ChatController {
         dto.content,
         (sentence) => send('sentence', { text: sentence }),
         dto.persona,
+        dto.image,
       );
       clearInterval(heartbeat);
       send('done', { full });

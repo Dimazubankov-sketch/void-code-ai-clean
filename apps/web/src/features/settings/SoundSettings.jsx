@@ -57,8 +57,12 @@ export function SoundSettings({ state, updateState, onClose }) {
     };
 
     return (
-        <div data-modal-overlay className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in" onClick={onClose}>
-            <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl slide-in-right" onClick={e => e.stopPropagation()}>
+        <div data-modal-overlay className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 fade-in" onClick={onClose}>
+            {/* Всегда по центру и со скруглением со ВСЕХ сторон: раньше на
+                телефоне это была «шторка» снизу с прямым нижним краем.
+                Небольшому меню центр подходит лучше — и выглядит цельно,
+                и не упирается в системную панель браузера. */}
+            <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm rounded-3xl p-6 shadow-2xl slide-in-right" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center gap-3 mb-1">
                     <div className="w-10 h-10 rounded-2xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center"><Icons.Bell className="w-5 h-5" /></div>
                     <h4 className="font-extrabold text-lg dark:text-white">Звук</h4>

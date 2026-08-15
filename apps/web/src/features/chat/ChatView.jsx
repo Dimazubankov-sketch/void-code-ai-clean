@@ -137,6 +137,10 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     const voiceOpts = () => getVoiceOpts(state);
 
     const speakMessage = (idx, text) => {
+        // Голосовой режим открыт — читаем тем же голосом и через тот же
+        // конвейер, что и сам разговор (иначе получилось бы два разных
+        // проигрывателя одновременно).
+        if (voiceMode?.active) { voiceMode.replay(text); return; }
         if (ttsMsgIdx === idx && tts.speaking) { tts.stop(); setTtsMsgIdx(null); return; }
         tts.stop();
         setTtsMsgIdx(idx);
@@ -450,6 +454,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                             onSpeak={() => speakMessage(idx, msg.content)}
                                             speaking={ttsMsgIdx === idx && tts.speaking}
                                             speakLoading={ttsMsgIdx === idx && tts.loading}
+                                            voiceStyle={!!voiceMode?.active}
                                             feedbackValue={feedbackMap[idx]}
                                         />
                                         {ttsMsgIdx === idx && tts.supported && (

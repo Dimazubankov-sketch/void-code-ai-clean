@@ -93,8 +93,8 @@ function Row({ label, value, onClick }) {
 
 function PickerSheet({ title, items, selectedId, onChoose, onClose }) {
     return (
-        <div className="fixed inset-0 z-[250] bg-black/40 backdrop-blur-sm flex items-end sm:items-center sm:justify-center fade-in" onClick={onClose}>
-            <div className="bg-white dark:bg-[#150d28] w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[250] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 fade-in" onClick={onClose}>
+            <div className="bg-white dark:bg-[#150d28] w-full sm:max-w-sm rounded-3xl shadow-2xl max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 py-4 shrink-0">
                     <h4 className="font-extrabold text-gray-900 dark:text-white">{title}</h4>
                     <button onClick={onClose} className="void-tap-target w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10"><Icons.X className="w-4 h-4" /></button>

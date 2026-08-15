@@ -62,11 +62,27 @@ export class ImageService {
       /(похож|такое\s*же|такую\s*же|такой\s*же|в\s*таком\s*же\s*стиле|в\s*этом\s*стиле|по\s*мотивам|вдохновля|аналогичн|в\s*том\s*же\s*духе|similar|same\s*style)/i;
     const wantsSimilar = refs.length > 0 && SIMILAR_INTENT.test(safePrompt);
 
+    // Задача: ИИ должен РЕАЛЬНО ВИДЕТЬ приложенное фото, а не просто
+    // передавать его генератору как «референс». Раньше картинка уходила
+    // сразу в генеративную модель, и никакого текстового понимания сцены
+    // не возникало — отсюда и промахи, когда пользователь просил учесть
+    // что-то конкретное на фото. Теперь перед генерацией делаем vision-
+    // проход: описываем изображение текстом и подмешиваем описание в
+    // промпт. Проход не блокирующий по смыслу: если он не удался (нет
+    // ключа, сеть, лимит) — просто идём дальше без описания, как раньше.
+    let visionNote = '';
+    if (refs.length > 0) {
+      const described = await this.describeReference(refs[0]).catch(() => '');
+      if (described) {
+        visionNote = ` Вот что изображено на приложенном фото (описание получено анализом самого изображения): ${described}`;
+      }
+    }
+
     const finalPrompt = refs.length === 0
       ? safePrompt
       : wantsSimilar
-        ? `Внимательно проанализируй приложенное изображение: его сюжет, композицию, палитру, освещение, фактуру и художественный стиль. Создай НОВОЕ изображение в том же стиле и настроении — узнаваемо родственное исходному, но не его копия. Не воспроизводи исходное фото дословно. Запрос пользователя: ${safePrompt}`
-        : `Отредактируй приложенное изображение (это референс, а НЕ вдохновение для нового рисунка): сохрани композицию, объект(ы), пропорции, ракурс и общий стиль исходного фото без изменений, и внеси ТОЛЬКО то, что просит пользователь ниже. Результат должен быть узнаваемо тем же фото/объектом, а не новым похожим изображением. Запрос пользователя: ${safePrompt}`;
+        ? `Внимательно проанализируй приложенное изображение: его сюжет, композицию, палитру, освещение, фактуру и художественный стиль. Создай НОВОЕ изображение в том же стиле и настроении — узнаваемо родственное исходному, но не его копия. Не воспроизводи исходное фото дословно.${visionNote} Запрос пользователя: ${safePrompt}`
+        : `Отредактируй приложенное изображение (это референс, а НЕ вдохновение для нового рисунка): сохрани композицию, объект(ы), пропорции, ракурс и общий стиль исходного фото без изменений, и внеси ТОЛЬКО то, что просит пользователь ниже. Результат должен быть узнаваемо тем же фото/объектом, а не новым похожим изображением.${visionNote} Запрос пользователя: ${safePrompt}`;
     console.log(`[ImageService] запрос → "${safePrompt.slice(0, 100)}${safePrompt.length > 100 ? '…' : ''}"${refs.length ? ` (+${refs.length} референс(а/ов), режим: ${wantsSimilar ? 'похожее' : 'редактирование'})` : ''}`);
 
     const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
@@ -117,6 +133,55 @@ export class ImageService {
   // него стабильно возвращают 404 "No model found"). Плюс сама модель
   // x-ai/grok-2-image снята с продажи xAI — актуальная замена в той же
   // линейке Grok Imagine — x-ai/grok-imagine-image-quality.
+  // Vision-проход: просим мультимодальную модель описать изображение
+  // словами. Используем OpenRouter (тот же ключ, что и для генерации) —
+  // отдельного провайдера ради этого не заводим.
+  // Ошибки намеренно не пробрасываем наружу: описание — это улучшение
+  // качества промпта, а не обязательный этап; без него генерация должна
+  // работать ровно как раньше.
+  private async describeReference(dataUrl: string): Promise<string> {
+    const key = process.env.OPENROUTER_API_KEY?.trim();
+    if (!key) return '';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+          'HTTP-Referer': process.env.APP_URL || 'https://void-code.ru',
+          'X-Title': 'Void Code AI',
+        },
+        body: JSON.stringify({
+          model: 'qwen/qwen-2.5-vl-72b-instruct',
+          max_tokens: 220,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Опиши это изображение для художника, который будет его перерисовывать: главный объект, поза/ракурс, фон, освещение, палитра, стиль. Пиши сжато, одним абзацем, без вступлений и без markdown.' },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          }],
+        }),
+      });
+      clearTimeout(timer);
+      if (!response.ok) {
+        console.warn(`[ImageService/vision] HTTP ${response.status} — генерирую без описания`);
+        return '';
+      }
+      const data: any = await response.json();
+      const text = String(data?.choices?.[0]?.message?.content || '').trim();
+      if (text) console.log(`[ImageService/vision] описание: "${text.slice(0, 120)}…"`);
+      return text.slice(0, 900);
+    } catch (e: any) {
+      clearTimeout(timer);
+      console.warn('[ImageService/vision] не удалось описать изображение:', e?.message || e);
+      return '';
+    }
+  }
+
   private async callOpenRouterGrok(apiKey: string, prompt: string, refs: string[] = []): Promise<string> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);

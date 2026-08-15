@@ -121,6 +121,7 @@ export const Icons = {
     // Волна/эквалайзер — пять полос разной высоты, пик по центру. Иконка
     // входа в Voice Mode (задача: заменить микрофон на что-то похожее на
     // «внутри синего круга» с референсного скриншота).
+    Menu: ({ className = "w-5 h-5" }) => <svg className={className} fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>,
     Sliders: ({ className = "w-5 h-5" }) => <svg className={className} fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8h4M13 8h8" /><circle cx="10" cy="8" r="2.6" /><path d="M3 16h8M17 16h4" /><circle cx="14" cy="16" r="2.6" /></svg>,
     Waveform: ({ className = "w-5 h-5" }) => <svg className={className} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10v4" /><path d="M7.5 6v12" /><path d="M12 3v18" /><path d="M16.5 6v12" /><path d="M21 10v4" /></svg>,
     VolumeX: ({ className = "w-5 h-5" }) => <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z" /><path d="M22 9l-6 6M16 9l6 6" /></svg>,

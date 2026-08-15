@@ -88,8 +88,8 @@ function VoiceLanguageModal({ uiLang, current, onChoose, onClose }) {
     const filtered = sorted.filter(l => l.name.toLowerCase().includes(query.trim().toLowerCase()));
 
     return (
-        <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in" onClick={onClose}>
-            <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm h-[85vh] sm:h-[70vh] rounded-t-3xl sm:rounded-3xl shadow-2xl slide-in-right flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 fade-in" onClick={onClose}>
+            <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm h-[85vh] sm:h-[70vh] rounded-3xl shadow-2xl slide-in-right flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center gap-3 p-5 pb-3 shrink-0">
                     <h4 className="font-extrabold text-lg dark:text-white flex-1">{t(uiLang, 'settings.voice')}</h4>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.X /></button>
@@ -125,8 +125,8 @@ function VoiceLanguageModal({ uiLang, current, onChoose, onClose }) {
 // пунктов всего два, искать среди них незачем.
 function VoiceModelModal({ uiLang, current, onChoose, onClose }) {
     return (
-        <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in" onClick={onClose}>
-            <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl slide-in-right flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 fade-in" onClick={onClose}>
+            <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm rounded-3xl shadow-2xl slide-in-right flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center gap-3 p-5 pb-3 shrink-0">
                     <h4 className="font-extrabold text-lg dark:text-white flex-1">Модель озвучки</h4>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.X /></button>
