@@ -35,6 +35,15 @@ export class TtsRequestDto {
   @Min(0.25)
   @Max(4.0)
   speed?: number;
+
+  // Инструкция подачи для Fish S2 («calm, warm tone» и т.п.) — штатный
+  // для этой модели способ управлять эмоцией через текст. Собирается на
+  // фронте (см. voiceEmotions.jsx), здесь только валидируем длину.
+  // Для OpenAI TTS игнорируется: там управления подачей нет.
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  emotion?: string;
 }
 
 @Controller('tts')
@@ -77,7 +86,7 @@ export class TtsController {
     // synthesize() на streamTo() ниже, когда путь через Cloudflare починят.
     const buf = provider === 'openai'
       ? await this.tts.synthesize(dto.text, dto.voice || 'nova', dto.speed ?? 1.0)
-      : await this.fishTts.synthesize(dto.text, dto.voice, dto.speed ?? 1.0);
+      : await this.fishTts.synthesize(dto.text, dto.voice, dto.speed ?? 1.0, dto.emotion);
 
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'no-store');

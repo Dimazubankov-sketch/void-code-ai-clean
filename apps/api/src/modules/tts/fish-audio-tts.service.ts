@@ -207,14 +207,18 @@ export class FishAudioTtsService {
     return response;
   }
 
-  private async requestFish(text: string, voice: string | undefined, speed: number): Promise<Response> {
+  private async requestFish(text: string, voice: string | undefined, speed: number, emotion?: string): Promise<Response> {
     const v = this.validate(text, speed);
+    // Fish S2 понимает указания подачи, записанные прямо в тексте в
+    // квадратных скобках, и не произносит их вслух — это официальный
+    // способ управлять эмоцией, отдельного параметра в API нет.
+    const spoken = emotion ? `[${emotion}] ${text}` : text;
 
-    let response = await this.requestFishOnce(text, voice, v.speed, true);
+    let response = await this.requestFishOnce(spoken, voice, v.speed, true);
     if (!response.ok && this.isRetryableStatus(response.status)) {
       const errorBody = await response.text().catch(() => '');
       console.warn(`[FishAudioTtsService] быстрый путь ответил HTTP ${response.status}, повторяю с безопасными параметрами:`, errorBody.slice(0, 300));
-      response = await this.requestFishOnce(text, voice, v.speed, false);
+      response = await this.requestFishOnce(spoken, voice, v.speed, false);
     }
 
     if (!response.ok) {
@@ -233,12 +237,15 @@ export class FishAudioTtsService {
   // (см. комментарий про Cloudflare в tts.controller.ts), не streamTo().
   // Теперь сначала проверяем audioCache — при повторном запросе того же
   // текста+голоса+скорости отдаём мгновенно, без обращения к Fish вообще.
-  async synthesize(text: string, voice: string | undefined, speed: number = 1.0): Promise<Buffer> {
-    const cacheKey = this.audioCacheKey(text, voice, speed);
+  async synthesize(text: string, voice: string | undefined, speed: number = 1.0, emotion?: string): Promise<Buffer> {
+    // Подача (эмоция) — часть входа модели, значит и часть ключа кэша:
+    // иначе одна и та же фраза, произнесённая «спокойно» и «энергично»,
+    // отдавалась бы из кэша одинаковой.
+    const cacheKey = this.audioCacheKey(emotion ? `${emotion}::${text}` : text, voice, speed);
     const cached = this.readAudioCache(cacheKey);
     if (cached) return cached;
 
-    const response = await this.requestFish(text, voice, speed);
+    const response = await this.requestFish(text, voice, speed, emotion);
     const arrayBuf = await response.arrayBuffer();
     const buf = Buffer.from(arrayBuf);
     this.writeAudioCache(cacheKey, buf);

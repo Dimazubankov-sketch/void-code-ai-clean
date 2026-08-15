@@ -4,6 +4,8 @@ import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
 import { VoiceOrb } from '@/features/settings/VoiceOrb';
+import { EmotionSettings } from '@/features/settings/EmotionSettings';
+import { EMOTION_MODES, EMOTION_PRESETS, getEmotionSettings } from '@/shared/config/voiceEmotions';
 
 // ==========================================
 // VoiceSettings — раздел «Голос» в настройках
@@ -153,6 +155,12 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const [testing, setTesting] = useState(false);
     const [showLangModal, setShowLangModal] = useState(false);
     const [showModelModal, setShowModelModal] = useState(false);
+    const [showEmotions, setShowEmotions] = useState(false);
+
+    const emo = getEmotionSettings(state);
+    const emotionLabel = emo.mode === EMOTION_MODES.AUTO
+        ? 'Автоматически'
+        : (EMOTION_PRESETS.find((p) => p.id === emo.preset)?.name || 'Вручную');
 
     // Fish Audio S2.1 Pro — провайдер по умолчанию, в т.ч. для уже
     // существующих пользователей без сохранённого выбора (см. App.jsx).
@@ -267,6 +275,18 @@ export function VoiceSettings({ state, updateState, onClose }) {
                         </span>
                     </button>
 
+                    {/* Эмоции и тон голоса. Общий компонент с голосовыми
+                        настройками Voice Mode — второй реализации нет. */}
+                    <button onClick={() => setShowEmotions(true)} className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <span className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center"><Icons.Sparkles className="w-4 h-4" /></div>
+                            <span className="font-bold text-sm dark:text-white">Эмоции</span>
+                        </span>
+                        <span className="flex items-center gap-1.5 text-sm text-gray-400">
+                            {emotionLabel} <Icons.ChevronRight className="w-4 h-4" />
+                        </span>
+                    </button>
+
                     {/* Свайпаемая карусель голоса — единая для всех языков, набор
                         голосов зависит от выбранной модели озвучки (provider) выше. */}
                     <div
@@ -321,6 +341,9 @@ export function VoiceSettings({ state, updateState, onClose }) {
 
             {showLangModal && (
                 <VoiceLanguageModal uiLang={uiLang} current={lang} onChoose={setVoiceLang} onClose={() => setShowLangModal(false)} />
+            )}
+            {showEmotions && (
+                <EmotionSettings state={state} updateState={updateState} onClose={() => setShowEmotions(false)} />
             )}
             {showModelModal && (
                 <VoiceModelModal uiLang={uiLang} current={provider} onChoose={chooseModel} onClose={() => setShowModelModal(false)} />

@@ -6,7 +6,12 @@
 // в App.jsx, а не в ChatView — см. useVoiceMode.jsx) использовал ТУ ЖЕ
 // самую логику выбора голоса/провайдера, без дублирования и риска, что
 // со временем два места разойдутся.
-export function getVoiceOpts(state) {
+import { getEmotionSettings, buildEmotionCue } from '@/shared/config/voiceEmotions';
+
+// overrideEmotion — временная эмоция текущей голосовой сессии (голосовая
+// команда «говори спокойнее» и т.п.). Она НЕ сохраняется и перебивает
+// постоянные настройки только на время этой сессии.
+export function getVoiceOpts(state, overrideEmotion = null) {
     // Fish Audio S2.1 Pro — провайдер по умолчанию (в т.ч. для уже
     // существующих пользователей без сохранённого выбора, см. App.jsx).
     const provider = state.ttsProvider || 'fish';
@@ -19,5 +24,8 @@ export function getVoiceOpts(state) {
         speed: state.voiceRate || 1.0,
         // Оставляем lang для Web Speech-фолбэка.
         lang: state.voiceLang || 'ru-RU',
+        // Инструкция подачи для Fish S2 (пустая строка = подача по
+        // умолчанию, бэкенд её просто игнорирует).
+        emotion: buildEmotionCue(getEmotionSettings(state), overrideEmotion) || undefined,
     };
 }

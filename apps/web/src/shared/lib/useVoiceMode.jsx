@@ -3,6 +3,7 @@ import { useVoiceModeRecognition } from '@/shared/lib/useVoiceModeRecognition';
 import { useVoiceModeSpeech } from '@/shared/lib/useVoiceModeSpeech';
 import { playVoiceModeOpenChime, playVoiceModeCloseChime } from '@/shared/lib/voiceModeChime';
 import { createBackendChat, streamVoiceMessage } from '@/shared/api/chat';
+import { detectEmotionCommand } from '@/shared/config/voiceEmotions';
 import { BUILTIN_PERSONAS } from '@/features/chat/VoiceModeSettings';
 
 // ==========================================
@@ -72,7 +73,18 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     // уходил undefined, Fish брал голос по умолчанию, и от реплики к
     // реплике голос менялся. Теперь одна сессия — один голос.
     const sessionVoiceRef = useRef(null);
-    const sessionVoiceOpts = useCallback(() => sessionVoiceRef.current || voiceOpts(), [voiceOpts]);
+    // ВРЕМЕННАЯ эмоция текущей сессии: ставится голосовой командой
+    // («говори спокойнее»), живёт только до закрытия Voice Mode и НЕ
+    // трогает сохранённые настройки пользователя. При новом входе в
+    // режим обнуляется (см. open) — как и требует задача.
+    const sessionEmotionRef = useRef(null);
+    const sessionVoiceOpts = useCallback(() => ({
+        // Голос заморожен на сессию (иначе «плавал» между репликами),
+        // а эмоция берётся актуальная: временная команда должна
+        // подействовать сразу со следующей фразы.
+        ...(sessionVoiceRef.current || voiceOpts()),
+        ...(sessionEmotionRef.current ? voiceOpts(sessionEmotionRef.current) : {}),
+    }), [voiceOpts]);
 
     const speech = useVoiceModeSpeech();
 
@@ -190,6 +202,12 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     // уходит в очередь озвучки — не ждём, пока модель допишет весь ответ.
     const handleUtterance = useCallback(async (text) => {
         if (!text || !text.trim()) { setPhaseBoth(VOICE_MODE_PHASE.IDLE); return; }
+
+        // «Говори спокойнее / позитивнее / серьёзнее …» — меняем подачу
+        // ТОЛЬКО на эту сессию. Команду всё равно отправляем модели: она
+        // часть разговора, и ответ на неё должен прозвучать уже новым тоном.
+        const cmd = detectEmotionCommand(text);
+        if (cmd) sessionEmotionRef.current = cmd;
         if (phaseRef.current === VOICE_MODE_PHASE.THINKING) return;
         setPhaseBoth(VOICE_MODE_PHASE.THINKING);
 
@@ -334,6 +352,8 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         // Фиксируем голос сессии. Если явный голос ещё не выбран, берём
         // текущие настройки как есть — важно, что дальше он не меняется.
         sessionVoiceRef.current = voiceOpts();
+        // Новая сессия — временная эмоция прошлой сессии сбрасывается.
+        sessionEmotionRef.current = null;
 
         // Из Хаба голосовой разговор начинается в НОВОМ чате (иначе реплики
         // улетали бы в последний открытый). Из чата — продолжаем тот, в

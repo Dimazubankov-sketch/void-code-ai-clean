@@ -218,6 +218,7 @@ export function useVoiceModeSpeech() {
                 provider: opts.provider === 'openai' ? 'openai' : 'fish',
                 voice: opts.voice || undefined,
                 speed: opts.speed ?? 1.0,
+                emotion: opts.emotion || undefined,
             },
             signal,
         });

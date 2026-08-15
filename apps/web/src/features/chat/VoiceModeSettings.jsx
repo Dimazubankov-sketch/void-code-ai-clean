@@ -6,6 +6,8 @@ import { Icons } from '@/shared/ui/Icons';
 import { VOICE_PRESETS } from '@/features/settings/VoiceSettings';
 import { useFishVoices } from '@/shared/lib/useOpenAiTts';
 import { PERSONA_STICKERS, StickerIcon } from '@/features/chat/PersonaStickers';
+import { EmotionSettings } from '@/features/settings/EmotionSettings';
+import { EMOTION_MODES, EMOTION_PRESETS, getEmotionSettings } from '@/shared/config/voiceEmotions';
 
 // ==========================================
 // VoiceModeSettings — «Голосовые настройки» внутри Voice Mode
@@ -311,6 +313,7 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
     const [picker, setPicker] = useState(null);
     const [editorOpen, setEditorOpen] = useState(false);
     const [micOpen, setMicOpen] = useState(false);
+    const [emotionsOpen, setEmotionsOpen] = useState(false);
     const scope = useRef(null);
 
     // Появление блоков сверху вниз по очереди при входе в настройки.
@@ -335,6 +338,11 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
     const lang = state.voiceLang || 'ru-RU';
     const langLabel = (VOICE_MODE_LANGS.find((l) => l.id === lang) || VOICE_MODE_LANGS[0]).name;
     const rate = state.voiceRate || 1;
+
+    const emo = getEmotionSettings(state);
+    const emotionLabel = emo.mode === EMOTION_MODES.AUTO
+        ? 'Автоматически'
+        : (EMOTION_PRESETS.find((p) => p.id === emo.preset)?.name || 'Вручную');
 
     const savePersona = ({ sticker, name, instructions }) => {
         const persona = { id: `custom_${Date.now()}`, sticker, name, instructions };
@@ -375,6 +383,10 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
                         </div>
                     </div>
 
+                    {/* Эмоции — сразу после блока «Личность», как и в общих
+                        настройках голоса. Компонент общий, второй копии нет. */}
+                    <div className="vm-anim"><Row label="Эмоции" value={emotionLabel} onClick={() => setEmotionsOpen(true)} /></div>
+
                     <div className="vm-anim"><Row label="Язык озвучки" value={langLabel} onClick={() => setPicker('lang')} /></div>
 
                     <div className="vm-anim">
@@ -409,6 +421,7 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
             )}
             {editorOpen && <PersonaEditor onSave={savePersona} onClose={() => setEditorOpen(false)} />}
             {micOpen && <MicCheck onClose={() => setMicOpen(false)} />}
+            {emotionsOpen && <EmotionSettings state={state} updateState={updateState} onClose={() => setEmotionsOpen(false)} />}
         </div>
         </div>,
         document.body,

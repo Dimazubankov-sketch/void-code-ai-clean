@@ -216,6 +216,7 @@ export function useOpenAiTts() {
                     // Для OpenAI — имя голоса (nova и т.п.), для Fish —
                     // reference_id голоса или undefined (голос по умолчанию).
                     voice: opts.voice || (provider === 'openai' ? 'nova' : undefined),
+                    emotion: opts.emotion || undefined,
                     speed: opts.speed || 1.0,
                 },
             });
