@@ -23,6 +23,7 @@ import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
 import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
 import { getVoiceOpts } from '@/shared/lib/voiceOpts';
+import { RenameChatModal, DeleteChatModal, AddToProjectModal } from '@/features/chat/ChatActionModals';
 import { defaultReasoningFor, getAttachmentLimit } from '@/shared/config/models';
 import { getPlanLimits } from '@/shared/config/models';
 import { t } from '@/shared/lib/i18n';
@@ -125,6 +126,9 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     // Озвучка, фидбэк, шеринг. Приоритетно — через бэкенд (OpenAI TTS-1)
     // с фолбэком на Web Speech при ошибке.
     const tts = useOpenAiTts();
+    // Действия над чатом теперь в нормальных окнах, а не в системных
+    // prompt/confirm: те не стилизуются и обрезаются на мобильных.
+    const [chatAction, setChatAction] = useState(null); // {type, chat}
     const [ttsMsgIdx, setTtsMsgIdx] = useState(null);       // индекс озвучиваемого сообщения
     const [feedback, setFeedback] = useState(null);          // { idx, type }
     const [feedbackMap, setFeedbackMap] = useState({});      // idx -> 'like'|'dislike'
@@ -205,28 +209,14 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 });
                 setShareToast(chat.pinnedAt ? 'Чат откреплён' : 'Чат закреплён');
                 break;
-            case 'rename': {
-                const newTitle = window.prompt('Новое название чата', chat.title || '');
-                if (newTitle != null && newTitle.trim()) {
-                    updateState({
-                        chatSessions: state.chatSessions.map(c =>
-                            c.id === targetId ? { ...c, title: newTitle.trim() } : c
-                        ),
-                    });
-                }
+            case 'rename':
+                setChatAction({ type: 'rename', chat });
                 break;
-            }
             case 'moveToProj':
-                setShareToast('Функция «Добавить в проект» появится совсем скоро');
+                setChatAction({ type: 'project', chat });
                 break;
             case 'delete': {
-                if (!window.confirm(`Удалить чат «${chat.title || 'Без названия'}»?`)) return;
-                const remaining = state.chatSessions.filter(c => c.id !== targetId);
-                updateState({
-                    chatSessions: remaining,
-                    activeChatId: remaining[0]?.id || null,
-                    currentView: remaining.length === 0 ? 'home' : state.currentView,
-                });
+                setChatAction({ type: 'delete', chat });
                 break;
             }
             default:
@@ -867,6 +857,46 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 document.body
             )}
 
+            {chatAction?.type === 'rename' && (
+                <RenameChatModal
+                    chat={chatAction.chat}
+                    onClose={() => setChatAction(null)}
+                    onSave={(title) => updateState({
+                        chatSessions: state.chatSessions.map(c => c.id === chatAction.chat.id ? { ...c, title } : c),
+                    })}
+                />
+            )}
+            {chatAction?.type === 'delete' && (
+                <DeleteChatModal
+                    chat={chatAction.chat}
+                    onClose={() => setChatAction(null)}
+                    onConfirm={() => {
+                        const remaining = state.chatSessions.filter(c => c.id !== chatAction.chat.id);
+                        updateState({
+                            chatSessions: remaining,
+                            activeChatId: remaining[0]?.id || null,
+                            currentView: remaining.length === 0 ? 'home' : state.currentView,
+                        });
+                    }}
+                />
+            )}
+            {chatAction?.type === 'project' && (
+                <AddToProjectModal
+                    chat={chatAction.chat}
+                    projects={state.projects || []}
+                    onClose={() => setChatAction(null)}
+                    onPick={(projectId) => updateState({
+                        chatSessions: state.chatSessions.map(c => c.id === chatAction.chat.id ? { ...c, projectId } : c),
+                    })}
+                    onCreate={(name) => {
+                        const id = 'proj' + Date.now();
+                        updateState({
+                            projects: [{ id, name, createdAt: Date.now() }, ...(state.projects || [])],
+                            chatSessions: state.chatSessions.map(c => c.id === chatAction.chat.id ? { ...c, projectId: id } : c),
+                        });
+                    }}
+                />
+            )}
             {activeCodeBlock && <CodeViewerModal block={activeCodeBlock.block} siblings={activeCodeBlock.siblings} onClose={() => setActiveCodeBlock(null)} />}
             {showPlusMenu && (
                 <ChatPlusMenu

@@ -1,6 +1,7 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { createOrbController } from '@/shared/lib/orbAnimation';
 
 // ==========================================
 // VoiceOrb — большой «живой» круг во вкладке Голос
@@ -19,32 +20,31 @@ import { useGSAP } from '@gsap/react';
 // первопричиной сбоев. Импульсную имитацию, пришедшую ей на замену,
 // теперь тоже убираем — остаётся только «дыхание», без реакции на
 // проигрывание вообще.
-export function VoiceOrb({ colorFrom, colorTo, size = 128 }) {
+// state — 'idle' | 'speaking' | 'listening' | 'thinking'. Приходит извне и
+// отражает РЕАЛЬНОЕ воспроизведение (см. VoiceSettings: привязка к
+// tts.speaking, а не к моменту отправки запроса).
+export function VoiceOrb({ colorFrom, colorTo, size = 128, state = 'idle' }) {
     const scope = useRef(null);
     const coreRef = useRef(null);
     const halo1Ref = useRef(null);
     const halo2Ref = useRef(null);
 
-    // ---- Единственная анимация — «дыхание» покоя, только scale ----
-    useGSAP(() => {
-        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (reduce) return;
+    // Анимацию ведёт общий контроллер (см. orbAnimation.jsx): один
+    // таймлайн на орб, смена состояния убивает предыдущий — повторные
+    // нажатия «Проверить голос» не копят анимации. GSAP здесь никогда не
+    // стоит в цепочке ожидания TTS: сюда прилетает уже готовое состояние.
+    const controllerRef = useRef(null);
+    if (!controllerRef.current) controllerRef.current = createOrbController();
 
-        const coreTween = gsap.to('.orb-core', {
-            scale: 1.06,
-            duration: 2.2,
-            ease: 'sine.inOut',
-            yoyo: true,
-            repeat: -1,
-        });
+    useEffect(() => {
+        const c = controllerRef.current;
+        c.attach(coreRef.current);
+        return () => c.destroy();
+    }, []);
 
-        gsap.set('.orb-halo-1', { autoAlpha: 0.28 });
-        gsap.set('.orb-halo-2', { autoAlpha: 0.22 });
-        const halo1Tween = gsap.to('.orb-halo-1', { scale: 1.15, duration: 2.6, ease: 'sine.inOut', yoyo: true, repeat: -1 });
-        const halo2Tween = gsap.to('.orb-halo-2', { scale: 1.22, duration: 3.0, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.6 });
-
-        return () => { coreTween?.kill(); halo1Tween?.kill(); halo2Tween?.kill(); };
-    }, { scope });
+    useEffect(() => {
+        controllerRef.current.setState(state);
+    }, [state]);
 
     // ---- Плавная смена цвета голоса ----
     const buildGradient = (from, to) =>

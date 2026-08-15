@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Icons } from '@/shared/ui/Icons';
@@ -19,7 +19,7 @@ import {
 // Фича доступна на всех тарифах. Если понадобится закрыть подпиской,
 // достаточно одной проверки в getVoiceOpts — интерфейс трогать не нужно.
 
-function Slider({ label, value, onChange }) {
+function Slider({ label, value, onChange, disabled }) {
     // Короткий отклик на изменение: цифра «подпрыгивает». Без этого при
     // перетаскивании непонятно, зафиксировалось ли значение — особенно на
     // телефоне, где палец закрывает сам ползунок.
@@ -30,13 +30,14 @@ function Slider({ label, value, onChange }) {
         }
     };
     return (
-        <div className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-white/[0.06]">
+        <div className={`px-4 py-3 rounded-2xl bg-gray-100 dark:bg-white/[0.06] transition-opacity ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
             <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">{label}</span>
                 <span ref={valueRef} className="text-xs font-bold text-[#5b32d4] tabular-nums inline-block">{value}%</span>
             </div>
             <input
                 type="range" min="0" max="100" step="5" value={value}
+                disabled={disabled}
                 onChange={(e) => { onChange(parseInt(e.target.value, 10)); bump(); }}
                 className="w-full accent-[#5b32d4]"
             />
@@ -46,9 +47,10 @@ function Slider({ label, value, onChange }) {
 
 export function EmotionSettings({ state, updateState, onClose }) {
     const scope = useRef(null);
-    const manualRef = useRef(null);
+    const infoRef = useRef(null);
+    const [infoOpen, setInfoOpen] = useState(false);
     const s = getEmotionSettings(state);
-    const isManual = s.mode === EMOTION_MODES.MANUAL;
+    const isAuto = s.mode === EMOTION_MODES.AUTO;
 
     const patch = (changes) => updateState({ voiceEmotion: { ...s, ...changes } });
 
@@ -58,16 +60,16 @@ export function EmotionSettings({ state, updateState, onClose }) {
         gsap.from('.em-anim', { y: 16, autoAlpha: 0, duration: 0.3, ease: 'power2.out', stagger: 0.05, clearProps: 'all' });
     }, { scope });
 
-    // Ручной блок плавно раскрывается/скрывается при переключении режима.
+    // Подробное пояснение раскрывается плавно по стрелке.
     useGSAP(() => {
-        const el = manualRef.current;
+        const el = infoRef.current;
         if (!el) return;
-        if (isManual) {
-            gsap.fromTo(el, { height: 0, autoAlpha: 0 }, { height: 'auto', autoAlpha: 1, duration: 0.34, ease: 'power2.out' });
+        if (infoOpen) {
+            gsap.fromTo(el, { height: 0, autoAlpha: 0 }, { height: 'auto', autoAlpha: 1, duration: 0.32, ease: 'power2.out' });
         } else {
-            gsap.to(el, { height: 0, autoAlpha: 0, duration: 0.22, ease: 'power2.in' });
+            gsap.to(el, { height: 0, autoAlpha: 0, duration: 0.2, ease: 'power2.in' });
         }
-    }, { dependencies: [isManual] });
+    }, { dependencies: [infoOpen] });
 
     return (
         <div className="fixed inset-0 z-[255] md:bg-black/40 md:backdrop-blur-sm flex md:items-center md:justify-center fade-in" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -80,58 +82,58 @@ export function EmotionSettings({ state, updateState, onClose }) {
                     <div className="w-10 shrink-0" />
                 </div>
 
-                <div className="flex-1 overflow-y-auto void-no-scrollbar px-4 md:px-6 pb-10 space-y-5">
-                    {/* Режим */}
-                    <div className="em-anim grid grid-cols-2 gap-2">
-                        {[
-                            { id: EMOTION_MODES.AUTO, name: 'Автоматически', hint: 'ИИ подбирает подачу сам' },
-                            { id: EMOTION_MODES.MANUAL, name: 'Вручную', hint: 'Свой стиль голоса' },
-                        ].map((m) => (
+                <div className="flex-1 overflow-y-auto void-no-scrollbar px-4 md:px-6 pb-10 space-y-4">
+                    {/* Один экран вместо двух вкладок: сверху тумблер
+                        «Автоматически», ниже — ручные настройки, которые
+                        гаснут и перестают нажиматься, пока авто включён.
+                        Так видно и текущий режим, и что именно он отключает. */}
+                    <div className="em-anim rounded-2xl bg-gray-100 dark:bg-white/[0.06] overflow-hidden">
+                        <div className="flex items-center gap-3 px-4 py-3.5">
                             <button
-                                key={m.id}
-                                onClick={() => patch({ mode: m.id })}
-                                className={`px-4 py-3 rounded-2xl text-left transition-colors ${s.mode === m.id ? 'bg-[#5b32d4] text-white' : 'bg-gray-100 dark:bg-white/[0.06] text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10'}`}
+                                onClick={() => setInfoOpen((v) => !v)}
+                                className="void-tap-target w-6 h-6 shrink-0 flex items-center justify-center text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors"
+                                title="Подробнее"
                             >
-                                <span className="block text-sm font-bold">{m.name}</span>
-                                <span className={`block text-[11px] leading-tight mt-0.5 ${s.mode === m.id ? 'text-white/70' : 'text-gray-400'}`}>{m.hint}</span>
+                                <Icons.ChevronRight className={`w-4 h-4 transition-transform ${infoOpen ? 'rotate-90' : ''}`} />
                             </button>
-                        ))}
+                            <span className="flex-1 font-bold text-[15px] text-gray-900 dark:text-white">Автоматически</span>
+                            <button
+                                onClick={() => patch({ mode: isAuto ? EMOTION_MODES.MANUAL : EMOTION_MODES.AUTO })}
+                                className={`w-12 h-7 rounded-full p-1 transition-colors flex items-center shrink-0 ${isAuto ? 'bg-[#5b32d4]' : 'bg-gray-300 dark:bg-gray-700'}`}
+                            >
+                                <span className={`w-5 h-5 bg-white rounded-full transition-transform ${isAuto ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+                        <div ref={infoRef} className="overflow-hidden" style={{ height: 0, opacity: 0 }}>
+                            <p className="px-4 pb-4 text-xs text-gray-500 dark:text-white/60 leading-relaxed">
+                                Подача выбирается по смыслу самого ответа: серьёзный вопрос прозвучит сдержанно, а хорошая новость — живее. Выключите автоматический режим, чтобы задать стиль голоса вручную.
+                            </p>
+                        </div>
                     </div>
 
-                    {s.mode === EMOTION_MODES.AUTO && (
-                        <p className="em-anim text-xs text-gray-400 leading-relaxed px-1">
-                            В автоматическом режиме подача выбирается по смыслу самого ответа: серьёзный вопрос прозвучит сдержанно, а хорошая новость — живее.
-                        </p>
-                    )}
-
-                    {/* Ручной блок */}
-                    <div ref={manualRef} className="overflow-hidden" style={{ height: 0, opacity: 0 }}>
-                        <div className="space-y-5 pt-1">
-                            <div>
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Стиль</p>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    {EMOTION_PRESETS.map((p) => (
-                                        <button
-                                            key={p.id}
-                                            onClick={() => patch({ preset: p.id })}
-                                            className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${s.preset === p.id ? 'bg-[#5b32d4] text-white' : 'bg-gray-100 dark:bg-white/[0.06] text-gray-700 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/10'}`}
-                                        >
-                                            {p.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="space-y-2.5">
-                                <Slider label="Эмоциональность" value={s.expressiveness} onChange={(v) => patch({ expressiveness: v })} />
-                                <Slider label="Энергичность" value={s.energy} onChange={(v) => patch({ energy: v })} />
-                                <Slider label="Теплота" value={s.warmth} onChange={(v) => patch({ warmth: v })} />
-                                {/* Скорость намеренно тут же, но пишется в voiceRate —
-                                    то же поле, что и в голосовых настройках, чтобы не
-                                    заводить второй источник правды. */}
-                                <Slider label="Скорость" value={Math.round(((state.voiceRate || 1) - 0.5) / 1.5 * 100)} onChange={(v) => updateState({ voiceRate: +(0.5 + (v / 100) * 1.5).toFixed(1) })} />
-                            </div>
+                    <div className={`em-anim transition-opacity ${isAuto ? 'opacity-40' : ''}`}>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Стиль</p>
+                        <div className={`grid grid-cols-2 sm:grid-cols-3 gap-2 ${isAuto ? 'pointer-events-none' : ''}`}>
+                            {EMOTION_PRESETS.map((p) => (
+                                <button
+                                    key={p.id}
+                                    onClick={() => patch({ preset: p.id })}
+                                    className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-colors ${!isAuto && s.preset === p.id ? 'bg-[#5b32d4] text-white' : 'bg-gray-100 dark:bg-white/[0.06] text-gray-700 dark:text-white/80 hover:bg-gray-200 dark:hover:bg-white/10'}`}
+                                >
+                                    {p.name}
+                                </button>
+                            ))}
                         </div>
+                    </div>
+
+                    <div className="em-anim space-y-2.5">
+                        <Slider label="Эмоциональность" value={s.expressiveness} disabled={isAuto} onChange={(v) => patch({ expressiveness: v })} />
+                        <Slider label="Энергичность" value={s.energy} disabled={isAuto} onChange={(v) => patch({ energy: v })} />
+                        <Slider label="Теплота" value={s.warmth} disabled={isAuto} onChange={(v) => patch({ warmth: v })} />
+                        {/* Скорость пишется в voiceRate — то же поле, что и в
+                            голосовых настройках, второго источника правды нет.
+                            Она работает и в авто-режиме, поэтому не гаснет. */}
+                        <Slider label="Скорость" value={Math.round(((state.voiceRate || 1) - 0.5) / 1.5 * 100)} onChange={(v) => updateState({ voiceRate: +(0.5 + (v / 100) * 1.5).toFixed(1) })} />
                     </div>
 
                     <p className="em-anim text-xs text-gray-400 leading-relaxed px-1">

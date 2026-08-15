@@ -4,6 +4,7 @@ import { useGSAP } from '@gsap/react';
 import { BANKS, getBanks, getCurrency, formatCurrency, convertPrice } from '@/shared/config/banks';
 import { formatMoney, formatPrice } from '@/shared/lib/format';
 import { goBack } from '@/shared/lib/navigation';
+import { subscribeBackend } from '@/shared/api/billing';
 import { Icons } from '@/shared/ui/Icons';
 
 
@@ -103,7 +104,7 @@ export function PricingView({ state, updateState }) {
         return errors;
     };
 
-    const handleConfirmPayment = () => {
+    const handleConfirmPayment = async () => {
         // Защита: неавторизованный пользователь не может оформить подписку.
         // Просто на случай, если он как-то попал на этот экран без входа.
         if (!state.user) {
@@ -117,6 +118,14 @@ export function PricingView({ state, updateState }) {
             const balance = state.walletBalance || 0;
             if (balance < price) {
                 alert(`Недостаточно средств на балансе. Не хватает ${money(price - balance)} — пополните кошелёк и попробуйте снова.`);
+                return;
+            }
+            // Фиксируем подписку на сервере ДО обновления интерфейса:
+            // именно серверный user.plan открывает платные зоны.
+            try {
+                await subscribeBackend(state.checkoutPlan.id, state.billingCycle === 'year' ? 'YEAR' : 'MONTH');
+            } catch (e) {
+                alert(e?.message || 'Не удалось оформить подписку. Попробуйте ещё раз.');
                 return;
             }
             const now = Date.now();
@@ -140,6 +149,12 @@ export function PricingView({ state, updateState }) {
             return;
         }
         setPaymentErrors({});
+        try {
+            await subscribeBackend(state.checkoutPlan.id, state.billingCycle === 'year' ? 'YEAR' : 'MONTH');
+        } catch (e) {
+            alert(e?.message || 'Не удалось оформить подписку. Попробуйте ещё раз.');
+            return;
+        }
         const acctKey2 = (state.user?.email || '').trim().toLowerCase();
         updateState({
             userPlan: state.checkoutPlan.id, checkoutPlan: null, currentView: 'settings', usedDailyLimits: 0,

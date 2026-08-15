@@ -296,6 +296,44 @@ export function VoiceSettings({ state, updateState, onClose }) {
                         </span>
                     </button>
 
+                    {/* Свайпаемая карусель голоса — единая для всех языков, набор
+                        голосов зависит от выбранной модели озвучки (provider) выше. */}
+                    <div
+                        className="select-none"
+                        onTouchStart={onTouchStart}
+                        onTouchEnd={onTouchEnd}
+                        onWheel={onWheel}
+                    >
+                        <div className="flex items-center justify-center gap-4">
+                            <button onClick={() => applyPreset(presetIdx - 1)} className="p-2 rounded-full text-gray-300 hover:text-[#5b32d4] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"><Icons.ChevronLeft className="w-6 h-6" /></button>
+                            <div className="flex flex-col items-center gap-3">
+                                <VoiceOrb
+                                    colorFrom={preset.colorFrom}
+                                    colorTo={preset.colorTo}
+                                    size={128}
+                                    /* speaking только когда звук РЕАЛЬНО играет;
+                                       пока идёт запрос — thinking, при ошибке
+                                       tts сам сбросит speaking и орб вернётся
+                                       в idle, зависнуть в speaking нельзя. */
+                                    state={tts.speaking ? 'speaking' : tts.loading ? 'thinking' : 'idle'}
+                                />
+                                <div className="text-center">
+                                    <p className="font-extrabold text-lg dark:text-white">{preset.name}</p>
+                                    <p className="text-xs text-gray-400">{preset.desc}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => applyPreset(presetIdx + 1)} className="p-2 rounded-full text-gray-300 hover:text-[#5b32d4] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"><Icons.ChevronRight className="w-6 h-6" /></button>
+                        </div>
+                        <div className="flex items-center justify-center gap-1.5 mt-4">
+                            {currentList.map((p, i) => (
+                                <button key={p.id || 'default'} onClick={() => applyPreset(i)} className={`rounded-full transition-all ${i === presetIdx ? 'w-4 h-1.5 bg-[#5b32d4]' : 'w-1.5 h-1.5 bg-gray-300 dark:bg-gray-700'}`} />
+                            ))}
+                        </div>
+                        {provider === 'fish' && fishVoicesLoading && (
+                            <p className="text-center text-xs text-gray-400 mt-2">Загружаю голоса Fish Audio…</p>
+                        )}
+                    </div>
+
                     {/* Создание своего голоса: клон по записи или генерация по
                         описанию. Доступность и суточный лимит проверяет сервер —
                         здесь кнопка есть всегда, а неоплаченный тариф увидит
@@ -345,39 +383,6 @@ export function VoiceSettings({ state, updateState, onClose }) {
                             {emotionLabel} <Icons.ChevronRight className="w-4 h-4" />
                         </span>
                     </button>
-
-                    {/* Свайпаемая карусель голоса — единая для всех языков, набор
-                        голосов зависит от выбранной модели озвучки (provider) выше. */}
-                    <div
-                        className="select-none"
-                        onTouchStart={onTouchStart}
-                        onTouchEnd={onTouchEnd}
-                        onWheel={onWheel}
-                    >
-                        <div className="flex items-center justify-center gap-4">
-                            <button onClick={() => applyPreset(presetIdx - 1)} className="p-2 rounded-full text-gray-300 hover:text-[#5b32d4] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"><Icons.ChevronLeft className="w-6 h-6" /></button>
-                            <div className="flex flex-col items-center gap-3">
-                                <VoiceOrb
-                                    colorFrom={preset.colorFrom}
-                                    colorTo={preset.colorTo}
-                                    size={128}
-                                />
-                                <div className="text-center">
-                                    <p className="font-extrabold text-lg dark:text-white">{preset.name}</p>
-                                    <p className="text-xs text-gray-400">{preset.desc}</p>
-                                </div>
-                            </div>
-                            <button onClick={() => applyPreset(presetIdx + 1)} className="p-2 rounded-full text-gray-300 hover:text-[#5b32d4] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"><Icons.ChevronRight className="w-6 h-6" /></button>
-                        </div>
-                        <div className="flex items-center justify-center gap-1.5 mt-4">
-                            {currentList.map((p, i) => (
-                                <button key={p.id || 'default'} onClick={() => applyPreset(i)} className={`rounded-full transition-all ${i === presetIdx ? 'w-4 h-1.5 bg-[#5b32d4]' : 'w-1.5 h-1.5 bg-gray-300 dark:bg-gray-700'}`} />
-                            ))}
-                        </div>
-                        {provider === 'fish' && fishVoicesLoading && (
-                            <p className="text-center text-xs text-gray-400 mt-2">Загружаю голоса Fish Audio…</p>
-                        )}
-                    </div>
 
                     {/* Язык — одна строка, открывает модалку со списком и поиском */}
                     <button onClick={() => setShowLangModal(true)} className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">

@@ -29,10 +29,14 @@ function IconCircleButton({ onClick, title, children, solid = false }) {
             onMouseUp={onUp}
             onTouchStart={onDown}
             onTouchEnd={onUp}
-            className={`void-tap-target flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+            /* Стекло: полупрозрачный фон + backdrop-blur. Текст чата под
+               кнопкой остаётся едва различимым — именно этого требует
+               референс. solid больше не делает кнопку непрозрачной, он
+               лишь чуть плотнее: сплошной белый разрушал бы эффект. */
+            className={`void-tap-target flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-xl border shadow-sm ${
                 solid
-                    ? 'bg-white dark:bg-darkCard shadow-md border border-gray-200 dark:border-darkBorder text-gray-800 dark:text-gray-200'
-                    : 'bg-white/15 dark:bg-white/10 backdrop-blur-md border border-white/25 dark:border-white/10 text-gray-800 dark:text-white shadow-sm'
+                    ? 'bg-white/60 dark:bg-white/[0.14] border-white/50 dark:border-white/15 text-gray-900 dark:text-white'
+                    : 'bg-white/45 dark:bg-white/[0.10] border-white/40 dark:border-white/10 text-gray-900 dark:text-white'
             }`}
             style={{ willChange: 'transform' }}
         >
@@ -68,7 +72,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     const ModelSelectorBlock = (
         <div className="flex items-center gap-1.5">
             <div className="relative min-w-0">
-                <button onClick={() => setShowDropdown(!showDropdown)} className="void-tap-target flex items-center gap-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded-xl transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none">
+                <button onClick={() => setShowDropdown(!showDropdown)} className="void-tap-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/45 dark:bg-white/[0.10] backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-sm hover:bg-white/60 dark:hover:bg-white/[0.16] transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none">
                     <div className="flex items-center gap-1 font-extrabold text-[13px] sm:text-[15px] md:text-lg dark:text-white leading-tight min-w-0">
                         <span className="truncate">{activeModel.name}</span> <Icons.ChevronDown className="w-4 h-4 flex-shrink-0" />
                     </div>
@@ -168,7 +172,16 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     // сколько кнопок в левой/правой группе.
     if (inChatView) {
         return (
-            <div className="sticky top-0 z-30 bg-white dark:bg-darkBg px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            /* Белой шапки больше нет. Вместо неё — прозрачный слой, под
+               которым лежит мягкий градиент от фона страницы к прозрачному:
+               контент чата уходит под шапку и плавно «растворяется», а не
+               обрезается белой полосой. pointer-events-none у градиента,
+               чтобы он не перехватывал клики и скролл. */
+            <div className="sticky top-0 z-30 px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <div
+                    aria-hidden
+                    className="absolute inset-x-0 top-0 h-24 -z-10 pointer-events-none bg-gradient-to-b from-white via-white/75 to-transparent dark:from-darkBg dark:via-darkBg/75 dark:to-transparent"
+                />
                 <div className="flex items-center justify-self-start">
                     <IconCircleButton onClick={() => updateState({ currentView: 'home' })} title="Назад">
                         <Icons.ChevronLeft className="w-5 h-5" />

@@ -181,10 +181,10 @@ export class VoiceService {
   // Лимит здесь НЕ расходуется: это предпрослушка, постоянная модель ещё
   // не создаётся. Слот займётся на шаге сохранения (designSave).
   async designPreview(userId: string, instruction: string, referenceText: string, language: string, meta: ConsentMeta) {
-    // Даже на этапе предпрослушки не даём описывать чужой/публичный голос.
-    await this.compliance.assertConsentAndContent({
-      userId, consent: true, title: instruction, ip: meta.ip, userAgent: meta.userAgent,
-    });
+    // На предпрослушке достаточно убедиться, что аккаунт не заблокирован:
+    // содержимое описания не фильтруем (см. пояснение в
+    // voice-compliance.service.ts о том, почему эвристика убрана).
+    await this.compliance.assertNotBanned(userId);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {

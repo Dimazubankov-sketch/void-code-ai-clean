@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
 import { useLongPressMenu } from '@/shared/lib/useLongPressMenu';
+import { RenameChatModal, DeleteChatModal, AddToProjectModal } from '@/features/chat/ChatActionModals';
 import { ChatActionsMenu } from '@/features/chat/ChatActionsMenu';
 import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
 
@@ -51,6 +52,7 @@ const sortChats = (chats) => {
 // ==========================================
 export function RightMenu({ state, updateState }) {
     const lang = state.lang || 'ru';
+    const [chatAction, setChatAction] = useState(null); // {type, chat}
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     if (!state.user) return null;
@@ -126,23 +128,14 @@ export function RightMenu({ state, updateState }) {
                 case 'pin':
                     togglePin(chat);
                     break;
-                case 'rename': {
-                    const newTitle = window.prompt(t(lang, 'menu.renameChat') || 'Новое название чата', chat.title || '');
-                    if (newTitle != null && newTitle.trim()) {
-                        updateState({
-                            chatSessions: state.chatSessions.map(c =>
-                                c.id === chat.id ? { ...c, title: newTitle.trim() } : c
-                            ),
-                        });
-                    }
+                case 'rename':
+                    setChatAction({ type: 'rename', chat });
                     break;
-                }
                 case 'moveToProj':
-                    // Пока — заглушка, полноценный picker будущей итерации
-                    window.alert('Функция «Добавить в проект» появится совсем скоро');
+                    setChatAction({ type: 'project', chat });
                     break;
                 case 'delete':
-                    deleteChat(chat);
+                    setChatAction({ type: 'delete', chat });
                     break;
                 default:
                     break;
@@ -277,7 +270,41 @@ export function RightMenu({ state, updateState }) {
                     onClose={() => { setSearchOpen(false); setSearchQuery(''); }}
                 />
             )}
+            {chatAction?.type === 'rename' && (
+                <RenameChatModal
+                    chat={chatAction.chat}
+                    onClose={() => setChatAction(null)}
+                    onSave={(title) => updateState({
+                        chatSessions: state.chatSessions.map(c => c.id === chatAction.chat.id ? { ...c, title } : c),
+                    })}
+                />
+            )}
+            {chatAction?.type === 'delete' && (
+                <DeleteChatModal
+                    chat={chatAction.chat}
+                    onClose={() => setChatAction(null)}
+                    onConfirm={() => deleteChat(chatAction.chat)}
+                />
+            )}
+            {chatAction?.type === 'project' && (
+                <AddToProjectModal
+                    chat={chatAction.chat}
+                    projects={state.projects || []}
+                    onClose={() => setChatAction(null)}
+                    onPick={(projectId) => updateState({
+                        chatSessions: state.chatSessions.map(c => c.id === chatAction.chat.id ? { ...c, projectId } : c),
+                    })}
+                    onCreate={(name) => {
+                        const id = 'proj' + Date.now();
+                        updateState({
+                            projects: [{ id, name, createdAt: Date.now() }, ...(state.projects || [])],
+                            chatSessions: state.chatSessions.map(c => c.id === chatAction.chat.id ? { ...c, projectId: id } : c),
+                        });
+                    }}
+                />
+            )}
         </>
+
     );
 }
 

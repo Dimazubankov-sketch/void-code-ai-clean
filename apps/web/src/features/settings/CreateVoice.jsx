@@ -28,8 +28,13 @@ export const CONSENT_TEXT =
     'и я разрешаю Void Code использовать его для синтеза речи в рамках моего аккаунта.';
 
 const CLONING_WARNING_TEXT =
-    'Запрещено клонировать чужие голоса, голоса публичных персон и персонажей ' +
-    'без документального разрешения правообладателя.';
+    'Клонировать можно только свой голос или голос, на который у вас есть права. ' +
+    'Клонирование чужих голосов, голосов публичных персон и защищённых авторским ' +
+    'правом персонажей запрещено.';
+
+const CLONING_CONSEQUENCE_TEXT =
+    'При нарушении аккаунт блокируется без возможности зарегистрироваться заново. ' +
+    'Оплаченный тариф в этом случае не возвращается и не компенсируется.';
 
 // Метка синтетической речи — по умолчанию видна везде, где звучит
 // сгенерированный голос: в превью при создании и в плеере озвучки.
@@ -49,6 +54,7 @@ function ConsentBlock({ checked, onChange, onOpenLegal }) {
         <div className="space-y-3">
             <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20">
                 <p className="text-xs text-amber-900 dark:text-amber-200/90 leading-relaxed">{CLONING_WARNING_TEXT}</p>
+                <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 leading-relaxed mt-1.5">{CLONING_CONSEQUENCE_TEXT}</p>
             </div>
             <label className="flex items-start gap-3 cursor-pointer select-none">
                 <span className={`mt-0.5 w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors ${checked ? 'bg-[#5b32d4] border-[#5b32d4] text-white' : 'border-gray-300 dark:border-white/25'}`}>
