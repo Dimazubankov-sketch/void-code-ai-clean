@@ -165,8 +165,11 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
                 if (!loudSince) loudSince = now;
                 if (now - loudSince >= BARGE_IN_SUSTAIN_MS) {
                     // Перебили — глушим Сару и снова слушаем.
+                    // Перебивание: обрываем поток LLM и мягко гасим голос
+                    // (см. stopGraceful) — Сара затихает примерно за секунду,
+                    // а не обрывается на полуслове рывком.
                     try { streamAbortRef.current?.abort(); } catch { /* noop */ }
-                    speech.stop();
+                    speech.stopGraceful(900);
                     pendingReplyRef.current = false;
                     recognition.resume();
                     setPhaseBoth(VOICE_MODE_PHASE.LISTENING);
@@ -275,7 +278,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         if (mutedRef.current) return;
         if (phaseRef.current === VOICE_MODE_PHASE.SPEAKING) {
             try { streamAbortRef.current?.abort(); } catch { /* noop */ }
-            speech.stop();
+            speech.stopGraceful(900);
             pendingReplyRef.current = false;
             recognition.resume();
             setPhaseBoth(VOICE_MODE_PHASE.LISTENING);

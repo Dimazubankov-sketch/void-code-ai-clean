@@ -5,8 +5,6 @@ import { useGSAP } from '@gsap/react';
 import { Icons } from '@/shared/ui/Icons';
 import { VoiceModeOrb } from '@/features/chat/VoiceModeOrb';
 import { VOICE_MODE_PHASE } from '@/shared/lib/useVoiceMode';
-import { VOICE_PRESETS } from '@/features/settings/VoiceSettings';
-import { useFishVoices } from '@/shared/lib/useOpenAiTts';
 import { VoiceModeSettings } from '@/features/chat/VoiceModeSettings';
 
 // ==========================================
@@ -65,41 +63,6 @@ function PressIconButton({ onClick, title, className, children }) {
     );
 }
 
-// Компактный выбор голоса прямо внутри Voice Mode — «модель» (Fish/OpenAI)
-// здесь сознательно не трогаем, только список голосов ТЕКУЩЕГО провайдера
-// (тот же провайдер и голос, что и в обычном чате/Настройках — отдельной
-// системы голосов нет).
-function VoicePicker({ voices, selectedId, onChoose, onClose }) {
-    return (
-        <div className="fixed inset-0 z-[230] bg-black/40 backdrop-blur-sm flex items-end sm:items-center sm:justify-center fade-in" onClick={onClose}>
-            <div className="bg-white dark:bg-[#150d28] w-full sm:max-w-sm sm:rounded-3xl rounded-t-3xl shadow-2xl slide-in-right max-h-[70vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between px-5 py-4 shrink-0">
-                    <h4 className="font-extrabold text-gray-900 dark:text-white">Голос</h4>
-                    <button onClick={onClose} className="void-tap-target w-9 h-9 rounded-full flex items-center justify-center text-gray-400 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
-                        <Icons.X className="w-4 h-4" />
-                    </button>
-                </div>
-                <div className="flex-1 overflow-y-auto px-3 pb-4">
-                    {voices.map((v) => (
-                        <button
-                            key={v.id || 'default'}
-                            onClick={() => onChoose(v.id)}
-                            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-left transition-colors ${selectedId === v.id ? 'bg-gray-100 dark:bg-white/10' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}
-                        >
-                            <span>
-                                <span className="block font-semibold text-sm text-gray-900 dark:text-white">{v.name}</span>
-                                {v.desc && <span className="block text-xs text-gray-400 dark:text-white/50">{v.desc}</span>}
-                            </span>
-                            {selectedId === v.id && <Icons.Check className="w-4 h-4 text-[#5b32d4] dark:text-[#8b6ef0] shrink-0" />}
-                        </button>
-                    ))}
-                    {voices.length === 0 && <p className="text-center text-sm text-gray-400 dark:text-white/40 py-10">Список голосов загружается…</p>}
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // Модалка «лимит озвучки исчерпан» (задача 2) — не тихий статус-текст, а
 // явное предупреждение с иконкой. Показывается и сразу при исчерпании
 // лимита во время разговора, и при каждом новом заходе в Voice Mode, пока
@@ -128,23 +91,7 @@ function LimitModal({ onClose }) {
 
 export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
     const { phase, muted, errorMsg, primaryTap, toggleMute, analyserRef, speechAudioRef, speechEnvelopeRef } = voiceMode;
-    const [showVoicePicker, setShowVoicePicker] = useState(false);
     const [showVoiceSettings, setShowVoiceSettings] = useState(false);
-
-    const provider = state.ttsProvider || 'fish';
-    const { voices: fishVoices } = useFishVoices();
-    const currentList = provider === 'openai'
-        ? VOICE_PRESETS
-        : fishVoices.map((v) => ({ id: v.id, name: v.title, desc: v.description }));
-    const selectedVoiceId = provider === 'openai' ? (state.voicePreset || 'nova') : (state.voicePresetFish || currentList[0]?.id || '');
-    const voiceLabel = (currentList.find((v) => v.id === selectedVoiceId) || currentList[0])?.name
-        || (provider === 'openai' ? 'Nova' : 'Fish Audio');
-
-    const chooseVoice = (id) => {
-        if (provider === 'openai') updateState({ voicePreset: id });
-        else updateState({ voicePresetFish: id });
-        setShowVoicePicker(false);
-    };
 
     // Esc закрывает Voice Mode — стандартный ожидаемый способ выйти
     useEffect(() => {
@@ -168,22 +115,16 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
             {/* Выбор голоса — тап по названию вверху. Отдельной кнопки
                 закрытия здесь больше нет (задача: единственный крестик — у
                 микрофона внизу), сам оверлей не закрывается кликом сюда. */}
-            <div className="w-full flex items-center justify-between">
-                <button
-                    onClick={() => setShowVoicePicker(true)}
-                    className="void-tap-target flex items-center gap-1.5 text-gray-400 dark:text-white/60 hover:text-gray-900 dark:hover:text-white text-xs font-semibold uppercase tracking-wide transition-colors"
-                >
-                    {voiceLabel}
-                    <Icons.ChevronRight className="w-3.5 h-3.5" />
-                </button>
-                {/* Голосовые настройки — кнопка-ползунки в правом верхнем углу */}
-                <button
+            {/* Выбор голоса отсюда убран — он живёт в «Голосовых настройках»
+                (кнопка справа), дублировать его в шапке незачем. */}
+            <div className="w-full flex items-center justify-end">
+                <PressIconButton
                     onClick={() => setShowVoiceSettings(true)}
                     title="Голосовые настройки"
                     className="void-tap-target w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-white flex items-center justify-center transition-colors"
                 >
                     <Icons.Sliders className="w-5 h-5" />
-                </button>
+                </PressIconButton>
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center gap-8">
@@ -210,15 +151,6 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose }) {
                     <Icons.X className="w-6 h-6" />
                 </PressIconButton>
             </div>
-
-            {showVoicePicker && (
-                <VoicePicker
-                    voices={currentList}
-                    selectedId={selectedVoiceId}
-                    onChoose={chooseVoice}
-                    onClose={() => setShowVoicePicker(false)}
-                />
-            )}
 
             {showVoiceSettings && (
                 <VoiceModeSettings state={state} updateState={updateState} onClose={() => setShowVoiceSettings(false)} />

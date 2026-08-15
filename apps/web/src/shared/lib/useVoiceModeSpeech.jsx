@@ -157,6 +157,41 @@ export function useVoiceModeSpeech() {
         urlsRef.current = [];
     }, []);
 
+    // Мягкая остановка при перебивании: Сара не обрывается на полуслове
+    // мгновенно, а быстро затихает за ~0.9с — на слух это читается как
+    // «услышал(а), умолкаю», а не как технический глюк. Дальнейшие куски
+    // очереди при этом отменяются сразу (stop ниже), так что «договорить
+    // всю мысль» она не пытается — гаснет именно текущая фраза.
+    const stopGraceful = useCallback((fadeMs = 900) => {
+        const el = audioRef.current;
+        // Новые куски не подтягиваем и запросы отменяем немедленно.
+        runIdRef.current += 1;
+        try { abortRef.current?.abort(); } catch { /* noop */ }
+        abortRef.current = null;
+        queueRef.current = [];
+        streamDoneRef.current = true;
+        if (!el || el.paused) { 
+            try { el?.pause(); } catch { /* noop */ }
+            setSpeaking(false); setLoading(false);
+            return;
+        }
+        const startVol = el.volume;
+        const startedAt = Date.now();
+        const step = () => {
+            const k = Math.min(1, (Date.now() - startedAt) / fadeMs);
+            try { el.volume = Math.max(0, startVol * (1 - k)); } catch { /* noop */ }
+            if (k < 1) { requestAnimationFrame(step); return; }
+            try { el.pause(); el.removeAttribute('src'); el.load(); el.volume = startVol; } catch { /* noop */ }
+            revokeUrls();
+            chunkBlobsRef.current.clear();
+            envelopeRef.current = null;
+            setSpeaking(false);
+            setLoading(false);
+        };
+        requestAnimationFrame(step);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [revokeUrls]);
+
     const stop = useCallback(() => {
         runIdRef.current += 1; // всё, что было запущено раньше, теперь неактуально
         try { abortRef.current?.abort(); } catch { /* noop */ }
@@ -362,5 +397,5 @@ export function useVoiceModeSpeech() {
     // возобновление разговора (см. жалобу: после неё нельзя начать заново).
     const clearError = useCallback(() => { setError(null); setLimitExceeded(false); }, []);
 
-    return { speak, beginStream, stop, unlock, clearError, speaking, loading, error, limitExceeded, audioRef, envelopeRef };
+    return { speak, beginStream, stop, stopGraceful, unlock, clearError, speaking, loading, error, limitExceeded, audioRef, envelopeRef };
 }
