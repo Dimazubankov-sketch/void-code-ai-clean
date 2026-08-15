@@ -294,20 +294,15 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
 /* ==========================================
    Плавный скроллбар для многострочного инпута
    ========================================== */
-/* Появляется, только когда содержимое textarea превысит max-h — до этого
-   момента скролл вообще не виден. Стиль тонкий, под цвет интерфейса. */
+/* Полоса прокрутки в поле ввода СКРЫТА: на телефоне поле листают пальцем,
+   на десктопе — колесом, а видимая полоса только занимала место у правого
+   края и упиралась в кнопки. Сам скролл при этом полностью работает. */
 .void-input-scroll {
-    scrollbar-width: thin;
-    scrollbar-color: #d5d0ec transparent;
     scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
-.void-input-scroll::-webkit-scrollbar { width: 6px; }
-.void-input-scroll::-webkit-scrollbar-track { background: transparent; }
-.void-input-scroll::-webkit-scrollbar-thumb { background: #d5d0ec; border-radius: 999px; }
-.void-input-scroll::-webkit-scrollbar-thumb:hover { background: #5b32d4; }
-.dark .void-input-scroll { scrollbar-color: #3b3b52 transparent; }
-.dark .void-input-scroll::-webkit-scrollbar-thumb { background: #3b3b52; }
-.dark .void-input-scroll::-webkit-scrollbar-thumb:hover { background: #7f57ff; }
+.void-input-scroll::-webkit-scrollbar { width: 0; height: 0; }
 
 /* ==========================================
    Горизонтальный скроллбар для CLI-блока и chart
@@ -357,3 +352,23 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
     -ms-overflow-style: none;     /* старый Edge/IE */
 }
 .void-no-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
+
+
+/* ==========================================
+   Полоса прокрутки списка личностей
+   ==========================================
+   На телефоне скрыта (там свайп пальцем и полоса только мешает), на
+   десктопе оставлена тонкой: мышью «свайпнуть» нельзя, и без полосы
+   непонятно, что справа есть ещё пункты. Префикс md: у собственных
+   классов Tailwind не работает, поэтому разводим медиазапросом здесь. */
+.void-persona-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.void-persona-scroll::-webkit-scrollbar { height: 0; }
+@media (min-width: 768px) {
+    .void-persona-scroll { scrollbar-width: thin; scrollbar-color: #cfc7ee transparent; }
+    .void-persona-scroll::-webkit-scrollbar { height: 6px; }
+    .void-persona-scroll::-webkit-scrollbar-track { background: transparent; }
+    .void-persona-scroll::-webkit-scrollbar-thumb { background: #cfc7ee; border-radius: 999px; }
+    .void-persona-scroll::-webkit-scrollbar-thumb:hover { background: #5b32d4; }
+    .dark .void-persona-scroll { scrollbar-color: #3b3b52 transparent; }
+    .dark .void-persona-scroll::-webkit-scrollbar-thumb { background: #3b3b52; }
+}

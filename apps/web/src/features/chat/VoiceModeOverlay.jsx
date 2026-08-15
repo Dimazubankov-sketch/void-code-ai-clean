@@ -105,6 +105,39 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
     const backdropRef = useRef(null);
     const mediaMenuRef = useRef(null);
     const previewRef = useRef(null);
+    const stripRef = useRef(null);
+    const composerRef = useRef(null);
+    const sideBtnsRef = useRef(null);
+
+    // ---- Появление полосы ввода при ВХОДЕ в голосовой режим ----
+    // Поле «сжимается влево» (растёт из уменьшенной ширины), а кнопки
+    // микрофона и выхода всплывают снизу. Обратный переход при закрытии
+    // проигрывается в handleClose ниже — там он должен успеть доиграть
+    // ДО размонтирования оверлея, иначе анимации просто не видно.
+    useGSAP(() => {
+        const composer = composerRef.current;
+        const btns = sideBtnsRef.current;
+        if (!composer || !btns) return;
+        gsap.fromTo(composer,
+            { scaleX: 1.06, transformOrigin: 'left center', autoAlpha: 0 },
+            { scaleX: 1, autoAlpha: 1, duration: 0.4, ease: 'power3.out' });
+        gsap.fromTo(btns.children,
+            { y: 26, scale: 0.7, autoAlpha: 0 },
+            { y: 0, scale: 1, autoAlpha: 1, duration: 0.42, ease: 'back.out(1.7)', stagger: 0.07, delay: 0.06 });
+    }, { scope: stripRef });
+
+    // Закрытие с анимацией: кнопки уплывают вниз, поле растягивается
+    // вправо — и только после этого режим действительно закрывается, и
+    // на его месте появляется обычный композер чата со своими кнопками.
+    const handleClose = () => {
+        const composer = composerRef.current;
+        const btns = sideBtnsRef.current;
+        if (!composer || !btns) { onClose(); return; }
+        const tl = gsap.timeline({ onComplete: onClose });
+        tl.to(btns.children, { y: 24, scale: 0.7, autoAlpha: 0, duration: 0.22, ease: 'power2.in', stagger: 0.05 }, 0)
+          .to(composer, { scaleX: 1.07, transformOrigin: 'left center', duration: 0.3, ease: 'power2.out' }, 0.1)
+          .to(stripRef.current, { autoAlpha: 0, duration: 0.2, ease: 'power2.in' }, 0.18);
+    };
 
     // Подключаем тот же MediaStream, что уже захвачен хуком, ко второму
     // <video> — для показа пользователю. Отдельный поток не запрашиваем:
@@ -126,6 +159,12 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
+
+    // Включили камеру — орб сразу уходит вниз, чтобы не перекрывать кадр
+    // (то же положение, что и при ручном сворачивании тапом по орбу).
+    useEffect(() => {
+        if (videoSource === 'camera') setMinimized(true);
+    }, [videoSource]);
 
     // ---- Анимация сворачивания/разворачивания ----
     // Фон гаснет, орб уезжает вниз и уменьшается до размера, при котором
@@ -170,11 +209,14 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
         // pointer-events-auto.
         <div className={`fixed inset-0 z-[220] flex flex-col ${minimized ? 'pointer-events-none' : ''}`}>
             <div ref={backdropRef} className="absolute inset-0 bg-white dark:bg-gradient-to-b dark:from-[#1a1030] dark:to-[#0d0819]">
-                {/* Живое превью камеры/экрана. Показываем только в
-                    РАЗВЁРНУТОМ режиме: в свёрнутом пользователь смотрит
-                    чат, и видео там только мешало бы. Затемняющая плёнка
-                    сверху — чтобы орб и подписи оставались читаемыми. */}
-                {videoSource && (
+                {/* Живое превью. Для КАМЕРЫ — на весь экран. Для ЭКРАНА
+                    полноэкранного превью быть не должно: мы показываем на
+                    весь экран то, что и так является этим же экраном, —
+                    получается бесконечное зеркало («троение», из-за
+                    которого интерфейс выглядел размноженным). Поэтому для
+                    демонстрации — небольшое окошко в углу, где рекурсия
+                    безобидна и наглядно видно, что именно передаётся. */}
+                {videoSource === 'camera' && (
                     <>
                         <video
                             ref={previewRef}
@@ -202,13 +244,23 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
 
             {/* Орб. В свёрнутом виде уезжает вниз и остаётся кликабельным —
                 повторный тап разворачивает режим обратно. */}
-            {/* Явный индикатор, что видео сейчас передаётся ИИ */}
-            {videoSource && !minimized && (
-                <div className="relative z-10 flex justify-center pointer-events-none">
-                    <span className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/55 text-white text-xs font-bold backdrop-blur-sm">
+            {/* Индикатор передачи видео. Показывается и на телефоне, и на
+                десктопе, в том числе в свёрнутом режиме — иначе непонятно,
+                что камера/экран всё ещё передаются ИИ. */}
+            {videoSource && (
+                <div className={`relative z-20 flex justify-center pointer-events-none ${minimized ? 'pt-3' : ''}`}>
+                    <span className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/65 text-white text-xs font-bold backdrop-blur-sm shadow-lg">
                         <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                         {videoSource === 'screen' ? 'Демонстрация экрана' : 'Камера включена'}
                     </span>
+                </div>
+            )}
+
+            {/* Небольшое окно демонстрации экрана — вместо полноэкранного,
+                см. комментарий выше про зеркальную рекурсию. */}
+            {videoSource === 'screen' && !minimized && (
+                <div className="absolute top-20 left-4 sm:left-6 z-20 w-40 sm:w-56 rounded-2xl overflow-hidden border border-white/25 shadow-2xl pointer-events-none">
+                    <video ref={previewRef} autoPlay muted playsInline className="w-full aspect-video object-cover bg-black" />
                 </div>
             )}
 
@@ -231,9 +283,16 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
             {/* Нижняя полоса: сжатое поле ввода слева + камера, микрофон и
                 выход справа. В голосовом режиме поле не исчезает, а именно
                 сжимается — можно и говорить, и дописать текстом. */}
-            <div className="relative w-full px-4 pb-6 sm:pb-8 pointer-events-auto">
+            {/* В свёрнутом режиме полоса ввода нужна только в чате: на
+                других экранах (настройки, тарифы, почта) она перекрывала бы
+                их собственный интерфейс. Орб при этом остаётся плавать
+                поверх всего — разговор можно вести, гуляя по приложению. */}
+            <div
+                ref={stripRef}
+                className={`relative w-full px-4 pb-6 sm:pb-8 pointer-events-auto ${minimized && state.currentView !== 'chat' ? 'hidden' : ''}`}
+            >
                 <div className="max-w-3xl mx-auto flex items-center gap-2.5">
-                    <div className="vm-composer flex-1 min-w-0 flex items-center gap-2 bg-white dark:bg-darkCard rounded-full border border-gray-200 dark:border-darkBorder px-3 py-2.5">
+                    <div ref={composerRef} className="vm-composer flex-1 min-w-0 flex items-center gap-2 bg-white dark:bg-darkCard rounded-full border border-gray-200 dark:border-darkBorder px-3 py-2.5">
                         <div className="relative shrink-0">
                             <PressIconButton
                                 onClick={() => setShowMediaMenu((v) => !v)}
@@ -257,6 +316,17 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                                 </PressIconButton>
                             </div>
                         </div>
+                        {/* Переключение фронтальной/основной камеры —
+                            появляется только когда камера включена. */}
+                        {videoSource === 'camera' && (
+                            <PressIconButton
+                                onClick={() => voiceMode.flipCamera?.()}
+                                title="Сменить камеру"
+                                className="void-tap-target w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-[#5b32d4] hover:bg-[#5b32d4]/10 transition-colors"
+                            >
+                                <Icons.Refresh className="w-4 h-4" />
+                            </PressIconButton>
+                        )}
                         <input
                             value={state.inputValue}
                             onChange={(e) => updateState({ inputValue: e.target.value })}
@@ -271,6 +341,7 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                         />
                     </div>
 
+                    <div ref={sideBtnsRef} className="flex items-center gap-2.5 shrink-0">
                     <PressIconButton
                         onClick={toggleMute}
                         title={muted ? 'Включить микрофон' : 'Отключить микрофон'}
@@ -279,12 +350,13 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                         {muted ? <Icons.MicOff className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
                     </PressIconButton>
                     <PressIconButton
-                        onClick={onClose}
+                        onClick={handleClose}
                         title="Завершить Voice Mode"
                         className="void-tap-target w-12 h-12 shrink-0 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 flex items-center justify-center transition-colors"
                     >
                         <Icons.X className="w-5 h-5" />
                     </PressIconButton>
+                    </div>
                 </div>
             </div>
 

@@ -361,7 +361,7 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Личность</p>
                         {/* py-2 и отсутствие вертикального overflow — чтобы кольцо
                             выделения и галочка не срезались краем ленты. */}
-                        <div className="flex gap-3 overflow-x-auto overflow-y-visible void-no-scrollbar py-2 -mx-4 px-4 md:-mx-6 md:px-6">
+                        <div className="flex gap-3 overflow-x-auto overflow-y-visible void-persona-scroll py-2 -mx-4 px-4 md:-mx-6 md:px-6 md:pb-3">
                             <CreateTile onClick={() => setEditorOpen(true)} />
                             {allPersonas.map((p) => (
                                 <StickerTile

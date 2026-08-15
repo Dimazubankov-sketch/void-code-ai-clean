@@ -62,6 +62,10 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     // Сам поток отдаём наружу, чтобы оверлей мог показать превью, не
     // запрашивая у браузера второе разрешение на камеру/экран.
     const [videoStream, setVideoStream] = useState(null);
+    // Какая камера сейчас активна: 'environment' (основная) или 'user'
+    // (фронтальная). Нужна отдельная память — getUserMedia не сообщает
+    // выбранную сторону обратно.
+    const facingRef = useRef('environment');
     // Параметры голоса фиксируются ОДИН РАЗ при входе в режим. Раньше
     // voiceOpts() вызывался на каждую реплику и читал state, где голос мог
     // быть ещё не выбран явно (voicePresetFish пустой) — тогда на бэкенд
@@ -107,7 +111,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         try {
             const stream = source === 'screen'
                 ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
-                : await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                : await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingRef.current }, audio: false });
             videoStreamRef.current = stream;
             setVideoStream(stream);
             const video = document.createElement('video');
@@ -413,6 +417,30 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setPhaseBoth]);
 
+    // Переключить фронтальную/основную камеру: просто перезапрашиваем
+    // поток с другим facingMode — менять его у живого трека браузеры
+    // поддерживают неровно, а пересоздание работает везде одинаково.
+    const flipCamera = useCallback(async () => {
+        if (videoSource !== 'camera') return;
+        facingRef.current = facingRef.current === 'environment' ? 'user' : 'environment';
+        const stream = videoStreamRef.current;
+        // stopVideo() сбросил бы videoSource и закрыл режим камеры,
+        // поэтому глушим прежний поток вручную и сразу берём новый.
+        try { stream?.getTracks().forEach((t) => t.stop()); } catch { /* noop */ }
+        try {
+            const next = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingRef.current }, audio: false });
+            videoStreamRef.current = next;
+            setVideoStream(next);
+            if (videoElRef.current) {
+                videoElRef.current.srcObject = next;
+                await videoElRef.current.play().catch(() => { /* noop */ });
+            }
+        } catch {
+            setErrorMsg('Не удалось переключить камеру');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [videoSource]);
+
     // Повторно озвучить уже сказанный ответ (кнопка у сообщения в чате,
     // когда голосовой режим свёрнут).
     const replay = useCallback((text) => {
@@ -425,7 +453,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
 
     return {
         active, phase, muted, errorMsg,
-        videoSource, videoStream, startVideo, stopVideo, replay,
+        videoSource, videoStream, startVideo, stopVideo, flipCamera, replay,
         open, close, primaryTap, toggleMute,
         analyserRef: recognition.analyserRef,
         speechAudioRef: speech.audioRef,

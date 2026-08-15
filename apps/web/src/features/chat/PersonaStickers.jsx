@@ -46,6 +46,16 @@ export const PERSONA_STICKERS = [
     { id: 'coffee',   Icon: S(<><path d="M3.5 8h13v6a5 5 0 01-5 5h-3a5 5 0 01-5-5z" /><path d="M16.5 9.5H19a2.5 2.5 0 010 5h-2.5" /><path d="M6 3.5v2M10 3v2.5M14 3.5v2" /></>) },
     { id: 'rocket',   Icon: S(<><path d="M12 2.5c3.5 2.5 5 6 5 9.5l-2.5 3h-5L7 12c0-3.5 1.5-7 5-9.5z" /><circle cx="12" cy="9.5" r="1.8" /><path d="M9.5 15l-2 4 3-1.5M14.5 15l2 4-3-1.5" /></>) },
     { id: 'owl',      Icon: S(<><circle cx="12" cy="12.5" r="8" /><circle cx="9" cy="11" r="2.2" /><circle cx="15" cy="11" r="2.2" /><path d="M12 14v1.5M6.5 6l2 2M17.5 6l-2 2" /></>) },
+    { id: 'compass',  Icon: S(<><circle cx="12" cy="12" r="8.5" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></>) },
+    { id: 'anchor',   Icon: S(<><circle cx="12" cy="5" r="2.2" /><path d="M12 7.2V21" /><path d="M6 11H4a8 8 0 0016 0h-2" /><path d="M8.5 11h7" /></>) },
+    { id: 'flame',    Icon: S(<><path d="M12 3s5 4.2 5 8.6a5 5 0 01-10 0C7 9.4 9 7.6 9 7.6s.4 2 1.6 2.6C11 8.4 12 5.8 12 3z" /><path d="M12 21a4 4 0 01-4-4" /></>) },
+    { id: 'chart',    Icon: S(<><path d="M4 20V4" /><path d="M4 20h16" /><path d="M8 16v-4M12 16V8M16 16v-6" /></>) },
+    { id: 'shield',   Icon: S(<><path d="M12 3l7 3v6c0 4-3 7.3-7 9-4-1.7-7-5-7-9V6z" /><path d="M9.5 12l1.8 1.8L15 10" /></>) },
+    { id: 'puzzle',   Icon: S(<><path d="M10 4.5a1.8 1.8 0 013.6 0V6H17a1 1 0 011 1v3.4h1.5a1.8 1.8 0 010 3.6H18V18a1 1 0 01-1 1h-3.4v-1.5a1.8 1.8 0 00-3.6 0V19H7a1 1 0 01-1-1v-3.4H4.5a1.8 1.8 0 010-3.6H6V7a1 1 0 011-1h3z" /></>) },
+    { id: 'globe',    Icon: S(<><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17" /><path d="M12 3.5c2.4 2.6 3.6 5.5 3.6 8.5s-1.2 5.9-3.6 8.5c-2.4-2.6-3.6-5.5-3.6-8.5s1.2-5.9 3.6-8.5z" /></>) },
+    { id: 'mask',     Icon: S(<><path d="M4 7c3-1 5.5-1 8-1s5 0 8 1c0 6-3 11-8 11S4 13 4 7z" /><path d="M9 11h.01M15 11h.01M10 14.5a3 3 0 004 0" /></>) },
+    { id: 'star',     Icon: S(<><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9-5.3-2.9-5.3 2.9 1.1-5.9L3.5 9.7l5.9-.8z" /></>) },
+    { id: 'wrench',   Icon: S(<><path d="M15.5 3.5a5.5 5.5 0 00-6.9 6.9L3.5 15.5a2 2 0 002.8 2.8l5.1-5.1a5.5 5.5 0 006.9-6.9l-3 3-2.8-2.8z" /></>) },
 ];
 
 export const STICKER_MAP = Object.fromEntries(PERSONA_STICKERS.map((s) => [s.id, s.Icon]));

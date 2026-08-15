@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { AudioPlayer } from '@/features/chat/AudioPlayer';
 import { ChatToolbar } from '@/features/chat/ChatToolbar';
 import { CodeViewerModal } from '@/features/chat/CodeViewerModal';
@@ -135,6 +136,23 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     // плавное исчезновение (раньше пропадало резко).
 
     const voiceOpts = () => getVoiceOpts(state);
+
+    // Кнопки композера (микрофон + отправка/голосовой режим) плавно
+    // всплывают, когда голосовой режим только что закрылся — это вторая
+    // половина перехода, первую (уплывание кнопок Voice Mode вниз)
+    // проигрывает сам оверлей перед размонтированием.
+    const composerBtnsRef = useRef(null);
+    const prevVoiceActiveRef = useRef(!!voiceMode?.active);
+    useGSAP(() => {
+        const wasActive = prevVoiceActiveRef.current;
+        prevVoiceActiveRef.current = !!voiceMode?.active;
+        if (!wasActive || voiceMode?.active) return;
+        const el = composerBtnsRef.current;
+        if (!el) return;
+        gsap.fromTo(el.children,
+            { y: 18, scale: 0.72, autoAlpha: 0 },
+            { y: 0, scale: 1, autoAlpha: 1, duration: 0.4, ease: 'back.out(1.8)', stagger: 0.07 });
+    }, { dependencies: [voiceMode?.active] });
 
     const speakMessage = (idx, text) => {
         // Голосовой режим открыт — читаем тем же голосом и через тот же
@@ -580,7 +598,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                            кнопке — чтобы верхняя кнопка «на весь экран» и нижний
                            ряд кнопок физически не могли наложиться друг на друга
                            (см. задачу 6). */
-                        className={`flex items-end bg-white dark:bg-darkCard rounded-3xl border transition-colors relative ${composerManyChars ? 'min-h-[104px]' : ''} ${state.imageGenMode ? 'border-[#5b32d4]/30 focus-within:border-[#5b32d4]/50' : 'border-gray-200 dark:border-darkBorder focus-within:border-gray-300 dark:focus-within:border-gray-600'}`}
+                        className={`flex items-end bg-white dark:bg-darkCard rounded-[26px] border transition-colors relative ${composerManyChars ? 'min-h-[104px]' : ''} ${state.imageGenMode ? 'border-[#5b32d4]/30 focus-within:border-[#5b32d4]/50' : 'border-gray-200 dark:border-darkBorder focus-within:border-gray-300 dark:focus-within:border-gray-600'}`}
                     >
                         {/* multiple — нативный мультивыбор из галереи: пользователь
                             отмечает галочками несколько фото за один заход системного
@@ -655,9 +673,23 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 const target = e.target;
                                 const prev = parseFloat(target.style.height || '0') || target.offsetHeight;
                                 target.style.height = 'auto';
-                                const nextH = Math.min(target.scrollHeight, 220);
+                                // Пустое поле обязано вернуться к исходной высоте:
+                                // scrollHeight у пустого textarea сохраняет прежний
+                                // размер вместе с padding, из-за чего после удаления
+                                // длинного текста поле оставалось раздутым.
+                                const nextH = e.target.value ? Math.min(target.scrollHeight, 220) : 0;
                                 target.style.height = prev + 'px';
                                 import('gsap').then(({ gsap }) => {
+                                    if (!nextH) {
+                                        // Возврат в исходное состояние: снимаем
+                                        // инлайновую высоту, чтобы снова работал
+                                        // min-h из классов.
+                                        gsap.to(target, {
+                                            height: 64, duration: 0.18, ease: 'power2.out', overwrite: true,
+                                            onComplete: () => { target.style.height = ''; },
+                                        });
+                                        return;
+                                    }
                                     gsap.to(target, { height: nextH, duration: 0.18, ease: 'power2.out', overwrite: true });
                                 });
                             }}
@@ -695,6 +727,11 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 <Icons.Maximize className="w-5 h-5" />
                             </button>
                         )}
+                        {/* Общий контейнер кнопок: нужен, чтобы после выхода
+                            из голосового режима они всплывали одной группой
+                            (см. useGSAP выше). Позиционирование прежнее —
+                            absolute у самих кнопок, контейнер их не смещает. */}
+                        <div ref={composerBtnsRef} className="contents">
                         {voice.supported && (
                             <button
                                 onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
@@ -734,6 +771,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
                             ><Icons.Waveform className="w-5 h-5" /></button>
                         )}
+                        </div>
                     </div>
                 </div>
             </div>
