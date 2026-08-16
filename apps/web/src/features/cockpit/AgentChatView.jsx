@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { AudioPlayer } from '@/features/chat/AudioPlayer';
-import { ChatInputBar } from '@/features/chat/ChatInputBar';
+import { AgentComposer } from '@/features/cockpit/AgentComposer';
 import { AgentPlusMenu } from '@/features/cockpit/AgentPlusMenu';
 import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
 import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
@@ -190,19 +190,27 @@ export function AgentChatView({ state, updateState }) {
                 <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
                 <input type="file" ref={anyFileInputRef} accept=".pdf,.doc,.docx,.txt,.csv,.json" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
 
-                {/* Поле ввода — в едином стиле с основным чатом, «+» открывает
-                    AgentPlusMenu вместо мгновенного выбора фото. */}
-                <div className="p-3 border-t border-gray-100 dark:border-darkBorder shrink-0 relative">
-                    <ChatInputBar
+                {/* Поле ввода — точная копия основного чата по размеру и
+                    поведению (AgentComposer, см. файл), без Voice Mode.
+                    Разделительная полоса над полем убрана: border-t
+                    только визуально дублировал границу самого поля ввода
+                    и смотрелся лишней линией на скриншотах. */}
+                <div className="p-3 shrink-0 relative">
+                    {image && (
+                        <div className="absolute -top-16 left-4 bg-white dark:bg-darkCard p-1 rounded-xl shadow-lg border border-gray-200 dark:border-darkBorder group fade-in">
+                            <img src={image} className="h-14 w-14 object-cover rounded-lg" alt="" />
+                            <button onClick={() => setImage(null)} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 shadow-md">
+                                <Icons.X className="w-3 h-3" />
+                            </button>
+                        </div>
+                    )}
+                    <AgentComposer
                         value={input}
                         onChange={setInput}
                         onSend={send}
                         lang={state.lang || 'ru'}
                         voiceLang={state.voiceLang || 'ru-RU'}
                         placeholder="Сообщение агенту…"
-                        selectedImage={image}
-                        onSelectImage={setImage}
-                        onClearImage={() => setImage(null)}
                         onPlusClick={() => setShowPlusMenu(true)}
                     />
                     {showPlusMenu && (
