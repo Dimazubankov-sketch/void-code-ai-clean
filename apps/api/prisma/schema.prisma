@@ -92,6 +92,7 @@ model User {
   providerKeys  ProviderKey[]
   emails        Email[]
   userVoices    UserVoice[]
+  usageLogs     UsageLog[]
   voiceConsents   VoiceConsent[]
   voiceViolations VoiceViolation[]
   // Compliance: счётчик вынесенных предупреждений и блокировка аккаунта.
@@ -181,6 +182,17 @@ model UsageCounter {
   imagesUsed    Int    @default(0) // сгенерированных картинок за день (DALL-E)
   ttsCharsUsed  Int    @default(0) // символов озвучки за день (OpenAI TTS)
   voicesCreated Int    @default(0) // созданных голосов за день (клон/дизайн)
+  // Реальные токены LLM за сутки (документ 10: маршрутизация моделей).
+  // Считаются из usage, который реально возвращает OpenRouter в ответе —
+  // не оценка по длине текста, а точное число из провайдера.
+  tokensUsedToday Int  @default(0)
+  // Отдельный счётчик «тяжёлых» генераций (код/сайт) на Free — там жёсткий
+  // потолок в 2–3 в сутки независимо от токенов (см. model-policy.ts).
+  heavyGenUsed    Int  @default(0)
+  // Токены, «прожжённые» через Fable сверх дневного потолка Fable и
+  // оплаченные списанием с кошелька (Ultra, pay-as-you-go). Отдельно от
+  // tokensUsedToday, чтобы можно было проверять именно потолок Fable.
+  fableTokensToday Int @default(0)
 
   @@unique([userId, dayKey])
   @@index([userId, weekKey])
@@ -220,6 +232,28 @@ model VoiceViolation {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// Аудиторский лог каждого LLM-запроса (документ 10, пункт 3): что именно
+// ушло провайдеру, сколько реально стоило по токенам, кто, когда. Не
+// агрегат — построчная запись, чтобы можно было разбирать конкретные
+// инциденты (например, спор о списании) и считать costEstimate задним
+// числом при изменении цен на модели.
+model UsageLog {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan             String
+  mode             String   // 'flash' | 'flash_ext' | 'pro' | 'ultra' — внутренний ID режима
+  model            String   // реальный slug модели у провайдера (OpenRouter)
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  costEstimateMicros Int    @default(0) // оценка стоимости в微 (1e-6 доллара) — избегаем float
+  billedFromWallet Boolean  @default(false) // true — списано с кошелька (Fable сверх лимита)
+  createdAt        DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model UserVoice {

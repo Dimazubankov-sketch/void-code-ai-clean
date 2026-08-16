@@ -578,6 +578,15 @@ export function App() {
         } catch (e) {
             if (e instanceof ApiError && e.status === 401) {
                 responseText = '⚠️ Сессия истекла — выйдите и войдите заново, чтобы продолжить общение с ИИ.';
+            } else if (e instanceof ApiError && (e.status === 402 || e.status === 429)) {
+                // Документ 10: реальный отказ от бэкенда (лимит токенов/режима
+                // исчерпан) — переиспользуем УЖЕ существующий механизм
+                // блокировки поля ввода (dailyLimitExceededAt), тот же, что
+                // используют TopHeader/LimitsView для клиентской оценки
+                // лимита. Так бэкендный отказ сразу подсвечивает тот же
+                // баннер и блокирует платные модели, а не только текст в чате.
+                setState(prev => ({ ...prev, dailyLimitExceededAt: prev.dailyLimitExceededAt || Date.now() }));
+                responseText = `⚠️ ${e.message}`;
             } else if (e instanceof ApiError) {
                 responseText = `⚠️ ${e.message}`; // напр. 403 — исчерпан лимит запросов
             } else {

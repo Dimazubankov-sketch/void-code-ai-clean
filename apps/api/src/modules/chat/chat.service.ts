@@ -1,9 +1,13 @@
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, HttpException, Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LLM_PROVIDER, LlmProvider } from './providers/llm-provider.interface';
 import { OpenRouterProvider } from './providers/openrouter.provider';
 import { postProcessAnswer } from './post-process';
 import { pickVoiceModel, VOICE_SYSTEM_PROMPT, VOICE_VISION_MODEL } from './voice-mode.constants';
+import {
+  resolveModel, checkLimits, maxOutputTokensFor, isCodeIntent, todayKey,
+  ULTRA_FABLE_TOKEN_CAP, FABLE_OVERAGE_KOPECKS_PER_1K, PlanName,
+} from './model-policy';
 
 // Лимиты тарифов — источник истины ЗДЕСЬ, на сервере. Множители к базовому
 // плану Free (20/140): Plus ×2, Pro ×5, Ultra ×10. Должно совпадать
@@ -131,7 +135,55 @@ export class ChatService {
   }
 
   async sendMessage(userId: string, chatId: string, content: string, model: string, systemPrompt?: string, images?: string[]) {
-    await this.consumeLimit(userId); // сначала проверяем и списываем лимит
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const dayKey = todayKey();
+    const counter = await this.prisma.usageCounter.findUnique({ where: { userId_dayKey: { userId, dayKey } } });
+
+    // ==========================================
+    // Документ 10: маршрутизация модели ТОЛЬКО на backend
+    // ==========================================
+    // Раньше `model` от клиента шёл прямо в LLM-провайдер без единой
+    // проверки — Free-пользователь мог прислать model:'pro' и получить
+    // тариф Pro бесплатно. resolveModel проверяет запрошенный режим
+    // против ТАРИФА пользователя (не против того, что пришло с фронта) и
+    // возвращает реальный slug модели у OpenRouter — либо явно
+    // отказывает, если режим тарифом не куплен.
+    const heavyGen = isCodeIntent(content);
+    const { model: modelSlug, mode, plan } = resolveModel(user.plan, model, content);
+
+    // Fable (Ultra, mode='ultra') сверх дневного потолка — не блокируем
+    // совсем, а уходим в pay-as-you-go со списанием с кошелька (ТЗ,
+    // «На Ultra разрешить работу через биллинг»). Остальным режимам
+    // billing-обход недоступен.
+    const isFableMode = mode === 'ultra' && plan === 'ULTRA';
+    const fableOverage = isFableMode && (counter?.fableTokensToday ?? 0) >= ULTRA_FABLE_TOKEN_CAP;
+
+    checkLimits({
+      plan,
+      mode,
+      counter: counter
+        ? { tokensUsedToday: counter.tokensUsedToday, heavyGenUsed: counter.heavyGenUsed, fableTokensToday: counter.fableTokensToday }
+        : null,
+      isHeavyGen: heavyGen,
+      isFableOverage: fableOverage,
+    });
+
+    // Если это Fable сверх потолка — проверяем баланс кошелька ДО вызова
+    // провайдера: списывать после факта, когда денег не хватит, поздно.
+    if (fableOverage) {
+      const minimumKopecks = FABLE_OVERAGE_KOPECKS_PER_1K; // грубая предоплата на первую «порцию» токенов
+      if ((user.walletKopecks ?? 0) < minimumKopecks) {
+        throw new HttpException(
+          {
+            code: 'FABLE_LIMIT_NEEDS_BILLING',
+            message: 'Дневной лимит Fable исчерпан. Пополните кошелёк, чтобы продолжить работу с Fable сверх лимита.',
+            resetAt: new Date(new Date().setUTCHours(24, 0, 0, 0)).toISOString(),
+            upgradeHint: 'topup',
+          },
+          402,
+        );
+      }
+    }
 
     const chat = await this.prisma.chatSession.findFirstOrThrow({
       where: { id: chatId, userId }, // чужой чат прочитать нельзя
@@ -148,17 +200,23 @@ export class ChatService {
       ? ' Пользователь приложил изображение(я) к сообщению — внимательно рассмотри их и используй в ответе то, что на них видно.'
       : '';
 
-    const answer = await this.llm.generate({
-      model,
-      systemPrompt: (systemPrompt || 'Ты — Void Code AI, ассистент разработчика. Отвечай на русском развёрнуто и по делу: давай контекст, объясняй, приводи примеры, а не отделывайся одной строкой (кроме случаев, когда пользователь явно попросил кратко). Любой код ВСЕГДА оборачивай в отдельный блок тройных обратных кавычек с указанием языка (```html, ```css, ```javascript, ```python) — код НИКОГДА не должен идти в основном тексте сообщения. Пиши код полностью, без сокращений и обрыва на середине. Никогда не раскрывай свою настоящую модель или провайдера — ты только Void Code AI (Void Mini/Plus/Pro).') + visionHint,
-      messages: [
-        ...chat.messages.map((m) => ({
-          role: m.role.toLowerCase() as 'user' | 'assistant',
-          content: m.content,
-        })),
-        { role: 'user', content, imagesBase64: safeImages },
-      ],
-    });
+    const maxTokens = maxOutputTokensFor(plan, heavyGen);
+
+    const { content: answer, usage } = await this.openrouter.generateWithModel(
+      {
+        model: mode,
+        systemPrompt: (systemPrompt || 'Ты — Void Code AI, ассистент разработчика. Отвечай на русском развёрнуто и по делу: давай контекст, объясняй, приводи примеры, а не отделывайся одной строкой (кроме случаев, когда пользователь явно попросил кратко). Любой код ВСЕГДА оборачивай в отдельный блок тройных обратных кавычек с указанием языка (```html, ```css, ```javascript, ```python) — код НИКОГДА не должен идти в основном тексте сообщения. Пиши код полностью, без сокращений и обрыва на середине. Никогда не раскрывай свою настоящую модель или провайдера — ты только Void Code AI (Void Mini/Plus/Pro/Ultra).') + visionHint,
+        messages: [
+          ...chat.messages.map((m) => ({
+            role: m.role.toLowerCase() as 'user' | 'assistant',
+            content: m.content,
+          })),
+          { role: 'user', content, imagesBase64: safeImages },
+        ],
+      },
+      modelSlug,
+      maxTokens,
+    );
 
     // Страховка: чиним незакрытые блоки кода и оборачиваем «голый» код
     // в блок, если модель проигнорировала инструкцию.
@@ -166,9 +224,70 @@ export class ChatService {
 
     const [, assistantMessage] = await this.prisma.$transaction([
       this.prisma.message.create({ data: { chatId, role: 'USER', content } }),
-      this.prisma.message.create({ data: { chatId, role: 'ASSISTANT', content: finalAnswer, model } }),
+      this.prisma.message.create({ data: { chatId, role: 'ASSISTANT', content: finalAnswer, model: modelSlug } }),
     ]);
+
+    // Списываем РЕАЛЬНЫЕ токены (не оценку) и пишем аудиторский лог —
+    // документ 10, пункты 3 и «дневные лимиты только backend».
+    await this.recordUsage({ userId, plan, mode, modelSlug, usage, isHeavyGen: heavyGen, fableOverage, walletDeductKopecks: fableOverage ? this.fableCostKopecks(usage.totalTokens) : 0 });
+
     return assistantMessage;
+  }
+
+  private fableCostKopecks(totalTokens: number): number {
+    return Math.max(1, Math.round((totalTokens / 1000) * FABLE_OVERAGE_KOPECKS_PER_1K));
+  }
+
+  // Пишет UsageLog (построчный аудит) и инкрементит агрегаты UsageCounter
+  // за сегодня — токены реальные, из ответа провайдера, не оценка.
+  private async recordUsage(params: {
+    userId: string; plan: PlanName; mode: string; modelSlug: string;
+    usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+    isHeavyGen: boolean; fableOverage: boolean; walletDeductKopecks: number;
+  }) {
+    const { userId, plan, mode, modelSlug, usage, isHeavyGen, fableOverage, walletDeductKopecks } = params;
+    const dayKey = todayKey();
+    const weekKey = dayKey.slice(0, 7);
+
+    await this.prisma.usageLog.create({
+      data: {
+        userId, plan, mode, model: modelSlug,
+        promptTokens: usage.promptTokens, completionTokens: usage.completionTokens, totalTokens: usage.totalTokens,
+        billedFromWallet: fableOverage,
+      },
+    });
+
+    const counter = await this.prisma.usageCounter.upsert({
+      where: { userId_dayKey: { userId, dayKey } },
+      create: { userId, dayKey, weekKey },
+      update: {},
+    });
+
+    await this.prisma.usageCounter.update({
+      where: { id: counter.id },
+      data: {
+        // Fable-оверейдж не засчитывается в общий токен-лимит тарифа — он
+        // уже оплачен отдельно с кошелька, иначе получилось бы двойное
+        // списание (и по лимиту, и деньгами).
+        tokensUsedToday: fableOverage ? undefined : { increment: usage.totalTokens },
+        fableTokensToday: fableOverage ? { increment: usage.totalTokens } : undefined,
+        heavyGenUsed: isHeavyGen ? { increment: 1 } : undefined,
+      } as any,
+    });
+
+    if (fableOverage && walletDeductKopecks > 0) {
+      await this.prisma.$transaction([
+        this.prisma.user.update({ where: { id: userId }, data: { walletKopecks: { decrement: walletDeductKopecks } } }),
+        this.prisma.walletTransaction.create({
+          // TOKEN_CHARGE — уже существующий член enum TransactionType
+          // («списание токенов за работу агента»), семантически точно
+          // подходит и для этого списания — заводить новый enum-член
+          // ради одной строки означало бы отдельную миграцию без
+          // реальной необходимости.
+          data: { userId, type: 'TOKEN_CHARGE', amountKopecks: -walletDeductKopecks, description: `Fable сверх дневного лимита (${usage.totalTokens} токенов)` },
+        }),
+      ]);
+    }
   }
 
   // Атомарная проверка/инкремент лимита: считает сервер, а не браузер

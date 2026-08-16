@@ -68,7 +68,12 @@ export const LARGE_CODE_RULES = ' Когда пользователь проси
 export const AI_MODELS = [
     { id: 'flash', name: 'Void Mini', badge: 'Безлимитно', cost: 0, desc: 'Быстрые ответы и простые задачи. Безлимитно и бесплатно.', sysPrompt: 'Ты — Void Code AI (модель Void Mini). Твоя цель — отвечать быстро, но по делу. Для простых вопросов — коротко; для содержательных — с достаточным объяснением, не отделываясь одной строкой.' + CODE_FORMAT_RULES + NO_MODEL_DISCLOSURE },
     { id: 'flash_ext', name: 'Void Plus', badge: 'Рабочая лошадка', cost: 1, desc: 'Пишет код, глубоко анализирует и объясняет. Экономно расходует токены — оптимальна для большинства задач.', sysPrompt: 'Ты — мощный универсальный ассистент Void Code AI (модель Void Plus). Ты умеешь писать качественный код, анализировать и объяснять.' + RESPONSE_DEPTH_RULES + CODE_FORMAT_RULES + LARGE_CODE_RULES + STRICT_FORMATTING_RULES + TABLES_AND_CHARTS_RULES + NO_MODEL_DISCLOSURE },
-    { id: 'pro', name: 'Void Pro', badge: 'Максимальная мощность', cost: 3, desc: 'Тоже пишет код, но мощнее Void Plus: точнее в сложной архитектуре и математике. Расходует больше токенов ради лучшего результата.', sysPrompt: 'Ты — элитный разработчик Void Code AI (модель Void Pro). Пиши идеальный, продуманный код и давай максимально глубокие решения с разбором альтернатив.' + RESPONSE_DEPTH_RULES + CODE_FORMAT_RULES + LARGE_CODE_RULES + STRICT_FORMATTING_RULES + TABLES_AND_CHARTS_RULES + NO_MODEL_DISCLOSURE }
+    { id: 'pro', name: 'Void Pro', badge: 'Максимальная мощность', cost: 3, desc: 'Тоже пишет код, но мощнее Void Plus: точнее в сложной архитектуре и математике. Расходует больше токенов ради лучшего результата.', sysPrompt: 'Ты — элитный разработчик Void Code AI (модель Void Pro). Пиши идеальный, продуманный код и давай максимально глубокие решения с разбором альтернатив.' + RESPONSE_DEPTH_RULES + CODE_FORMAT_RULES + LARGE_CODE_RULES + STRICT_FORMATTING_RULES + TABLES_AND_CHARTS_RULES + NO_MODEL_DISCLOSURE },
+    // Void Ultra — доступна только на тарифе Ultra (см. minPlan). Реальная
+    // маршрутизация и запрет для остальных тарифов — целиком на бэкенде
+    // (model-policy.ts, документ 10): даже если это поле подделать на
+    // клиенте, сервер всё равно проверит user.plan заново и откажет.
+    { id: 'ultra', name: 'Void Ultra', badge: 'Топ модель', cost: 6, minPlan: 'pro_plus', desc: 'Самая мощная модель Void Code — для самых сложных и объёмных задач. Доступна только на тарифе Ultra.', sysPrompt: 'Ты — Void Code AI (модель Void Ultra), лучшая доступная модель платформы. Давай исчерпывающие, точные и глубоко продуманные решения.' + RESPONSE_DEPTH_RULES + CODE_FORMAT_RULES + LARGE_CODE_RULES + STRICT_FORMATTING_RULES + TABLES_AND_CHARTS_RULES + NO_MODEL_DISCLOSURE },
 ];
 
 
@@ -152,6 +157,17 @@ export const REASONING_LEVELS = [
     { id: 'high', name: 'High', desc: 'Глубокий разбор задачи' },
     { id: 'max', name: 'Max', desc: 'Максимальная глубина рассуждений', minPlan: 'pro' },
 ];
+
+// Доступность модели по тарифу (документ 10 — реальная проверка всё
+// равно на бэкенде, это только для UI: скрыть недоступное, а не ждать
+// отказа после нажатия). userPlan — тот же 'free'|'pro'|'pro_plus', что
+// уже используется в isReasoningAllowed ниже; отдельного тарифа 'plus' на
+// фронтенде пока нет.
+export const isModelAllowedForPlan = (modelId, userPlan) => {
+    if (modelId === 'flash') return true; // Void Mini — всем
+    if (modelId === 'ultra') return userPlan === 'pro_plus';
+    return userPlan === 'pro' || userPlan === 'pro_plus'; // flash_ext / pro
+};
 
 // Уровень по умолчанию: у Void Pro — High, у остальных — Medium
 export const defaultReasoningFor = (modelId) => (modelId === 'pro' ? 'high' : 'medium');

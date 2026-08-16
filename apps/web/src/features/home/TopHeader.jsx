@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { gsap } from 'gsap';
-import { AI_MODELS, getPlanLimits, REASONING_LEVELS, defaultReasoningFor, isReasoningAllowed, getReasoningLevel } from '@/shared/config/models';
+import { AI_MODELS, getPlanLimits, REASONING_LEVELS, defaultReasoningFor, isReasoningAllowed, getReasoningLevel, isModelAllowedForPlan } from '@/shared/config/models';
 import { Icons } from '@/shared/ui/Icons';
 import { ChatActionsMenu } from '@/features/chat/ChatActionsMenu';
 import { PressButton } from '@/shared/ui/PressButton';
@@ -90,16 +90,27 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                             )}
                             <div className="p-2 flex flex-col gap-1 max-h-[70vh] overflow-y-auto">
                                 {AI_MODELS.map(m => {
-                                    const locked = limitExhausted && m.cost > 0;
+                                    // Документ 10, пункт 5 UI: на Free скрыть/задизейблить
+                                    // платные режимы; на Pro/Ultra — показать доступные.
+                                    // Реальный запрет — на бэкенде (model-policy.ts), это
+                                    // только чтобы не ждать отказа после нажатия.
+                                    const planLocked = !isModelAllowedForPlan(m.id, state.userPlan);
+                                    const limitLocked = limitExhausted && m.cost > 0;
+                                    const locked = limitLocked || planLocked;
                                     return (
-                                        <PressButton key={m.id} disabled={locked} onClick={() => {
+                                        // disabled только для лимита — кнопку с planLocked нужно
+                                        // оставить кликабельной, иначе переход на тарифы ниже
+                                        // никогда не сработает (disabled блокирует onClick целиком).
+                                        <PressButton key={m.id} disabled={limitLocked} onClick={() => {
+                                            if (planLocked) { updateState({ currentView: 'pricing' }); setShowDropdown(false); return; }
                                             if (locked) { alert('Вы исчерпали дневной лимит. Лимиты обновятся автоматически через 6 часов — доступна модель Void Mini без ограничений.'); return; }
                                             updateState({selectedModelId: m.id}); setShowDropdown(false);
                                         }} className={`w-full text-left p-4 rounded-2xl transition-colors flex flex-col gap-1 ${locked ? 'opacity-40 cursor-not-allowed' : ''} ${state.selectedModelId === m.id ? 'bg-[#efecf9] dark:bg-purple-900/20' : (locked ? '' : 'hover:bg-gray-50 dark:hover:bg-gray-800')}`}>
                                             <div className="flex justify-between w-full">
                                                 <span className={`font-extrabold text-[15px] ${state.selectedModelId === m.id ? 'text-[#5b32d4] dark:text-purple-400' : 'text-gray-900 dark:text-white'}`}>{m.name}</span>
                                                 {state.selectedModelId === m.id && <Icons.Check className="w-4 h-4 text-[#5b32d4] dark:text-purple-400" />}
-                                                {locked && <Icons.Info className="w-4 h-4 text-amber-500" style={{width:'16px',height:'16px'}} />}
+                                                {planLocked && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-400">Апгрейд</span>}
+                                                {!planLocked && locked && <Icons.Info className="w-4 h-4 text-amber-500" style={{width:'16px',height:'16px'}} />}
                                             </div>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">{m.desc}</p>
                                         </PressButton>

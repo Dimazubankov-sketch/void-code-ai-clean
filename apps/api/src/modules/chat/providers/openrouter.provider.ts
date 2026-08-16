@@ -186,6 +186,102 @@ export class OpenRouterProvider implements LlmProvider {
   }
 
   // ==========================================
+  // Генерация с ЯВНЫМ slug модели и реальным usage (документ 10)
+  // ==========================================
+  // Отдельный метод, а не правка generate(): тот вызывается из
+  // RoutingLlmProvider по внутреннему modelMap (Groq/Qwen-линия для
+  // Void Mini/Plus/Pro) и используется в нескольких местах — трогать его
+  // рискованно. Здесь модель приходит УЖЕ разрешённой model-policy.ts
+  // (whitelist по тарифу), и метод дополнительно возвращает usage —
+  // РЕАЛЬНЫЕ prompt/completion токены от OpenRouter, а не оценку по
+  // длине текста, для честного учёта расхода лимита.
+  async generateWithModel(
+    req: LlmRequest,
+    modelSlug: string,
+    maxTokens?: number,
+  ): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new ServiceUnavailableException('LLM-провайдер не сконфигурирован');
+
+    const hasAnyImages = req.messages.some((m) => m.imagesBase64 && m.imagesBase64.length > 0);
+    const messages = [
+      { role: 'system', content: req.systemPrompt },
+      ...req.messages.map((m) => {
+        if (m.imagesBase64 && m.imagesBase64.length > 0) {
+          return {
+            role: m.role,
+            content: [
+              { type: 'text', text: m.content || ' ' },
+              ...m.imagesBase64.map((url) => ({ type: 'image_url', image_url: { url } })),
+            ],
+          };
+        }
+        return { role: m.role, content: m.content };
+      }),
+    ];
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const started = Date.now();
+
+    let response: Response;
+    try {
+      response = await fetch(this.apiUrl, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'HTTP-Referer': process.env.APP_URL || 'https://void-code.ru',
+          'X-Title': 'Void Code AI',
+        },
+        body: JSON.stringify({
+          model: modelSlug,
+          messages,
+          max_tokens: maxTokens ?? req.maxTokens ?? 6144,
+          temperature: req.temperature ?? 0.7,
+          provider: { sort: 'throughput', allow_fallbacks: true },
+        }),
+      });
+    } catch (e: any) {
+      clearTimeout(timer);
+      if (e?.name === 'AbortError' || e?.code === 'ABORT_ERR') {
+        throw new ServiceUnavailableException(`Модель отвечает слишком долго (>${Math.round(this.timeoutMs / 1000)}с)`);
+      }
+      throw new ServiceUnavailableException('Сбой сети при обращении к провайдеру');
+    }
+    clearTimeout(timer);
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      console.error(`[OpenRouterProvider/${modelSlug}] HTTP ${response.status}:`, errorBody.slice(0, 500));
+      if (response.status === 402) throw new ServiceUnavailableException('Нет баланса на OpenRouter — пополни аккаунт');
+      if (response.status === 401) throw new ServiceUnavailableException('Ключ OpenRouter недействителен');
+      if (response.status === 429) throw new ServiceUnavailableException('Слишком много запросов, попробуй через минуту');
+      if (response.status >= 500) throw new ServiceUnavailableException('Провайдер временно недоступен');
+      throw new ServiceUnavailableException(`Ошибка провайдера: HTTP ${response.status}`);
+    }
+
+    const data: any = await response.json();
+    const content = data.choices?.[0]?.message?.content ?? '';
+    // OpenRouter возвращает usage в том же формате, что и OpenAI:
+    // {prompt_tokens, completion_tokens, total_tokens}. Если провайдер по
+    // какой-то причине его не прислал — считаем нулём, а не гадаем по
+    // длине текста: лучше недосчитать лимит один раз, чем врать себе
+    // оценкой на постоянной основе.
+    const usage = data.usage || {};
+    console.log(`[OpenRouterProvider/${modelSlug}] ок за ${Date.now() - started}мс, usage=${JSON.stringify(usage)}`);
+    return {
+      content,
+      usage: {
+        promptTokens: usage.prompt_tokens ?? 0,
+        completionTokens: usage.completion_tokens ?? 0,
+        totalTokens: usage.total_tokens ?? ((usage.prompt_tokens ?? 0) + (usage.completion_tokens ?? 0)),
+      },
+    };
+  }
+
+  // ==========================================
   // Потоковая генерация (для голосового режима)
   // ==========================================
   // Обычный generate() ждёт ответ целиком — для разговора вслух это
