@@ -4,6 +4,7 @@ import { OrchestratorMessages } from '@/features/cockpit/OrchestratorMessages';
 import { useOrchestratorThread } from '@/features/cockpit/useOrchestratorThread';
 import { ScheduleTaskModal } from '@/features/cockpit/ScheduleTaskModal';
 import { ChatInputBar } from '@/features/chat/ChatInputBar';
+import { AgentPlusMenu } from '@/features/cockpit/AgentPlusMenu';
 import { getAgentStatus, resolveCockpitStatus } from '@/shared/config/orchestrator';
 import { Icons } from '@/shared/ui/Icons';
 
@@ -25,7 +26,23 @@ export function OrchestratorChatView({ state, updateState }) {
     const [showSchedule, setShowSchedule] = useState(false);
     const [renaming, setRenaming] = useState(false);
     const [nameDraft, setNameDraft] = useState('');
+    const [showPlusMenu, setShowPlusMenu] = useState(false);
     const endRef = useRef(null);
+    const chatFileInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
+    const anyFileInputRef = useRef(null);
+
+    const openFilePicker = (ref) => {
+        setShowPlusMenu(false);
+        requestAnimationFrame(() => ref.current?.click());
+    };
+    const addImageFile = (files) => {
+        const file = files?.[0];
+        if (!file) return;
+        const r = new FileReader();
+        r.onloadend = () => setImage(r.result);
+        r.readAsDataURL(file);
+    };
 
     const { thread, reports, subordinates, sendTask, respond, thinking } = useOrchestratorThread(state, updateState, orchestrator);
 
@@ -145,8 +162,13 @@ export function OrchestratorChatView({ state, updateState }) {
                     <div ref={endRef} />
                 </div>
 
+                {/* Скрытые инпуты для камеры/фото/файлов */}
+                <input type="file" ref={chatFileInputRef} accept="image/jpeg, image/png, image/webp, image/heic" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
+                <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
+                <input type="file" ref={anyFileInputRef} accept=".pdf,.doc,.docx,.txt,.csv,.json" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
+
                 {/* ===== ВВОД — в едином стиле с основным чатом ===== */}
-                <div className="px-4 py-3 border-t border-gray-100 dark:border-darkBorder bg-white dark:bg-darkCard pb-safe shrink-0">
+                <div className="px-4 py-3 border-t border-gray-100 dark:border-darkBorder bg-white dark:bg-darkCard pb-safe shrink-0 relative">
                     <ChatInputBar
                         value={input}
                         onChange={setInput}
@@ -157,7 +179,19 @@ export function OrchestratorChatView({ state, updateState }) {
                         selectedImage={image}
                         onSelectImage={setImage}
                         onClearImage={() => setImage(null)}
+                        onPlusClick={() => setShowPlusMenu(true)}
                     />
+                    {showPlusMenu && (
+                        <AgentPlusMenu
+                            state={state}
+                            updateState={updateState}
+                            agentId={orchestrator.id}
+                            onClose={() => setShowPlusMenu(false)}
+                            onPickCamera={() => openFilePicker(cameraInputRef)}
+                            onPickPhoto={() => openFilePicker(chatFileInputRef)}
+                            onPickFile={() => openFilePicker(anyFileInputRef)}
+                        />
+                    )}
                 </div>
 
                 {showLinkMenu && (

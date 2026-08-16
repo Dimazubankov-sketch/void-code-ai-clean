@@ -53,11 +53,20 @@ export class VoiceService {
     return key;
   }
 
-  // Разбирает data-URL (audio/wav;base64,...) в бинарь. Аудио приходит с
-  // фронта именно так — тем же способом, что и фото в остальных модулях,
-  // чтобы не тащить multer ради одного эндпоинта.
+  // Разбирает data-URL в бинарь. Аудио приходит с фронта именно так — тем
+  // же способом, что и фото в остальных модулях, чтобы не тащить multer
+  // ради одного эндпоинта.
+  //
+  // БАГ, который тут был: MediaRecorder в браузере отдаёт mime-тип с
+  // параметрами кодека — например «audio/webm;codecs=opus», и итоговый
+  // data-URL выглядит как «data:audio/webm;codecs=opus;base64,...».
+  // Прежний regex ждал ровно «audio/…;base64,» без ничего между ними и
+  // падал на любой РЕАЛЬНОЙ записи с микрофона (только загруженный файл
+  // без параметров проходил) — отсюда и «Ожидается аудио в формате
+  // data-URL» на каждую попытку клонирования. Теперь параметры до
+  // «;base64,» разрешены явно.
   private decodeAudio(dataUrl: string): { buf: Buffer; mime: string } {
-    const m = /^data:(audio\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(String(dataUrl || ''));
+    const m = /^data:(audio\/[a-zA-Z0-9.+-]+)(?:;[^,]*)?;base64,(.+)$/.exec(String(dataUrl || ''));
     if (!m) throw new BadRequestException('Ожидается аудио в формате data-URL');
     const buf = Buffer.from(m[2], 'base64');
     if (!buf.length) throw new BadRequestException('Пустая аудиозапись');

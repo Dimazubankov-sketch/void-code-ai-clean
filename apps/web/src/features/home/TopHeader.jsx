@@ -3,6 +3,7 @@ import { gsap } from 'gsap';
 import { AI_MODELS, getPlanLimits, REASONING_LEVELS, defaultReasoningFor, isReasoningAllowed, getReasoningLevel } from '@/shared/config/models';
 import { Icons } from '@/shared/ui/Icons';
 import { ChatActionsMenu } from '@/features/chat/ChatActionsMenu';
+import { PressButton } from '@/shared/ui/PressButton';
 
 // ==========================================
 // IconCircleButton — круглая кнопка с полупрозрачной обводкой + GSAP
@@ -72,11 +73,11 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     const ModelSelectorBlock = (
         <div className="flex items-center gap-1.5">
             <div className="relative min-w-0">
-                <button onClick={() => setShowDropdown(!showDropdown)} className="void-tap-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/45 dark:bg-white/[0.10] backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-sm hover:bg-white/60 dark:hover:bg-white/[0.16] transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none">
+                <PressButton onClick={() => setShowDropdown(!showDropdown)} className="void-tap-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/45 dark:bg-white/[0.10] backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-sm hover:bg-white/60 dark:hover:bg-white/[0.16] transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none">
                     <div className="flex items-center gap-1 font-extrabold text-[13px] sm:text-[15px] md:text-lg dark:text-white leading-tight min-w-0">
                         <span className="truncate">{activeModel.name}</span> <Icons.ChevronDown className="w-4 h-4 flex-shrink-0" />
                     </div>
-                </button>
+                </PressButton>
                 {showDropdown && (
                     <>
                         <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)}></div>
@@ -91,30 +92,30 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                                 {AI_MODELS.map(m => {
                                     const locked = limitExhausted && m.cost > 0;
                                     return (
-                                        <button key={m.id} onClick={() => {
+                                        <PressButton key={m.id} disabled={locked} onClick={() => {
                                             if (locked) { alert('Вы исчерпали дневной лимит. Лимиты обновятся автоматически через 6 часов — доступна модель Void Mini без ограничений.'); return; }
                                             updateState({selectedModelId: m.id}); setShowDropdown(false);
-                                        }} className={`text-left p-4 rounded-2xl transition-colors flex flex-col gap-1 ${locked ? 'opacity-40 cursor-not-allowed' : ''} ${state.selectedModelId === m.id ? 'bg-[#efecf9] dark:bg-purple-900/20' : (locked ? '' : 'hover:bg-gray-50 dark:hover:bg-gray-800')}`}>
+                                        }} className={`w-full text-left p-4 rounded-2xl transition-colors flex flex-col gap-1 ${locked ? 'opacity-40 cursor-not-allowed' : ''} ${state.selectedModelId === m.id ? 'bg-[#efecf9] dark:bg-purple-900/20' : (locked ? '' : 'hover:bg-gray-50 dark:hover:bg-gray-800')}`}>
                                             <div className="flex justify-between w-full">
                                                 <span className={`font-extrabold text-[15px] ${state.selectedModelId === m.id ? 'text-[#5b32d4] dark:text-purple-400' : 'text-gray-900 dark:text-white'}`}>{m.name}</span>
                                                 {state.selectedModelId === m.id && <Icons.Check className="w-4 h-4 text-[#5b32d4] dark:text-purple-400" />}
                                                 {locked && <Icons.Info className="w-4 h-4 text-amber-500" style={{width:'16px',height:'16px'}} />}
                                             </div>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">{m.desc}</p>
-                                        </button>
+                                        </PressButton>
                                     );
                                 })}
                             </div>
                             {/* Уровень рассуждений — под выбором моделей */}
                             <div className="border-t border-gray-100 dark:border-darkBorder p-2">
-                                <button onClick={() => { setShowReasoning(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 p-3.5 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
+                                <PressButton onClick={() => { setShowReasoning(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 p-3.5 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                                     <div className="w-9 h-9 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center shrink-0"><Icons.Sparkles className="w-4 h-4" /></div>
                                     <div className="min-w-0 flex-1">
                                         <p className="font-bold text-sm dark:text-white">Уровень рассуждений</p>
                                         <p className="text-xs text-gray-400 truncate">{currentReasoning.name} · {currentReasoning.desc}</p>
                                     </div>
                                     <Icons.ChevronDown className="w-4 h-4 text-gray-400 -rotate-90 shrink-0" />
-                                </button>
+                                </PressButton>
                             </div>
                         </div>
                     </>
@@ -133,8 +134,8 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                                     const allowed = isReasoningAllowed(l.id, state.userPlan);
                                     const active = currentReasoningId === l.id;
                                     return (
-                                        <button key={l.id} onClick={() => pickReasoning(l.id)} disabled={!allowed}
-                                            className={`text-left p-3.5 rounded-2xl transition-colors flex items-center gap-3 ${!allowed ? 'opacity-40 cursor-not-allowed' : (active ? 'bg-[#efecf9] dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800')}`}>
+                                        <PressButton key={l.id} onClick={() => pickReasoning(l.id)} disabled={!allowed}
+                                            className={`w-full text-left p-3.5 rounded-2xl transition-colors flex items-center gap-3 ${!allowed ? 'opacity-40 cursor-not-allowed' : (active ? 'bg-[#efecf9] dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800')}`}>
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-2">
                                                     <span className={`font-extrabold text-sm ${active ? 'text-[#5b32d4] dark:text-purple-400' : 'text-gray-900 dark:text-white'}`}>{l.name}</span>
@@ -143,7 +144,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                                                 <p className="text-xs text-gray-500 dark:text-gray-400">{l.desc}</p>
                                             </div>
                                             {active && <Icons.Check className="w-4 h-4 text-[#5b32d4] dark:text-purple-400 shrink-0" />}
-                                        </button>
+                                        </PressButton>
                                     );
                                 })}
                             </div>
@@ -172,15 +173,27 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     // сколько кнопок в левой/правой группе.
     if (inChatView) {
         return (
-            /* Белой шапки больше нет. Вместо неё — прозрачный слой, под
-               которым лежит мягкий градиент от фона страницы к прозрачному:
-               контент чата уходит под шапку и плавно «растворяется», а не
-               обрезается белой полосой. pointer-events-none у градиента,
-               чтобы он не перехватывал клики и скролл. */
+            /* Настоящее стекло, не белая плашка с затуханием вниз.
+               Раньше верхняя точка градиента была ПОЛНОСТЬЮ непрозрачной
+               (from-white), поэтому текст под шапкой не было видно вовсе,
+               а сам градиент без backdrop-blur давал резкий, отчётливо
+               заметный край. Теперь два разных слоя:
+               1) сама полоса шапки (h-16) — постоянная лёгкая
+                  полупрозрачность + blur: текст под ней виден, но
+                  приглушён, ровно на всей высоте шапки, без утечки в 100%
+                  непрозрачность у верхнего края;
+               2) более узкая мягкая кайма под шапкой (без blur, только
+                  градиент до полной прозрачности) — сглаживает переход к
+                  обычному контенту чата, чтобы не было жёсткой границы.
+               pointer-events-none — чтобы слои не перехватывали клики и скролл. */
             <div className="sticky top-0 z-30 px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <div
                     aria-hidden
-                    className="absolute inset-x-0 top-0 h-24 -z-10 pointer-events-none bg-gradient-to-b from-white via-white/75 to-transparent dark:from-darkBg dark:via-darkBg/75 dark:to-transparent"
+                    className="absolute inset-x-0 top-0 h-16 -z-10 pointer-events-none backdrop-blur-xl bg-white/40 dark:bg-darkBg/45"
+                />
+                <div
+                    aria-hidden
+                    className="absolute inset-x-0 top-16 h-8 -z-10 pointer-events-none bg-gradient-to-b from-white/40 to-transparent dark:from-darkBg/45 dark:to-transparent"
                 />
                 <div className="flex items-center justify-self-start">
                     <IconCircleButton onClick={() => updateState({ currentView: 'home' })} title="Назад">

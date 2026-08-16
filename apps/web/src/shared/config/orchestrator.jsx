@@ -31,7 +31,7 @@ export const AGENT_LIMITS = {
 export const getAgentLimit = (plan) => AGENT_LIMITS[plan] ?? AGENT_LIMITS.free;
 
 // Оркестратор — «дирижёр»: дороже обычного агента и в сборке, и в работе
-export const ORCHESTRATOR_BUILD_FEE = 2990;      // разовая сборка (обычный агент — 990)
+export const ORCHESTRATOR_BUILD_FEE = 1500;      // разовая сборка (обычный агент — 990)
 export const ORCHESTRATOR_DAILY_MULTIPLIER = 3;  // ×3 к дневной стоимости токенов
 
 // ------------------------------------------

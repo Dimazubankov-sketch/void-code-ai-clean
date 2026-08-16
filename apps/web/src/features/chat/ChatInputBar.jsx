@@ -33,6 +33,17 @@ export function ChatInputBar({
     selectedImage = null,
     onSelectImage = null,
     onClearImage = null,
+    // Новое: агентский чат передаёт onPlusClick — «+» открывает его
+    // собственное меню (камера/фото/файлы/скиллы/голос/коннекторы)
+    // вместо обычного мгновенного выбора картинки. Остальные потребители
+    // компонента (например, почтовый чат) этот проп не передают —
+    // поведение «+» для них не меняется.
+    onPlusClick = null,
+    // onVoiceMode — если передан, кнопка отправки на ПУСТОМ поле
+    // превращается в кнопку входа в голосовой режим (та же логика
+    // мик/стрелка, что и в основном чате). Не передан — кнопка всегда
+    // обычная стрелка отправки, как было.
+    onVoiceMode = null,
 }) {
     const voice = useVoiceRecorder((text) => {
         onChange(((value || '') + (value ? ' ' : '') + text).trim());
@@ -111,7 +122,11 @@ export function ChatInputBar({
     };
 
     const canSend = !!((value || '').trim() || selectedImage) && !disabled && !voice.busy;
-    const canAttach = typeof onSelectImage === 'function';
+    const canAttach = typeof onSelectImage === 'function' || typeof onPlusClick === 'function';
+    // Показываем вход в голосовой режим вместо стрелки только когда поле
+    // реально пустое (иначе непонятно, отправляется текст или начинается
+    // разговор) и обработчик действительно передан.
+    const showVoiceModeButton = !!onVoiceMode && !(value || '').trim() && !selectedImage;
 
     return (
         <div className="relative">
@@ -137,7 +152,7 @@ export function ChatInputBar({
                             e.target.value = '';
                         }} />
                         <button
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={() => (onPlusClick ? onPlusClick() : fileInputRef.current?.click())}
                             title="Прикрепить фото или документ"
                             className="void-tap-target flex-shrink-0 ml-1.5 mb-2 p-2 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-full transition-colors flex items-center justify-center z-20"
                         >
@@ -222,14 +237,15 @@ export function ChatInputBar({
                     </button>
                 )}
                 <button
-                    onClick={() => canSend && onSend()}
-                    disabled={!canSend}
-                    // Задача 1: тот же размер (10×10), круглая форма, обводка
-                    // видна ВСЕГДА (в отличие от микрофона) — border-white/30
-                    // даёт лёгкий ободок поверх заливки бренд-цветом.
+                    onClick={() => (showVoiceModeButton ? onVoiceMode() : (canSend && onSend()))}
+                    disabled={!showVoiceModeButton && !canSend}
+                    title={showVoiceModeButton ? 'Voice Mode' : undefined}
+                    // Тот же приём, что и в основном чате: пустое поле —
+                    // кнопка входа в голосовой режим (волна), есть текст —
+                    // обычная стрелка отправки.
                     className="void-tap-target absolute right-1.5 bottom-1.5 w-10 h-10 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-sm z-20"
                 >
-                    <Icons.ArrowUp className="w-4 h-4" />
+                    {showVoiceModeButton ? <Icons.Waveform className="w-4 h-4" /> : <Icons.ArrowUp className="w-4 h-4" />}
                 </button>
             </div>
         </div>

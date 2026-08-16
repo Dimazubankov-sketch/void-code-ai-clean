@@ -314,7 +314,7 @@ export function SkillsPanel({ state, updateState, projectId = null }) {
     );
 }
 
-function AddTextSkill({ onAdd, onCancel }) {
+export function AddTextSkill({ onAdd, onCancel }) {
     const [name, setName] = useState('');
     const [desc, setDesc] = useState('');
     const [instruction, setInstruction] = useState('');
@@ -335,7 +335,7 @@ function AddTextSkill({ onAdd, onCancel }) {
 // через GitHub API, он выбирает репозиторий — README подтягивается как
 // текст инструкции. Полноценный OAuth-flow — задача на будущее; сейчас
 // используется token/username, без хранения секретов на клиенте дольше сессии.
-function AddGithubSkill({ onAdd, onCancel }) {
+export function AddGithubSkill({ onAdd, onCancel }) {
     const [token, setToken] = useState('');
     const [username, setUsername] = useState('');
     const [repos, setRepos] = useState(null);

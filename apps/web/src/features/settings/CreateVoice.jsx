@@ -117,6 +117,48 @@ function Paywall({ onClose, onUpgrade }) {
     );
 }
 
+// ---- Фиолетовый плеер записи, одна кнопка play/pause ----
+// Заменяет системный <audio controls>, который выглядит чужеродно рядом
+// с остальным интерфейсом. Прогресс — просто индикатор, единственное
+// управление — кнопка.
+function SamplePlayer({ src }) {
+    const audioRef = useRef(null);
+    const [playing, setPlaying] = useState(false);
+    const [progress, setProgress] = useState(0);
+
+    useEffect(() => {
+        const el = audioRef.current;
+        if (!el) return undefined;
+        const onEnd = () => { setPlaying(false); setProgress(0); };
+        const onTime = () => { if (el.duration) setProgress(el.currentTime / el.duration); };
+        el.addEventListener('ended', onEnd);
+        el.addEventListener('timeupdate', onTime);
+        return () => { el.removeEventListener('ended', onEnd); el.removeEventListener('timeupdate', onTime); };
+    }, [src]);
+
+    const toggle = () => {
+        const el = audioRef.current;
+        if (!el) return;
+        if (playing) { el.pause(); setPlaying(false); }
+        else { el.play().catch(() => { /* noop */ }); setPlaying(true); }
+    };
+
+    return (
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-[#efecf9] dark:bg-purple-900/20">
+            <audio ref={audioRef} src={src} className="hidden" />
+            <button
+                onClick={toggle}
+                className="void-tap-target w-10 h-10 shrink-0 rounded-full bg-[#5b32d4] hover:bg-[#4a26b0] text-white flex items-center justify-center transition-colors"
+            >
+                {playing ? <Icons.Pause className="w-4 h-4" /> : <Icons.Play className="w-4 h-4" />}
+            </button>
+            <div className="flex-1 h-1.5 rounded-full bg-white/60 dark:bg-white/10 overflow-hidden">
+                <div className="h-full bg-[#5b32d4] transition-[width] duration-150" style={{ width: `${Math.round(progress * 100)}%` }} />
+            </div>
+        </div>
+    );
+}
+
 // ---- Индикатор этапов: Загрузка → Обработка → Создание → Готово ----
 function Progress({ stage }) {
     const stages = ['Загрузка', 'Обработка', 'Создание голоса', 'Готово'];
@@ -278,7 +320,7 @@ function CloneScreen({ onBack, onCreated, onOpenLegal }) {
 
                 {audio && !recording && (
                     <div className="space-y-3 fade-in">
-                        <audio src={audio} controls className="w-full" />
+                        <SamplePlayer src={audio} />
                         <ConsentBlock checked={consent} onChange={setConsent} onOpenLegal={onOpenLegal} />
                         <input
                             value={title}
@@ -379,12 +421,9 @@ function DesignScreen({ onBack, onCreated, onOpenLegal }) {
                                     <span className="text-sm font-bold text-gray-900 dark:text-white">Вариант {i + 1}</span>
                                     {chosen === i && <Icons.Check className="w-4 h-4 text-[#5b32d4]" />}
                                 </span>
-                                <audio
-                                    src={`data:audio/wav;base64,${c.audioBase64}`}
-                                    controls
-                                    className="w-full"
-                                    onClick={(e) => e.stopPropagation()}
-                                />
+                                <div onClick={(e) => e.stopPropagation()}>
+                                    <SamplePlayer src={`data:audio/wav;base64,${c.audioBase64}`} />
+                                </div>
                             </button>
                         ))}
                         <input

@@ -76,7 +76,7 @@ export function ChatPlusMenu({
 }
 
 // --- Общая «шторка» снизу (на ПК — по центру) ---
-function Sheet({ title, onClose, children }) {
+export function Sheet({ title, onClose, children }) {
     return (
         <div data-modal-overlay className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in" onClick={onClose}>
             <div className="w-full sm:max-w-md bg-white dark:bg-darkCard rounded-t-3xl sm:rounded-3xl shadow-2xl slide-in-up max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -94,7 +94,7 @@ function Sheet({ title, onClose, children }) {
 // Большая квадратная кнопка (иконка сверху + подпись снизу, без круглой
 // подложки под иконкой — по референсу пользователя) — используется для
 // Камера/Фото/Файлы в верхней части меню «+».
-function BigButton({ icon, label, onClick }) {
+export function BigButton({ icon, label, onClick }) {
     const Icon = Icons[icon] || Icons.Plus;
     return (
         <button
@@ -107,7 +107,7 @@ function BigButton({ icon, label, onClick }) {
     );
 }
 
-function RowButton({ icon, label, onClick, chevron = false, right = null }) {
+export function RowButton({ icon, label, onClick, chevron = false, right = null }) {
     const Icon = Icons[icon] || Icons.Plus;
     return (
         <button onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-100/70 dark:hover:bg-gray-800/70 transition-colors">
@@ -207,7 +207,7 @@ function AgentPickerSheet({ state, updateState, onBack, onClose, onPickAgent }) 
 }
 
 // --- Вложенное окно: коннекторы (с поиском и фуллскрин-режимом) ---
-function ConnectorPickerSheet({ state, updateState, onBack, onClose }) {
+export function ConnectorPickerSheet({ state, updateState, onBack, onClose }) {
     const connected = state.connectedPlugins || [];
     const [query, setQuery] = useState('');
     const [fullscreen, setFullscreen] = useState(false);
@@ -273,7 +273,7 @@ function SkillsSheet({ state, updateState, onBack, onClose }) {
 }
 
 // «Шторка» с кнопкой назад. fullscreen — окно на весь экран (для коннекторов).
-function SheetWithBack({ title, onBack, onClose, children, fullscreen = false, headerRight = null }) {
+export function SheetWithBack({ title, onBack, onClose, children, fullscreen = false, headerRight = null }) {
     const panelClass = fullscreen
         ? 'w-full h-full sm:rounded-none'
         : 'w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl max-h-[85vh]';

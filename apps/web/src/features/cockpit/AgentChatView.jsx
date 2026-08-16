@@ -1,26 +1,61 @@
 import { useState, useRef, useEffect } from 'react';
 import { AudioPlayer } from '@/features/chat/AudioPlayer';
 import { ChatInputBar } from '@/features/chat/ChatInputBar';
+import { AgentPlusMenu } from '@/features/cockpit/AgentPlusMenu';
 import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
 import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
-import { useTextToSpeech } from '@/shared/lib/useTextToSpeech';
+import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { createBackendChat, sendBackendMessage } from '@/shared/api/chat';
 import { buildAgentSystemPrompt } from '@/shared/lib/agentPrompt';
+import { buildAgentSkillsInstruction } from '@/features/cockpit/AgentSkillsPanel';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
 // AgentChatView — чат с обычным агентом
 // ==========================================
-// Открывается поверх Cockpit. Полноценный чат: шапка с агентом, история
-// сообщений, единый инпут-бар (тот же ChatInputBar, что и в основном чате).
-// Агент работает строго по промту — все «профессии» и пресеты убраны.
+// Открывается поверх Cockpit. Композер — тот же ChatInputBar, что и в
+// основном чате (см. onPlusClick/onVoiceMode там же), только меню «+»
+// своё — AgentPlusMenu (камера/фото/файлы + скиллы/скиллы агента/голос/
+// коннекторы). Агент работает строго по промту — все «профессии» и
+// пресеты убраны.
+//
+// Озвучка переведена с браузерного Web Speech (useTextToSpeech) на тот же
+// бэкенд-TTS (Fish Audio), что и весь остальной проект — у каждого агента
+// свой голос (agent.voicePresetFish, выбирается в меню «+» → «Голос»),
+// но система голосов одна на всё приложение, как и требовалось.
+//
+// Полноценный разговорный Voice Mode (барж-ин, потоковая озвучка, камера
+// в реальном времени) сюда НЕ перенесён: он завязан на модель данных
+// основного чата (state.chatSessions/activeChatId) в App.jsx, а у агентов
+// отдельная модель — agentThreads по agent.id. Переносить его означало бы
+// делать useVoiceMode источник-агностичным — отдельная, более рискованная
+// задача, которую лучше не смешивать с переносом остального интерфейса.
 
 export function AgentChatView({ state, updateState }) {
     const agent = (state.aiAgents || []).find((a) => a.id === state.activeAgentId && a.kind !== 'orchestrator');
     const [input, setInput] = useState('');
     const [image, setImage] = useState(null);
     const [thinking, setThinking] = useState(false);
+    const [showPlusMenu, setShowPlusMenu] = useState(false);
     const endRef = useRef(null);
+    const chatFileInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
+    const anyFileInputRef = useRef(null);
+
+    const openFilePicker = (ref) => {
+        setShowPlusMenu(false);
+        // На следующий кадр — иначе системный пикер иногда не успевает
+        // открыться до того, как меню уйдёт из DOM (тот же приём, что и
+        // в основном чате).
+        requestAnimationFrame(() => ref.current?.click());
+    };
+    const addImageFile = (files) => {
+        const file = files?.[0];
+        if (!file) return;
+        const r = new FileReader();
+        r.onloadend = () => setImage(r.result);
+        r.readAsDataURL(file);
+    };
 
     // Возврат в Cockpit без засорения истории: снимаем со стека запись
     // 'cockpit', которую добавили при открытии чата, чтобы кнопка «Назад»
@@ -36,13 +71,14 @@ export function AgentChatView({ state, updateState }) {
 
     useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread.length, thinking]);
 
-    // Озвучка ответов агента
-    const tts = useTextToSpeech();
+    // Озвучка ответов агента — Fish Audio, голос выбирается на самом
+    // агенте (см. AgentPlusMenu → «Голос»), а не глобально.
+    const tts = useOpenAiTts();
     const [ttsMsgId, setTtsMsgId] = useState(null);
     const speakMsg = (m) => {
         if (ttsMsgId === m.id && tts.speaking) { tts.stop(); setTtsMsgId(null); return; }
         tts.stop(); setTtsMsgId(m.id);
-        tts.speak(m.text, { lang: state.voiceLang || 'ru-RU', voiceURI: state.voiceURI || null, rate: state.voiceRate || 1, pitch: state.voicePitch || 1 });
+        tts.speak(m.text, { provider: 'fish', voice: agent?.voicePresetFish || undefined, speed: state.voiceRate || 1, lang: state.voiceLang || 'ru-RU' });
     };
 
     if (!agent) {
@@ -55,13 +91,14 @@ export function AgentChatView({ state, updateState }) {
 
     const color = agent.color || '#5b32d4';
 
-    const send = () => {
-        const text = input.trim();
+    const send = (textOverride) => {
+        const text = (textOverride ?? input).trim();
         if (!text && !image) return;
         const now = Date.now();
         // Сначала показываем сообщение пользователя, включаем индикатор
         // размышления, затем запрашиваем ответ у ИИ с агентским системным
-        // промптом (краткий исполнитель, действия, коннекторы, токены).
+        // промптом (краткий исполнитель, действия, коннекторы, токены,
+        // + скиллы этого агента).
         const withUser = {
             ...threads,
             [agent.id]: [...thread, { id: `u_${now}`, role: 'user', text, image, at: now }],
@@ -92,7 +129,9 @@ export function AgentChatView({ state, updateState }) {
                         aiAgents: (state.aiAgents || []).map(a => a.id === agent.id ? { ...a, backendChatId } : a),
                     });
                 }
-                const sysPrompt = buildAgentSystemPrompt(agent, state.connectedPlugins || []);
+                const baseSysPrompt = buildAgentSystemPrompt(agent, state.connectedPlugins || []);
+                const skillsNote = buildAgentSkillsInstruction(agent);
+                const sysPrompt = skillsNote ? `${baseSysPrompt}\n\n${skillsNote}` : baseSysPrompt;
                 // Агенты пишут код уровня Plus/Pro — используем pro-модель.
                 const reply = await sendBackendMessage(backendChatId, text, 'pro', sysPrompt);
                 finish(reply || 'Готово.');
@@ -133,7 +172,7 @@ export function AgentChatView({ state, updateState }) {
                                     ? <TypewriterMessage content={m.text} onProgress={() => endRef.current?.scrollIntoView({ behavior: 'auto' })} />
                                     : m.text}
                             </div>
-                            {m.role === 'agent' && tts.supported && (
+                            {m.role === 'agent' && (
                                 <>
                                     <button onClick={() => speakMsg(m)} className={`mt-1 p-1.5 rounded-lg transition-colors ${ttsMsgId === m.id && tts.speaking ? 'text-[#5b32d4] bg-[#efecf9] dark:bg-purple-900/20' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'}`} title="Озвучить"><Icons.Volume2 className="w-4 h-4" /></button>
                                     {ttsMsgId === m.id && <AudioPlayer tts={tts} onClose={() => { tts.stop(); setTtsMsgId(null); }} />}
@@ -145,8 +184,15 @@ export function AgentChatView({ state, updateState }) {
                     <div ref={endRef} />
                 </div>
 
-                {/* Поле ввода — в едином стиле с основным чатом */}
-                <div className="p-3 border-t border-gray-100 dark:border-darkBorder shrink-0">
+                {/* Скрытые инпуты для камеры/фото/файлов — тот же паттерн,
+                    что и в основном чате. */}
+                <input type="file" ref={chatFileInputRef} accept="image/jpeg, image/png, image/webp, image/heic" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
+                <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
+                <input type="file" ref={anyFileInputRef} accept=".pdf,.doc,.docx,.txt,.csv,.json" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
+
+                {/* Поле ввода — в едином стиле с основным чатом, «+» открывает
+                    AgentPlusMenu вместо мгновенного выбора фото. */}
+                <div className="p-3 border-t border-gray-100 dark:border-darkBorder shrink-0 relative">
                     <ChatInputBar
                         value={input}
                         onChange={setInput}
@@ -157,7 +203,19 @@ export function AgentChatView({ state, updateState }) {
                         selectedImage={image}
                         onSelectImage={setImage}
                         onClearImage={() => setImage(null)}
+                        onPlusClick={() => setShowPlusMenu(true)}
                     />
+                    {showPlusMenu && (
+                        <AgentPlusMenu
+                            state={state}
+                            updateState={updateState}
+                            agentId={agent.id}
+                            onClose={() => setShowPlusMenu(false)}
+                            onPickCamera={() => openFilePicker(cameraInputRef)}
+                            onPickPhoto={() => openFilePicker(chatFileInputRef)}
+                            onPickFile={() => openFilePicker(anyFileInputRef)}
+                        />
+                    )}
                 </div>
             </div>
         </div>

@@ -9,7 +9,7 @@ import { VoiceOrb } from '@/features/settings/VoiceOrb';
 import { EmotionSettings } from '@/features/settings/EmotionSettings';
 import { CreateVoice } from '@/features/settings/CreateVoice';
 import { useUserVoices } from '@/shared/lib/useUserVoices';
-import { EMOTION_MODES, EMOTION_PRESETS, getEmotionSettings } from '@/shared/config/voiceEmotions';
+import { EMOTION_MODES, EMOTION_PRESETS, getEmotionSettings, buildEmotionCue } from '@/shared/config/voiceEmotions';
 
 // ==========================================
 // VoiceSettings — раздел «Голос» в настройках
@@ -161,18 +161,12 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const [showModelModal, setShowModelModal] = useState(false);
     const [showEmotions, setShowEmotions] = useState(false);
     const [showCreateVoice, setShowCreateVoice] = useState(false);
+    // Свои голоса теперь живут в общем списке (currentList ниже), отдельной
+    // «Мои голоса» больше нет. При создании onCreated сразу переключает
+    // preset на новый голос (см. рендер CreateVoice) — орб на своей штатной
+    // анимации входа и так покажет, что что-то изменилось, отдельно
+    // подсвечивать всплытием уже нечего.
     const { voices: myVoices, add: addMyVoice, remove: removeMyVoice } = useUserVoices();
-    // Только что созданный голос подсвечиваем всплытием: список может быть
-    // длинным, и без этого непонятно, что именно добавилось.
-    const myVoicesRef = useRef(null);
-    const prevMyCountRef = useRef(myVoices.length);
-    useGSAP(() => {
-        const grew = myVoices.length > prevMyCountRef.current;
-        prevMyCountRef.current = myVoices.length;
-        const first = myVoicesRef.current?.firstElementChild;
-        if (!grew || !first) return;
-        gsap.from(first, { y: -14, autoAlpha: 0, scale: 0.96, duration: 0.45, ease: 'back.out(1.7)', clearProps: 'all' });
-    }, { dependencies: [myVoices.length] });
 
     const emo = getEmotionSettings(state);
     const emotionLabel = emo.mode === EMOTION_MODES.AUTO
@@ -250,7 +244,12 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const test = () => {
         const sample = SAMPLE[lang] || SAMPLE.default;
         setTesting(true);
-        tts.speak(sample, { provider, voice: preset.id || undefined, speed: rate, lang });
+        // БАГ, из-за которого пресеты эмоций «не звучали»: этот вызов
+        // собирал опции синтеза вручную и не включал emotion вовсе — сама
+        // логика в voiceEmotions.jsx работала верно, просто «Проверить
+        // голос» никогда её не отправлял. Теперь берём инструкцию подачи
+        // тем же способом, что и обычная озвучка сообщений в чате.
+        tts.speak(sample, { provider, voice: preset.id || undefined, speed: rate, lang, emotion: buildEmotionCue(emo) || undefined });
     };
 
     // Раньше «активность» орба (testing) сбрасывалась жёстким setTimeout
@@ -297,13 +296,26 @@ export function VoiceSettings({ state, updateState, onClose }) {
                     </button>
 
                     {/* Свайпаемая карусель голоса — единая для всех языков, набор
-                        голосов зависит от выбранной модели озвучки (provider) выше. */}
+                        голосов зависит от выбранной модели озвучки (provider) выше.
+                        Свои голоса живут В ЭТОМ ЖЕ списке (см. currentList выше) —
+                        отдельной вкладки «Мои голоса» больше нет, они выглядят так,
+                        будто были там всегда. Удалить можно только их — у стандартных
+                        голосов Fish иконки удаления нет вовсе. */}
                     <div
-                        className="select-none"
+                        className="select-none relative"
                         onTouchStart={onTouchStart}
                         onTouchEnd={onTouchEnd}
                         onWheel={onWheel}
                     >
+                        {preset.myVoiceId && (
+                            <button
+                                onClick={() => removeMyVoice(preset.myVoiceId).catch(() => { /* уже удалён — не мешаем */ })}
+                                title="Удалить голос"
+                                className="void-tap-target absolute top-0 right-0 p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors z-10"
+                            >
+                                <Icons.Trash className="w-4 h-4" />
+                            </button>
+                        )}
                         <div className="flex items-center justify-center gap-4">
                             <button onClick={() => applyPreset(presetIdx - 1)} className="p-2 rounded-full text-gray-300 hover:text-[#5b32d4] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0"><Icons.ChevronLeft className="w-6 h-6" /></button>
                             <div className="flex flex-col items-center gap-3">
@@ -347,30 +359,6 @@ export function VoiceSettings({ state, updateState, onClose }) {
                             Клон или описание <Icons.ChevronRight className="w-4 h-4" />
                         </span>
                     </button>
-
-                    {/* Мои голоса — с возможностью удалить. */}
-                    {myVoices.length > 0 && (
-                        <div>
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 px-1">Мои голоса</p>
-                            <div ref={myVoicesRef} className="space-y-1.5">
-                                {myVoices.map((v) => (
-                                    <div key={v.id} className="flex items-center justify-between px-4 py-3 rounded-2xl bg-gray-50 dark:bg-gray-800/60">
-                                        <button onClick={() => updateState({ ttsProvider: 'fish', voicePresetFish: v.fishVoiceId })} className="flex-1 text-left min-w-0">
-                                            <span className="block font-bold text-sm dark:text-white truncate">{v.title}</span>
-                                            <span className="block text-[11px] text-gray-400">{v.source === 'clone' ? 'Клонированный' : 'Сгенерированный'}</span>
-                                        </button>
-                                        <button
-                                            onClick={() => removeMyVoice(v.id).catch(() => { /* уже удалён — не мешаем */ })}
-                                            title="Удалить голос"
-                                            className="void-tap-target p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors shrink-0"
-                                        >
-                                            <Icons.Trash className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
 
                     {/* Эмоции и тон голоса. Общий компонент с голосовыми
                         настройками Voice Mode — второй реализации нет. */}

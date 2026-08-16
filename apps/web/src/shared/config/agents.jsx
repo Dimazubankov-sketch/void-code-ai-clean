@@ -82,7 +82,7 @@ export const ORCHESTRATOR_PRODUCTS = [
         tagline: 'Дирижёр, раздающий задачи агентам',
         icon: 'Robot',
         premium: true,
-        price: 2990,
+        price: 1500,
         abilities: [
             'Раздаёт задачи вашим агентам',
             'Согласует шаги с вами перед запуском',
