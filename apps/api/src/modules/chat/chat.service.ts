@@ -1,4 +1,4 @@
-import { ForbiddenException, HttpException, Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LLM_PROVIDER, LlmProvider } from './providers/llm-provider.interface';
 import { OpenRouterProvider } from './providers/openrouter.provider';
@@ -6,7 +6,7 @@ import { postProcessAnswer } from './post-process';
 import { pickVoiceModel, VOICE_SYSTEM_PROMPT, VOICE_VISION_MODEL } from './voice-mode.constants';
 import {
   resolveModel, checkLimits, maxOutputTokensFor, isCodeIntent, todayKey,
-  ULTRA_FABLE_TOKEN_CAP, FABLE_OVERAGE_KOPECKS_PER_1K, PlanName,
+  requireFableBilling, FABLE_OVERAGE_KOPECKS_PER_1K, PlanName,
 } from './model-policy';
 
 // Лимиты тарифов — источник истины ЗДЕСЬ, на сервере. Множители к базовому
@@ -151,39 +151,22 @@ export class ChatService {
     const heavyGen = isCodeIntent(content);
     const { model: modelSlug, mode, plan } = resolveModel(user.plan, model, content);
 
-    // Fable (Ultra, mode='ultra') сверх дневного потолка — не блокируем
-    // совсем, а уходим в pay-as-you-go со списанием с кошелька (ТЗ,
-    // «На Ultra разрешить работу через биллинг»). Остальным режимам
-    // billing-обход недоступен.
+    // Fable (Ultra, mode='ultra') — работает ТОЛЬКО через биллинг, без
+    // бесплатной квоты вообще (см. пояснение в model-policy.ts —
+    // requireFableBilling). Проверяем баланс ДО обращения к провайдеру:
+    // списывать по факту, когда денег уже не хватает, поздно.
     const isFableMode = mode === 'ultra' && plan === 'ULTRA';
-    const fableOverage = isFableMode && (counter?.fableTokensToday ?? 0) >= ULTRA_FABLE_TOKEN_CAP;
+    if (isFableMode) requireFableBilling(user.walletKopecks ?? 0);
 
     checkLimits({
       plan,
       mode,
       counter: counter
-        ? { tokensUsedToday: counter.tokensUsedToday, heavyGenUsed: counter.heavyGenUsed, fableTokensToday: counter.fableTokensToday }
+        ? { tokensUsedToday: counter.tokensUsedToday, heavyGenUsed: counter.heavyGenUsed }
         : null,
       isHeavyGen: heavyGen,
-      isFableOverage: fableOverage,
+      isFableMode,
     });
-
-    // Если это Fable сверх потолка — проверяем баланс кошелька ДО вызова
-    // провайдера: списывать после факта, когда денег не хватит, поздно.
-    if (fableOverage) {
-      const minimumKopecks = FABLE_OVERAGE_KOPECKS_PER_1K; // грубая предоплата на первую «порцию» токенов
-      if ((user.walletKopecks ?? 0) < minimumKopecks) {
-        throw new HttpException(
-          {
-            code: 'FABLE_LIMIT_NEEDS_BILLING',
-            message: 'Дневной лимит Fable исчерпан. Пополните кошелёк, чтобы продолжить работу с Fable сверх лимита.',
-            resetAt: new Date(new Date().setUTCHours(24, 0, 0, 0)).toISOString(),
-            upgradeHint: 'topup',
-          },
-          402,
-        );
-      }
-    }
 
     const chat = await this.prisma.chatSession.findFirstOrThrow({
       where: { id: chatId, userId }, // чужой чат прочитать нельзя
@@ -229,7 +212,7 @@ export class ChatService {
 
     // Списываем РЕАЛЬНЫЕ токены (не оценку) и пишем аудиторский лог —
     // документ 10, пункты 3 и «дневные лимиты только backend».
-    await this.recordUsage({ userId, plan, mode, modelSlug, usage, isHeavyGen: heavyGen, fableOverage, walletDeductKopecks: fableOverage ? this.fableCostKopecks(usage.totalTokens) : 0 });
+    await this.recordUsage({ userId, plan, mode, modelSlug, usage, isHeavyGen: heavyGen, isFableMode, walletDeductKopecks: isFableMode ? this.fableCostKopecks(usage.totalTokens) : 0 });
 
     return assistantMessage;
   }
@@ -243,9 +226,9 @@ export class ChatService {
   private async recordUsage(params: {
     userId: string; plan: PlanName; mode: string; modelSlug: string;
     usage: { promptTokens: number; completionTokens: number; totalTokens: number };
-    isHeavyGen: boolean; fableOverage: boolean; walletDeductKopecks: number;
+    isHeavyGen: boolean; isFableMode: boolean; walletDeductKopecks: number;
   }) {
-    const { userId, plan, mode, modelSlug, usage, isHeavyGen, fableOverage, walletDeductKopecks } = params;
+    const { userId, plan, mode, modelSlug, usage, isHeavyGen, isFableMode, walletDeductKopecks } = params;
     const dayKey = todayKey();
     const weekKey = dayKey.slice(0, 7);
 
@@ -253,7 +236,7 @@ export class ChatService {
       data: {
         userId, plan, mode, model: modelSlug,
         promptTokens: usage.promptTokens, completionTokens: usage.completionTokens, totalTokens: usage.totalTokens,
-        billedFromWallet: fableOverage,
+        billedFromWallet: isFableMode,
       },
     });
 
@@ -266,16 +249,19 @@ export class ChatService {
     await this.prisma.usageCounter.update({
       where: { id: counter.id },
       data: {
-        // Fable-оверейдж не засчитывается в общий токен-лимит тарифа — он
-        // уже оплачен отдельно с кошелька, иначе получилось бы двойное
-        // списание (и по лимиту, и деньгами).
-        tokensUsedToday: fableOverage ? undefined : { increment: usage.totalTokens },
-        fableTokensToday: fableOverage ? { increment: usage.totalTokens } : undefined,
+        // Fable ВСЕГДА оплачена с кошелька и никогда не входит в общий
+        // токен-лимит тарифа — иначе получилось бы двойное списание (и по
+        // лимиту, и деньгами). fableTokensToday ведём только для
+        // статистики/аудита, не как условие доступа.
+        tokensUsedToday: isFableMode ? undefined : { increment: usage.totalTokens },
+        fableTokensToday: isFableMode ? { increment: usage.totalTokens } : undefined,
         heavyGenUsed: isHeavyGen ? { increment: 1 } : undefined,
       } as any,
     });
 
-    if (fableOverage && walletDeductKopecks > 0) {
+    // Fable — без исключений: списываем с кошелька на КАЖДЫЙ запрос, а не
+    // только «сверх лимита» (у неё лимита и нет — см. model-policy.ts).
+    if (isFableMode && walletDeductKopecks > 0) {
       await this.prisma.$transaction([
         this.prisma.user.update({ where: { id: userId }, data: { walletKopecks: { decrement: walletDeductKopecks } } }),
         this.prisma.walletTransaction.create({
@@ -284,7 +270,7 @@ export class ChatService {
           // подходит и для этого списания — заводить новый enum-член
           // ради одной строки означало бы отдельную миграцию без
           // реальной необходимости.
-          data: { userId, type: 'TOKEN_CHARGE', amountKopecks: -walletDeductKopecks, description: `Fable сверх дневного лимита (${usage.totalTokens} токенов)` },
+          data: { userId, type: 'TOKEN_CHARGE', amountKopecks: -walletDeductKopecks, description: `Fable (${usage.totalTokens} токенов)` },
         }),
       ]);
     }

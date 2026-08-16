@@ -26,9 +26,14 @@ const normalizePlan = (plan?: string): PlanName => {
 // WHITELIST. null = режим недоступен на этом тарифе — resolveModel
 // бросает понятную ошибку, а не тихо подставляет что-то другое.
 //
-// PLUS в исходном ТЗ не описан отдельно (там только Free/Pro/Ultra) —
-// сознательно приравнен к PRO: это платный тариф ниже PRO, и давать ему
-// доступ к тем же моделям, что и PRO, безопаснее, чем гадать другой набор.
+// PLUS как ПОКУПАЕМЫЙ ТАРИФ на проекте больше не продаётся (Alan
+// подтвердил: остались только Free/Pro/Ultra) — «Plus» сейчас существует
+// только как НАЗВАНИЕ МОДЕЛИ (Void Plus, режим flash_ext) внутри тарифов
+// Pro/Ultra, а не как отдельный план. Ветка PLUS в этой таблице оставлена
+// исключительно потому, что в схеме БД (enum Plan) значение технически
+// ещё существует — если у кого-то в базе случайно останется user.plan =
+// 'PLUS', запрос не должен упасть с необработанным случаем. Ведёт себя
+// как PRO. Реальных пользователей с этим значением плана быть не должно.
 const MODEL_WHITELIST: Record<PlanName, Record<ModeId, string | null>> = {
   FREE: {
     flash: 'deepseek/deepseek-v4-flash-0731',
@@ -91,11 +96,21 @@ export const PLAN_TOKEN_LIMITS: Record<PlanName, number> = {
 export const FREE_HEAVY_GEN_LIMIT = envInt('VOID_LIMIT_HEAVY_GEN_FREE', 2);
 export const FREE_MAX_OUTPUT_TOKENS = envInt('VOID_LIMIT_MAX_OUTPUT_FREE', 1200);
 
-// Отдельный потолок конкретно на Fable (Ultra) — сверх него доступ только
-// через списание с кошелька (pay-as-you-go), не бесплатно и без лимита.
-export const ULTRA_FABLE_TOKEN_CAP = envInt('VOID_LIMIT_FABLE_TOKENS', 500_000);
-// Оценочная цена за 1000 токенов Fable при списании сверх лимита, в копейках.
+// Fable — САМАЯ дорогая модель в системе, и работает ИСКЛЮЧИТЕЛЬНО через
+// биллинг: никакой бесплатной дневной квоты в токенах у нее нет вовсе.
+// Раньше здесь был дневной «бесплатный» потолок (ULTRA_FABLE_TOKEN_CAP) с
+// переходом на списание только сверх него — это создавало прямой
+// финансовый риск для владельца сервиса: несколько человек за одну ночь
+// могли выбрать самую дорогую модель и исчерпать бесплатный лимит десятки
+// раз одновременно, а платит за реальный расход токенов Anthropic/
+// OpenRouter именно владелец аккаунта OpenRouter, а не пользователи.
+// Теперь баланс кошелька проверяется и списывается на КАЖДЫЙ запрос к
+// Fable без исключений — доступ есть только пока хватает денег.
 export const FABLE_OVERAGE_KOPECKS_PER_1K = envInt('VOID_FABLE_OVERAGE_KOPECKS_PER_1K', 150);
+// Минимальный остаток на кошельке, чтобы вообще начать запрос к Fable —
+// проверяем ДО обращения к провайдеру, чтобы не оказаться в ситуации
+// «токены потрачены, а списать было не с чего».
+export const FABLE_MIN_BALANCE_KOPECKS = envInt('VOID_FABLE_MIN_BALANCE_KOPECKS', FABLE_OVERAGE_KOPECKS_PER_1K);
 
 export function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -149,26 +164,27 @@ export function resolveModel(planRaw: string | undefined, modeRaw: string | unde
 export function checkLimits(params: {
   plan: PlanName;
   mode: ModeId;
-  counter: { tokensUsedToday: number; heavyGenUsed: number; fableTokensToday: number } | null;
+  counter: { tokensUsedToday: number; heavyGenUsed: number } | null;
   isHeavyGen: boolean;
-  isFableOverage: boolean; // уже посчитано снаружи: fableTokensToday >= cap
+  isFableMode: boolean; // Fable проверяется ОТДЕЛЬНО, через биллинг — сюда не входит
 }) {
-  const { plan, mode, counter, isHeavyGen, isFableOverage } = params;
+  const { plan, mode, counter, isHeavyGen, isFableMode } = params;
+
+  // Fable вообще не расходует общий токен-бюджет тарифа и не подчиняется
+  // этой проверке — доступ к ней целиком решает баланс кошелька
+  // (см. requireFableBilling ниже, вызывается отдельно в chat.service.ts).
+  if (isFableMode) return;
+
   const tokensUsed = counter?.tokensUsedToday ?? 0;
   const limit = PLAN_TOKEN_LIMITS[plan];
 
-  if (tokensUsed >= limit && !(plan === 'ULTRA' && isFableOverage)) {
-    // На Ultra общий токен-лимит исчерпан — доступ дальше только через
-    // Fable pay-as-you-go (проверяется отдельно в billing-обвязке
-    // chat.service.ts), остальным тарифам просто отказываем.
-    if (plan !== 'ULTRA') {
-      limitExceededError(
-        HttpStatus.PAYMENT_REQUIRED,
-        'DAILY_TOKEN_LIMIT',
-        'Дневной лимит токенов исчерпан. Попробуйте завтра или обновите тариф.',
-        'upgrade',
-      );
-    }
+  if (tokensUsed >= limit) {
+    limitExceededError(
+      HttpStatus.PAYMENT_REQUIRED,
+      'DAILY_TOKEN_LIMIT',
+      'Дневной лимит токенов исчерпан. Попробуйте завтра или обновите тариф.',
+      'upgrade',
+    );
   }
 
   if (plan === 'FREE' && isHeavyGen && (counter?.heavyGenUsed ?? 0) >= FREE_HEAVY_GEN_LIMIT) {
@@ -177,6 +193,20 @@ export function checkLimits(params: {
       'HEAVY_GEN_LIMIT',
       `На бесплатном тарифе доступно не более ${FREE_HEAVY_GEN_LIMIT} тяжёлых генераций (код/сайт) в сутки. Попробуйте завтра или обновите тариф.`,
       'upgrade',
+    );
+  }
+}
+
+// requireFableBilling — проверка баланса ПЕРЕД каждым запросом к Fable.
+// Никакой бесплатной квоты — если денег недостаточно, доступа нет вовсе,
+// независимо от того, сколько токенов уже потрачено или нет.
+export function requireFableBilling(walletKopecks: number) {
+  if (walletKopecks < FABLE_MIN_BALANCE_KOPECKS) {
+    limitExceededError(
+      HttpStatus.PAYMENT_REQUIRED,
+      'FABLE_REQUIRES_BILLING',
+      'Fable доступна только через оплату из кошелька. Пополните баланс, чтобы продолжить.',
+      'topup',
     );
   }
 }
