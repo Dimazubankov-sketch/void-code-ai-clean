@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { goBack } from '@/shared/lib/navigation';
@@ -25,7 +25,20 @@ const INFO_SECTIONS = [
 ];
 
 export function InfoView({ state, updateState, onClose }) {
-    const [section, setSection] = useState('about');
+    // state.infoSection позволяет открыть «Сведения» сразу на нужном
+    // разделе — например, ссылки «Условия использования» / «Политика
+    // конфиденциальности» с экрана «Тарифы» ведут прямо в terms/privacy,
+    // а не на дефолтный «О проекте». Значение читаем один раз при монтаже
+    // и тут же гасим в App-state, чтобы возврат на «Сведения» обычным
+    // путём снова открывал «О проекте».
+    const [section, setSection] = useState(() => {
+        const initial = state?.infoSection;
+        return ['about', 'terms', 'privacy', 'faq'].includes(initial) ? initial : 'about';
+    });
+    useEffect(() => {
+        if (state?.infoSection) updateState({ infoSection: null });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const contentRef = useRef(null);
     const scrollRef = useRef(null);
 

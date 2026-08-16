@@ -8,6 +8,7 @@ import { NotificationCenter } from '@/features/cockpit/NotificationCenter';
 import { applyApprovedPlan } from '@/shared/lib/orchestrator-engine';
 import { AuthModal } from '@/features/auth/AuthModal';
 import { PricingView } from '@/features/billing/PricingView';
+import { LimitExceededModal } from '@/features/billing/LimitExceededModal';
 import { ChatView } from '@/features/chat/ChatView';
 import { VoiceModeOverlay } from '@/features/chat/VoiceModeOverlay';
 import { useVoiceMode } from '@/shared/lib/useVoiceMode';
@@ -397,6 +398,14 @@ export function App() {
         const attachedImages = state.selectedImages && state.selectedImages.length > 0 ? state.selectedImages : (state.selectedImage ? [state.selectedImage] : []);
         if ((!textToSend.trim() && attachedImages.length === 0) || state.isGenerating) return;
 
+        // Команда @plan — локальный перехват: НЕ уходит к модели, а сразу
+        // открывает окно тарифов (paywall). Очищаем поле ввода и выходим,
+        // чтобы «@plan» не отправился как обычное сообщение.
+        if (/^\s*@plan\b/i.test(textToSend)) {
+            updateState({ inputValue: '', paywall: { context: 'plan' } });
+            return;
+        }
+
         // ЗАДАЧА 2: автоопределение команды на генерацию изображения прямо
         // из текста обычного чата. Если сообщение начинается со слов
         // «создай изображение…», «нарисуй…» или «сгенерируй…» — не уходим
@@ -585,7 +594,14 @@ export function App() {
                 // используют TopHeader/LimitsView для клиентской оценки
                 // лимита. Так бэкендный отказ сразу подсвечивает тот же
                 // баннер и блокирует платные модели, а не только текст в чате.
-                setState(prev => ({ ...prev, dailyLimitExceededAt: prev.dailyLimitExceededAt || Date.now() }));
+                // Плюс к блокировке инпута — поднимаем paywall-модалку
+                // (тост «Лимит исчерпан» → карточка с CTA на тарифы).
+                // context 'chat' даёт корректную подпись в модалке.
+                setState(prev => ({
+                    ...prev,
+                    dailyLimitExceededAt: prev.dailyLimitExceededAt || Date.now(),
+                    paywall: prev.paywall || { context: 'chat' },
+                }));
                 responseText = `⚠️ ${e.message}`;
             } else if (e instanceof ApiError) {
                 responseText = `⚠️ ${e.message}`; // напр. 403 — исчерпан лимит запросов
@@ -758,6 +774,10 @@ export function App() {
             {showSplash && <Splash dark={state.isDarkMode} onDone={() => setShowSplash(false)} />}
             {/* МОДАЛКА АВТОРИЗАЦИИ ПОВЕРХ ВСЕГО */}
             <AuthModal state={state} updateState={updateState} />
+            {/* Paywall «Лимит исчерпан» — показывается по 402/429 от бэкенда
+                и по команде @plan в чате (см. handleSendMessage). Один
+                инстанс на всё приложение, управляется через state.paywall. */}
+            <LimitExceededModal state={state} updateState={updateState} />
             {/* Voice Mode — рендерится здесь, а не внутри Home/Chat, ровно
                 по той же причине, по которой сам хук живёт в App.jsx (см.
                 комментарий у useVoiceMode выше): не должен размонтироваться

@@ -14,16 +14,35 @@ export function PricingView({ state, updateState }) {
     const banks = getBanks(lang);
     // Цена в валюте выбранного языка (для отображения).
     const money = (rub) => formatCurrency(rub, lang);
-    // GSAP: карточки тарифов и переключатель всплывают (fade-in + slide-up)
-    // при заходе на вкладку и при смене периода/языка. Уважаем reduced-motion.
+    // GSAP: вход на экран «Тарифы» — каскадное появление header → tabs →
+    // body → footer. Живёт в одном scope, чистится автоматически (useGSAP).
     const plansScope = useRef(null);
     useGSAP(() => {
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (reduce || !plansScope.current) return;
-        gsap.fromTo('.void-plan-card',
-            { autoAlpha: 0, y: 28 },
+        // Только для нового экрана тарифов (не для checkout — там своя верстка).
+        if (!plansScope.current.querySelector('.void-pv-head')) return;
+        gsap.fromTo(
+            ['.void-pv-head', '.void-pv-body', '.void-pv-foot'],
+            { autoAlpha: 0, y: 24 },
             { autoAlpha: 1, y: 0, duration: 0.5, ease: 'power3.out', stagger: 0.08 });
-    }, { scope: plansScope, dependencies: [state.billingCycle, lang] });
+    }, { scope: plansScope, dependencies: [] });
+
+    // GSAP: смена тарифа (Free/Pro/Ultra) или периода — плавный crossfade
+    // содержимого панели + мягкий stagger по пунктам, без резкого jump.
+    // Зависит от viewedPlan+billingCycle: React пересобирает тело по key,
+    // а GSAP анимирует его новое появление.
+    useGSAP(() => {
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce || !plansScope.current) return;
+        const body = plansScope.current.querySelector('.void-pv-body');
+        if (!body) return;
+        const tl = gsap.timeline();
+        tl.fromTo(body, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.34, ease: 'power2.out' });
+        tl.fromTo(body.querySelectorAll('.void-pv-feat'),
+            { autoAlpha: 0, x: -10 },
+            { autoAlpha: 1, x: 0, duration: 0.28, ease: 'power2.out', stagger: 0.035 }, '-=0.2');
+    }, { scope: plansScope, dependencies: [state.viewedPlan, state.userPlan, state.billingCycle, lang] });
     // Локальные поля формы оплаты. Пока пользователь не заполнит их
     // корректно, кнопка "Оплатить" не пускает его дальше — тариф
     // не активируется и currentView не переключается.
@@ -355,66 +374,171 @@ export function PricingView({ state, updateState }) {
         );
     }
 
+    // ==========================================
+    // НОВЫЙ ЭКРАН «ТАРИФЫ» (single-plan view с табами Free|Pro|Ultra)
+    // ==========================================
+    // Показываем ОДИН тариф за раз, переключаемый сегмент-табами сверху —
+    // как на присланных макетах. Какой тариф сейчас просматривается,
+    // держим в state.viewedPlan (по умолчанию — текущий тариф юзера, чтобы
+    // человек сразу видел «свой» экран). Отдельно от userPlan: viewedPlan —
+    // это «на что смотрю», userPlan — «что оплачено».
+    const TAB_ORDER = ['free', 'pro', 'pro_plus'];
+    const viewedId = TAB_ORDER.includes(state.viewedPlan) ? state.viewedPlan : (state.userPlan || 'free');
+    const viewed = PRICING_PLANS.find(p => p.id === viewedId) || PRICING_PLANS[0];
+
+    // Ранги для логики доступности: понизиться нельзя.
+    const rank = { free: 0, pro: 2, pro_plus: 3 };
+    const currentRank = rank[state.userPlan] ?? 0;
+    const isCurrent = viewed.id === state.userPlan;
+    const isLower = (rank[viewed.id] ?? 0) < currentRank; // тариф ниже текущего
+    const isFree = viewed.id === 'free';
+
+    const price = state.billingCycle === 'month' ? viewed.priceMonth : viewed.priceYear;
+
+    // Текст и состояние главной CTA под смысл ТЗ.
+    let ctaLabel, ctaDisabled, ctaKind;
+    if (isCurrent) { ctaLabel = '✓ Текущий тариф'; ctaDisabled = true; ctaKind = 'current'; }
+    else if (isLower) { ctaLabel = 'Недоступно'; ctaDisabled = true; ctaKind = 'muted'; }
+    else if (isFree) { ctaLabel = 'Недоступно'; ctaDisabled = true; ctaKind = 'muted'; }
+    else { ctaLabel = `Перейти на ${viewed.title}`; ctaDisabled = false; ctaKind = 'primary'; }
+
+    const handleCta = () => {
+        if (ctaDisabled) return;
+        if (!state.user) { updateState({ showAuthModal: true, authTab: 'register' }); return; }
+        updateState({ checkoutPlan: viewed, paymentStep: 'select', selectedMethod: 'card', selectedBank: 'sber' });
+    };
+
+    // Иконка-стикер слева от пункта: подбираем по ключевым словам, чтобы
+    // список не был «одинаковыми галочками», а имел смысловые SVG-стикеры.
+    const featureIcon = (text) => {
+        const t = text.toLowerCase();
+        if (t.includes('голос')) return Icons.Mic;
+        if (t.includes('картин') || t.includes('изображ')) return Icons.Image;
+        if (t.includes('код')) return Icons.Code;
+        if (t.includes('скорост')) return Icons.Bolt || Icons.Sparkles;
+        if (t.includes('поддержк')) return Icons.Headset;
+        if (t.includes('множител') || t.includes('лимит')) return Icons.Star;
+        if (t.includes('модел')) return Icons.Sparkles;
+        if (t.includes('рассужд')) return Icons.Sparkles;
+        if (t.includes('агент') || t.includes('оркестр')) return Icons.Bot || Icons.Sparkles;
+        if (t.includes('почт')) return Icons.Mail || Icons.Sparkles;
+        if (t.includes('обучающ')) return Icons.Book || Icons.Sparkles;
+        return Icons.Check;
+    };
+
     return (
-        <div className="flex-1 overflow-y-auto pb-8 h-full bg-[#f8f9fc] dark:bg-darkBg fade-in w-full">
-            <div className="px-4 py-8 max-w-5xl mx-auto">
-                <div className="flex items-center mb-8 gap-4">
-                    <button onClick={() => goBack(state, updateState, 'settings')} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft /></button>
-                    <h1 className="text-3xl font-extrabold dark:text-white">Тарифы</h1>
+        <div ref={plansScope} className="flex flex-col h-full bg-[#f8f9fc] dark:bg-darkBg void-view-enter w-full">
+            {/* ── Шапка: крестик + Void Code / текущий просматриваемый тариф ── */}
+            <div className="void-pv-head shrink-0 px-4 pt-5 pb-3 max-w-2xl w-full mx-auto">
+                <button
+                    onClick={() => goBack(state, updateState, 'settings')}
+                    aria-label="Закрыть тарифы"
+                    className="void-pv-x p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
+                >
+                    <Icons.X className="w-6 h-6" />
+                </button>
+                <div className="flex items-baseline justify-between mt-3">
+                    <h1 className="text-2xl font-extrabold dark:text-white">Void Code</h1>
+                    <span className="text-lg font-bold text-[#5b32d4] dark:text-purple-400">{viewed.title}</span>
                 </div>
-                <div className="flex justify-center mb-10">
-                    <div className="bg-gray-100 dark:bg-darkBorder p-1 flex rounded-2xl relative w-72">
-                        <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-darkCard rounded-xl shadow-sm transition-transform duration-300 ease-in-out ${state.billingCycle === 'year' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`} />
-                        <button onClick={() => updateState({billingCycle: 'month'})} className={`relative z-10 flex-1 py-2.5 text-sm font-bold transition-colors ${state.billingCycle === 'month' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>В месяц</button>
-                        <button onClick={() => updateState({billingCycle: 'year'})} className={`relative z-10 flex-1 py-2.5 text-sm font-bold transition-colors ${state.billingCycle === 'year' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>В год (-20%)</button>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-snug">{viewed.subtitle}</p>
+
+                {/* ── Сегмент-табы Free | Pro | Ultra ── */}
+                <div className="mt-4 bg-gray-100 dark:bg-darkBorder p-1 flex rounded-2xl relative">
+                    <div
+                        className="absolute top-1 bottom-1 bg-white dark:bg-darkCard rounded-xl shadow-sm transition-transform duration-300 ease-out"
+                        style={{ width: 'calc(33.333% - 3px)', transform: `translateX(calc(${TAB_ORDER.indexOf(viewedId)} * (100% + 4px)))` }}
+                    />
+                    {[{ id: 'free', label: 'Free' }, { id: 'pro', label: 'Pro' }, { id: 'pro_plus', label: 'Ultra' }].map(t => (
+                        <button
+                            key={t.id}
+                            onClick={() => updateState({ viewedPlan: t.id })}
+                            className={`relative z-10 flex-1 py-2.5 text-sm font-bold transition-colors ${viewedId === t.id ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}
+                        >
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* ── Скроллируемая панель описания тарифа ── */}
+            <div className="flex-1 overflow-y-auto px-4 max-w-2xl w-full mx-auto">
+                {/* key завязан на viewedId+billingCycle → пересборка = GSAP crossfade */}
+                <div key={`${viewedId}-${state.billingCycle}`} className="void-pv-body pb-4">
+                    {/* Бейдж множителя + цена */}
+                    <div className="flex items-center gap-3 flex-wrap mt-1">
+                        <span className="text-4xl font-extrabold dark:text-white">{money(price)}</span>
+                        {state.billingCycle === 'month' && viewed.oldPriceMonth && (
+                            <span className="text-xl font-bold text-gray-400 line-through">{money(viewed.oldPriceMonth)}</span>
+                        )}
+                        {price > 0 && (
+                            <span className="text-sm text-gray-500 self-end mb-1.5">/ {state.billingCycle === 'month' ? 'мес' : 'год'}</span>
+                        )}
+                    </div>
+                    {viewed.multiplier > 1 && (
+                        <div className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 text-xs font-extrabold">
+                            ×{viewed.multiplier} лимитов
+                        </div>
+                    )}
+
+                    <h4 className="text-sm font-bold mt-6 mb-4 dark:text-white">Что входит:</h4>
+                    <div className="space-y-3.5">
+                        {viewed.features.map((f, i) => {
+                            const IconComp = featureIcon(f);
+                            return (
+                                <div key={i} className="void-pv-feat flex items-start gap-3">
+                                    <div className="mt-0.5 w-7 h-7 rounded-xl bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 flex items-center justify-center flex-shrink-0">
+                                        <IconComp className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 leading-snug pt-1">{f}</div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
-                <div ref={plansScope} className="grid md:grid-cols-2 gap-6" key={state.billingCycle}>
-                    {PRICING_PLANS.map(p => {
-                        // Порядок тарифов по «весу». Тарифы дешевле текущего
-                        // становятся недоступными — понизиться нельзя.
-                        const rank = { free: 0, pro: 2, pro_plus: 3 };
-                        const currentRank = rank[state.userPlan] ?? 0;
-                        const isCurrent = p.id === state.userPlan;
-                        const isLower = (rank[p.id] ?? 0) < currentRank;
-                        const isFree = p.id === 'free';
-                        const disabled = isCurrent || isLower || isFree;
-                        return (
-                        <div key={p.id} className={`void-plan-card bg-white dark:bg-darkCard p-6 rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm flex flex-col ${isLower ? 'opacity-50' : ''}`}>
-                            <h2 className="text-2xl font-bold dark:text-white">{p.title}</h2>
-                            {p.multiplier > 1 && (
-                                <div className="mt-1.5 inline-flex self-start items-center gap-1 px-2.5 py-1 rounded-full bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 text-xs font-extrabold">
-                                    ×{p.multiplier} лимитов
-                                </div>
-                            )}
-                            <p className="text-sm text-gray-500 mt-2 mb-4">{p.subtitle}</p>
-                            <div className="flex items-baseline gap-2.5 mb-6">
-                                <span className="text-4xl font-extrabold dark:text-white">{money(state.billingCycle === 'month' ? p.priceMonth : p.priceYear)}</span>
-                                {state.billingCycle === 'month' && p.oldPriceMonth && (
-                                    <span className="text-xl font-bold text-gray-400 line-through">{money(p.oldPriceMonth)}</span>
-                                )}
-                            </div>
-                            <div className="mb-8">
-                                <h4 className="text-sm font-bold mb-4 dark:text-white">Что входит:</h4>
-                                <div className="space-y-3">
-                                    {p.features.map((f, i) => (
-                                        <div key={i} className="flex items-start gap-3">
-                                            <div className="mt-1 bg-[#5b32d4] rounded-full p-0.5 flex-shrink-0"><Icons.Check className="w-3 h-3 text-white"/></div>
-                                            <div className="text-sm font-medium text-gray-700 dark:text-gray-300 leading-tight">{f}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            <button onClick={() => {
-                                if (disabled) return;
-                                if (!state.user) { updateState({ showAuthModal: true, authTab: 'register' }); return; }
-                                updateState({checkoutPlan: p, paymentStep: 'select', selectedMethod: 'card', selectedBank: 'sber'});
-                            }} disabled={disabled} className={`mt-auto py-3 rounded-xl font-bold transition-colors ${isCurrent ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 cursor-default' : isLower ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed' : !isFree ? 'bg-[#5b32d4] text-white hover:bg-[#4a26b0]' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'}`}>
-                                {isCurrent ? '✓ Текущий тариф' : isLower ? 'Понижение недоступно' : !isFree ? 'Выбрать' : 'Недоступно'}
-                            </button>
+            </div>
+
+            {/* ── Низ: month/year toggle + CTA + мелкие ссылки ── */}
+            <div className="void-pv-foot shrink-0 px-4 pt-3 pb-5 max-w-2xl w-full mx-auto border-t border-gray-100 dark:border-darkBorder bg-[#f8f9fc] dark:bg-darkBg">
+                {/* Переключатель периода — прячем на Free (там всегда 0 ₽) */}
+                {!isFree && (
+                    <div className="flex justify-center mb-3">
+                        <div className="bg-gray-100 dark:bg-darkBorder p-1 flex rounded-2xl relative w-full max-w-xs">
+                            <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-darkCard rounded-xl shadow-sm transition-transform duration-300 ease-out ${state.billingCycle === 'year' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`} />
+                            <button onClick={() => updateState({ billingCycle: 'month' })} className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${state.billingCycle === 'month' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>Ежемесячно</button>
+                            <button onClick={() => updateState({ billingCycle: 'year' })} className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${state.billingCycle === 'year' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>В год (-20%)</button>
                         </div>
-                        );
-                    })}
+                    </div>
+                )}
+
+                <button
+                    onClick={handleCta}
+                    disabled={ctaDisabled}
+                    onMouseDown={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 0.97, duration: 0.12 })}
+                    onMouseUp={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 1, duration: 0.18 })}
+                    onMouseLeave={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 1, duration: 0.18 })}
+                    className={`w-full py-4 rounded-2xl font-extrabold text-lg transition-colors ${
+                        ctaKind === 'primary' ? 'bg-[#5b32d4] text-white hover:bg-[#4a26b0] shadow-lg'
+                        : ctaKind === 'current' ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 cursor-default'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+                    }`}
+                >
+                    {ctaLabel}
+                </button>
+
+                <div className="flex items-center justify-center gap-6 mt-3">
+                    <button
+                        onClick={() => updateState({ currentView: 'info', infoSection: 'terms' })}
+                        className="text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                    >
+                        Условия использования
+                    </button>
+                    <button
+                        onClick={() => updateState({ currentView: 'info', infoSection: 'privacy' })}
+                        className="text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                    >
+                        Политика конфиденциальности
+                    </button>
                 </div>
             </div>
         </div>
