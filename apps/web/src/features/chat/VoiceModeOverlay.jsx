@@ -160,11 +160,12 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
 
-    // Включили камеру — орб сразу уходит вниз, чтобы не перекрывать кадр
-    // (то же положение, что и при ручном сворачивании тапом по орбу).
-    useEffect(() => {
-        if (videoSource === 'camera') setMinimized(true);
-    }, [videoSource]);
+    // Раньше здесь автоматически включался свёрнутый режим (setMinimized)
+    // при включении камеры — из-за этого гас backdrop (opacity→0) и корень
+    // оверлея получал pointer-events-none, так что под ним снова становился
+    // виден обычный чат: выглядело так, будто голосовой режим «выкинуло»
+    // в чат, хотя формально он оставался активным. Камера теперь просто
+    // показывается на месте орба (см. рендер ниже), без сворачивания.
 
     // ---- Анимация сворачивания/разворачивания ----
     // Фон гаснет, орб уезжает вниз и уменьшается до размера, при котором
@@ -208,25 +209,7 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
         // проходили в чат под оверлеем; сами наши элементы возвращают себе
         // pointer-events-auto.
         <div className={`fixed inset-0 z-[220] flex flex-col ${minimized ? 'pointer-events-none' : ''}`}>
-            <div ref={backdropRef} className="absolute inset-0 bg-white dark:bg-gradient-to-b dark:from-[#1a1030] dark:to-[#0d0819]">
-                {/* Живое превью. Для КАМЕРЫ — на весь экран. Для ЭКРАНА
-                    полноэкранного превью быть не должно: мы показываем на
-                    весь экран то, что и так является этим же экраном, —
-                    получается бесконечное зеркало («троение», из-за
-                    которого интерфейс выглядел размноженным). Поэтому для
-                    демонстрации — небольшое окошко в углу, где рекурсия
-                    безобидна и наглядно видно, что именно передаётся. */}
-                {videoSource === 'camera' && (
-                    <>
-                        <video
-                            ref={previewRef}
-                            autoPlay muted playsInline
-                            className="absolute inset-0 w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/45" />
-                    </>
-                )}
-            </div>
+            <div ref={backdropRef} className="absolute inset-0 bg-white dark:bg-gradient-to-b dark:from-[#1a1030] dark:to-[#0d0819]" />
 
             {/* Голосовые настройки — в правом верхнем углу, ровно там же,
                 где в хабе и в чате стоит кнопка меню (fixed top-5 right-4).
@@ -266,19 +249,58 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
 
             <div className="relative flex-1 flex flex-col items-center justify-center gap-8 pointer-events-none">
                 <div ref={orbWrapRef} className="pointer-events-auto">
-                    <VoiceModeOrb
-                        phase={displayPhase}
-                        analyserRef={analyserRef}
-                        speechAudioRef={speechAudioRef}
-                        speechEnvelopeRef={speechEnvelopeRef}
-                        onClick={isLimited ? undefined : () => setMinimized((v) => !v)}
-                        size={200}
-                    />
+                    {videoSource === 'camera' ? (
+                        // Камера — на месте орба, а не поверх исчезающего фона:
+                        // круглая рамка того же радиуса, что и орб, чтобы
+                        // переход между ними не «скакал» по размеру.
+                        <div className="relative w-[200px] h-[200px] rounded-full overflow-hidden border-4 border-white/80 dark:border-white/20 shadow-2xl bg-black">
+                            <video
+                                ref={previewRef}
+                                autoPlay muted playsInline
+                                className="w-full h-full object-cover"
+                            />
+                        </div>
+                    ) : (
+                        <VoiceModeOrb
+                            phase={displayPhase}
+                            analyserRef={analyserRef}
+                            speechAudioRef={speechAudioRef}
+                            speechEnvelopeRef={speechEnvelopeRef}
+                            onClick={isLimited ? undefined : () => setMinimized((v) => !v)}
+                            size={200}
+                        />
+                    )}
                 </div>
                 <p className={`text-base font-semibold min-h-[1.5em] text-center max-w-xs transition-opacity ${minimized ? 'opacity-0' : ''} ${isLimited ? 'text-red-500' : 'text-gray-700 dark:text-white/80'}`}>
                     {statusText}
                 </p>
             </div>
+
+            {/* Кнопки камеры (G3/G4): переключение фронт/тыл + выключение —
+                отдельной строкой НАД полем ввода, а не внутри меню «+» и не
+                внутри самого поля, чтобы не лезть в меню на каждое действие. */}
+            {videoSource === 'camera' && !minimized && (
+                <div className="relative w-full px-4 pb-3 pointer-events-auto">
+                    <div className="max-w-3xl mx-auto flex items-center justify-center gap-3">
+                        <PressIconButton
+                            onClick={() => voiceMode.flipCamera?.()}
+                            title="Сменить камеру"
+                            className="void-tap-target flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <Icons.Refresh className="w-4 h-4" />
+                            <span className="text-sm font-semibold">Сменить камеру</span>
+                        </PressIconButton>
+                        <PressIconButton
+                            onClick={() => startVideo('camera')}
+                            title="Выключить камеру"
+                            className="void-tap-target flex items-center gap-2 px-4 py-2 rounded-full bg-red-500 text-white shadow-md hover:bg-red-600 transition-colors"
+                        >
+                            <Icons.Camera className="w-4 h-4" />
+                            <span className="text-sm font-semibold">Выключить</span>
+                        </PressIconButton>
+                    </div>
+                </div>
+            )}
 
             {/* Нижняя полоса: сжатое поле ввода слева + камера, микрофон и
                 выход справа. В голосовом режиме поле не исчезает, а именно
@@ -299,34 +321,32 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                                 title="Камера или экран"
                                 className={`void-tap-target w-8 h-8 rounded-full flex items-center justify-center transition-colors ${videoSource ? 'bg-[#5b32d4] text-white' : 'text-[#5b32d4] hover:bg-[#5b32d4]/10'}`}
                             >
-                                <Icons.Plus className="w-5 h-5" />
+                                {/* Иконка кнопки теперь отражает активный источник
+                                    (раньше всегда оставался «+», из-за чего казалось,
+                                    что состояние не поменялось — только фон). */}
+                                {videoSource === 'screen' ? <Icons.Monitor className="w-4 h-4" /> : videoSource === 'camera' ? <Icons.Camera className="w-4 h-4" /> : <Icons.Plus className="w-5 h-5" />}
                             </PressIconButton>
                             <div
                                 ref={mediaMenuRef}
                                 style={{ opacity: 0, visibility: 'hidden' }}
                                 className="absolute bottom-11 left-0 w-52 bg-white dark:bg-[#150d28] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 p-1.5 z-10"
                             >
-                                <PressIconButton onClick={() => chooseMedia('camera')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 text-left">
+                                <PressIconButton onClick={() => chooseMedia('camera')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${videoSource === 'camera' ? 'bg-[#efecf9] dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
                                     <Icons.Camera className="w-4 h-4 text-[#5b32d4] shrink-0" />
-                                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{videoSource === 'camera' ? 'Выключить камеру' : 'Камера'}</span>
+                                    <span className="text-sm font-semibold text-gray-900 dark:text-white flex-1">{videoSource === 'camera' ? 'Выключить камеру' : 'Камера'}</span>
+                                    {videoSource === 'camera' && <Icons.Check className="w-4 h-4 text-[#5b32d4] shrink-0" />}
                                 </PressIconButton>
-                                <PressIconButton onClick={() => chooseMedia('screen')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 text-left">
+                                <PressIconButton onClick={() => chooseMedia('screen')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${videoSource === 'screen' ? 'bg-[#efecf9] dark:bg-purple-900/20' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
                                     <Icons.Monitor className="w-4 h-4 text-[#5b32d4] shrink-0" />
-                                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{videoSource === 'screen' ? 'Отключить экран' : 'Поделиться экраном'}</span>
+                                    <span className="text-sm font-semibold text-gray-900 dark:text-white flex-1">{videoSource === 'screen' ? 'Отключить экран' : 'Поделиться экраном'}</span>
+                                    {videoSource === 'screen' && <Icons.Check className="w-4 h-4 text-[#5b32d4] shrink-0" />}
                                 </PressIconButton>
                             </div>
                         </div>
-                        {/* Переключение фронтальной/основной камеры —
-                            появляется только когда камера включена. */}
-                        {videoSource === 'camera' && (
-                            <PressIconButton
-                                onClick={() => voiceMode.flipCamera?.()}
-                                title="Сменить камеру"
-                                className="void-tap-target w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-[#5b32d4] hover:bg-[#5b32d4]/10 transition-colors"
-                            >
-                                <Icons.Refresh className="w-4 h-4" />
-                            </PressIconButton>
-                        )}
+                        {/* Кнопка переключения камеры отсюда убрана — теперь
+                            она вместе с кнопкой выключения камеры показана
+                            отдельной строкой НАД полем ввода (см. ниже),
+                            а не внутри самого поля. */}
                         <input
                             value={state.inputValue}
                             onChange={(e) => updateState({ inputValue: e.target.value })}

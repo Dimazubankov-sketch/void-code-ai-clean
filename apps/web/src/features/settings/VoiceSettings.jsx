@@ -161,6 +161,12 @@ export function VoiceSettings({ state, updateState, onClose }) {
     const [showModelModal, setShowModelModal] = useState(false);
     const [showEmotions, setShowEmotions] = useState(false);
     const [showCreateVoice, setShowCreateVoice] = useState(false);
+    // Компактная кнопка «Модель» (D): лёгкий press-эффект через GSAP —
+    // тот же паттерн, что и usePressAnimation в VoiceModeSettings.jsx,
+    // но локально, чтобы не тянуть отдельный shared-хук ради одной кнопки.
+    const modelBtnRef = useRef(null);
+    const pressModelBtn = () => { if (modelBtnRef.current) gsap.to(modelBtnRef.current, { scale: 0.94, duration: 0.1, ease: 'power2.out' }); };
+    const releaseModelBtn = () => { if (modelBtnRef.current) gsap.to(modelBtnRef.current, { scale: 1, duration: 0.22, ease: 'back.out(2)' }); };
     // Свои голоса теперь живут в общем списке (currentList ниже), отдельной
     // «Мои голоса» больше нет. При создании onCreated сразу переключает
     // preset на новый голос (см. рендер CreateVoice) — орб на своей штатной
@@ -280,20 +286,26 @@ export function VoiceSettings({ state, updateState, onClose }) {
                         </div>
                     )}
 
-                    {/* Модель озвучки: одна строка-кнопка вместо грид-переключателя —
-                        открывает список из двух моделей (Fish Audio S2.1 Pro / OpenAI TTS).
-                        По умолчанию выбран Fish Audio. Переключение сразу меняет список
-                        голосов ниже — у каждой модели свой набор и свой последний
-                        выбранный голос (см. selectedVoiceId). */}
-                    <button onClick={() => setShowModelModal(true)} className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                        <span className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center"><Icons.Volume2 className="w-4 h-4" /></div>
-                            <span className="font-bold text-sm dark:text-white">Модель</span>
-                        </span>
-                        <span className="flex items-center gap-1.5 text-sm text-gray-400">
-                            {modelLabel} <Icons.ChevronRight className="w-4 h-4" />
-                        </span>
-                    </button>
+                    {/* Модель озвучки (D): компактная кнопка слева вверху, а не
+                        строка на всю ширину — открывает тот же список из двух
+                        моделей (Fish Audio S2.1 Pro / OpenAI TTS) по нажатию
+                        с лёгкой GSAP press-анимацией. Переключение сразу
+                        меняет список голосов ниже — у каждой модели свой
+                        набор и свой последний выбранный голос (см. selectedVoiceId). */}
+                    <div className="flex justify-start -mb-2">
+                        <button
+                            ref={modelBtnRef}
+                            onClick={() => setShowModelModal(true)}
+                            onMouseDown={pressModelBtn} onMouseUp={releaseModelBtn} onMouseLeave={releaseModelBtn}
+                            onTouchStart={pressModelBtn} onTouchEnd={releaseModelBtn}
+                            className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        >
+                            <div className="w-6 h-6 rounded-full bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center shrink-0"><Icons.Volume2 className="w-3 h-3" /></div>
+                            <span className="font-bold text-xs dark:text-white">Модель</span>
+                            <span className="text-xs text-gray-400 max-w-[8rem] truncate">{modelLabel}</span>
+                            <Icons.ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        </button>
+                    </div>
 
                     {/* Свайпаемая карусель голоса — единая для всех языков, набор
                         голосов зависит от выбранной модели озвучки (provider) выше.

@@ -428,20 +428,20 @@ export function PricingView({ state, updateState }) {
 
     return (
         <div ref={plansScope} className="flex flex-col h-full bg-[#f8f9fc] dark:bg-darkBg void-view-enter w-full">
-            {/* ── Шапка: крестик + Void Code / текущий просматриваемый тариф ── */}
+            {/* ── Шапка: стрелка назад + Void Code по центру / текущий тариф справа ── */}
             <div className="void-pv-head shrink-0 px-4 pt-5 pb-3 max-w-2xl w-full mx-auto">
-                <button
-                    onClick={() => goBack(state, updateState, 'settings')}
-                    aria-label="Закрыть тарифы"
-                    className="void-pv-x p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
-                >
-                    <Icons.X className="w-6 h-6" />
-                </button>
-                <div className="flex items-baseline justify-between mt-3">
-                    <h1 className="text-2xl font-extrabold dark:text-white">Void Code</h1>
-                    <span className="text-lg font-bold text-[#5b32d4] dark:text-purple-400">{viewed.title}</span>
+                <div className="relative flex items-center justify-between h-10">
+                    <button
+                        onClick={() => goBack(state, updateState, 'settings')}
+                        aria-label="Назад"
+                        className="void-pv-x p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300 relative z-10"
+                    >
+                        <Icons.ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <h1 className="absolute inset-x-0 text-center text-2xl font-extrabold dark:text-white pointer-events-none">Void Code</h1>
+                    <span className="text-lg font-bold text-[#5b32d4] dark:text-purple-400 relative z-10">{viewed.title}</span>
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-snug">{viewed.subtitle}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-snug text-center">{viewed.subtitle}</p>
 
                 {/* ── Сегмент-табы Free | Pro | Ultra ── */}
                 <div className="mt-4 bg-gray-100 dark:bg-darkBorder p-1 flex rounded-2xl relative">
@@ -498,11 +498,12 @@ export function PricingView({ state, updateState }) {
                 </div>
             </div>
 
-            {/* ── Низ: month/year toggle + CTA + мелкие ссылки ── */}
-            <div className="void-pv-foot shrink-0 px-4 pt-3 pb-5 max-w-2xl w-full mx-auto border-t border-gray-100 dark:border-darkBorder bg-[#f8f9fc] dark:bg-darkBg">
-                {/* Переключатель периода — прячем на Free (там всегда 0 ₽) */}
+            {/* ── Низ: month/year toggle + CTA + «Условия использования» ── */}
+            <div className="void-pv-foot shrink-0 px-4 pt-4 pb-5 max-w-2xl w-full mx-auto border-t border-gray-100 dark:border-darkBorder bg-[#f8f9fc] dark:bg-darkBg">
+                {/* Переключатель периода — прячем на Free (там всегда 0 ₽).
+                    Сдвинут чуть ниже (mt-1) относительно верхней границы блока. */}
                 {!isFree && (
-                    <div className="flex justify-center mb-3">
+                    <div className="flex justify-center mt-1 mb-4">
                         <div className="bg-gray-100 dark:bg-darkBorder p-1 flex rounded-2xl relative w-full max-w-xs">
                             <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-darkCard rounded-xl shadow-sm transition-transform duration-300 ease-out ${state.billingCycle === 'year' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`} />
                             <button onClick={() => updateState({ billingCycle: 'month' })} className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${state.billingCycle === 'month' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>Ежемесячно</button>
@@ -511,33 +512,31 @@ export function PricingView({ state, updateState }) {
                     </div>
                 )}
 
-                <button
-                    onClick={handleCta}
-                    disabled={ctaDisabled}
-                    onMouseDown={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 0.97, duration: 0.12 })}
-                    onMouseUp={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 1, duration: 0.18 })}
-                    onMouseLeave={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 1, duration: 0.18 })}
-                    className={`w-full py-4 rounded-2xl font-extrabold text-lg transition-colors ${
-                        ctaKind === 'primary' ? 'bg-[#5b32d4] text-white hover:bg-[#4a26b0] shadow-lg'
-                        : ctaKind === 'current' ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 cursor-default'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
-                    }`}
-                >
-                    {ctaLabel}
-                </button>
+                {/* CTA — уменьшен и сдвинут чуть ниже (mt-1), чтобы не доминировать над контентом */}
+                <div className="flex justify-center mt-1">
+                    <button
+                        onClick={handleCta}
+                        disabled={ctaDisabled}
+                        onMouseDown={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 0.97, duration: 0.12 })}
+                        onMouseUp={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 1, duration: 0.18 })}
+                        onMouseLeave={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 1, duration: 0.18 })}
+                        className={`w-full max-w-xs py-2.5 rounded-xl font-bold text-sm transition-colors ${
+                            ctaKind === 'primary' ? 'bg-[#5b32d4] text-white hover:bg-[#4a26b0] shadow-lg'
+                            : ctaKind === 'current' ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 cursor-default'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
+                        }`}
+                    >
+                        {ctaLabel}
+                    </button>
+                </div>
 
-                <div className="flex items-center justify-center gap-6 mt-3">
+                {/* Единственная ссылка — «Условия использования», по центру, компактно */}
+                <div className="flex items-center justify-center mt-3">
                     <button
                         onClick={() => updateState({ currentView: 'info', infoSection: 'terms' })}
-                        className="text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                        className="text-[11px] font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
                     >
                         Условия использования
-                    </button>
-                    <button
-                        onClick={() => updateState({ currentView: 'info', infoSection: 'privacy' })}
-                        className="text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                    >
-                        Политика конфиденциальности
                     </button>
                 </div>
             </div>

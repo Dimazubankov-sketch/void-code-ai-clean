@@ -12,7 +12,6 @@ export function WalletView({ state, updateState }) {
     const [showWithdraw, setShowWithdraw] = useState(false);
     const balance = state.walletBalance || 0;
     const transactions = state.walletTransactions || [];
-    const agents = state.aiAgents || [];
 
     const formatDate = (ts) => new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
@@ -22,12 +21,6 @@ export function WalletView({ state, updateState }) {
         if (type === 'agent_fee') return { icon: Icons.Robot, cls: 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-400' };
         if (type === 'token_charge') return { icon: Icons.Sparkles, cls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400' };
         return { icon: Icons.Receipt, cls: 'bg-gray-100 dark:bg-gray-800 text-gray-500' };
-    };
-
-    const statusBadge = (agent) => {
-        if (!agent.isPaid) return <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">Не оплачен</span>;
-        if (agent.status === 'suspended') return <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-900/20 text-red-500">Приостановлен</span>;
-        return <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400">Активен</span>;
     };
 
     return (
@@ -57,23 +50,6 @@ export function WalletView({ state, updateState }) {
                     <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-900/40 flex gap-3 items-start mb-6">
                         <Icons.Alert className="w-5 h-5 shrink-0 text-amber-500 mt-0.5" style={{width:'20px',height:'20px',minWidth:'20px'}} />
                         <p className="text-sm text-amber-700 dark:text-amber-400 font-semibold leading-relaxed flex-1 min-w-0">Низкий баланс. Активным агентам может не хватить средств на оплату токенов — их работа автоматически приостановится до пополнения.</p>
-                    </div>
-                )}
-
-                {agents.length > 0 && (
-                    <div className="mb-6">
-                        <h3 className="text-lg font-extrabold dark:text-white mb-3">Мои агенты</h3>
-                        <div className="bg-white dark:bg-darkCard rounded-[1.75rem] border border-gray-100 dark:border-darkBorder shadow-sm divide-y divide-gray-50 dark:divide-gray-800">
-                            {agents.map(agent => (
-                                <button key={agent.id} onClick={() => updateState({ activeAgentId: agent.id, currentView: 'cockpit' })} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left">
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <div className="w-9 h-9 rounded-xl bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-400 flex items-center justify-center flex-shrink-0"><Icons.Robot className="w-4 h-4" /></div>
-                                        <span className="font-bold text-sm dark:text-white truncate">{agent.name}</span>
-                                    </div>
-                                    {statusBadge(agent)}
-                                </button>
-                            ))}
-                        </div>
                     </div>
                 )}
 

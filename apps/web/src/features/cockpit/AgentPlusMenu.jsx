@@ -26,7 +26,7 @@ export function AgentPlusMenu({ state, updateState, agentId, onClose, onPickCame
     }
     if (sub === 'agentSkills') {
         return (
-            <SheetWithBack title="Скиллы агента" onBack={() => setSub(null)} onClose={onClose}>
+            <SheetWithBack title="Инструкции" onBack={() => setSub(null)} onClose={onClose}>
                 <p className="text-xs text-gray-400 mb-4 leading-relaxed">Эти инструкции применяются только к этому агенту — не путать с общими скиллами выше.</p>
                 <AgentSkillsPanel state={state} updateState={updateState} agentId={agentId} />
             </SheetWithBack>
@@ -54,7 +54,7 @@ export function AgentPlusMenu({ state, updateState, agentId, onClose, onPickCame
                 <RowButton icon="Skills" label="Скиллы" chevron onClick={() => setSub('skills')} />
             </div>
             <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl overflow-hidden mb-3">
-                <RowButton icon="Robot" label="Скиллы агента" chevron onClick={() => setSub('agentSkills')} />
+                <RowButton icon="Instructions" label="Инструкции" chevron onClick={() => setSub('agentSkills')} />
             </div>
             <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl overflow-hidden mb-3">
                 <RowButton icon="Volume2" label="Голос" chevron onClick={() => setSub('voice')} />

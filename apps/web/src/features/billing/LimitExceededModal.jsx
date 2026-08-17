@@ -22,21 +22,9 @@ import { PAYWALL_CARD_LIGHT, PAYWALL_CARD_DARK } from './paywallAssets';
 // на самой карточке, поэтому не дублируем его версткой (карточка — это и
 // есть контент модалки, как и просили).
 
-// Подзаголовок под смысл конкретной услуги. Общий смысл один: лимит
-// закончился, нужен платный тариф — меняем только акцент под контекст.
-const CONTEXT_HINTS = {
-    chat: 'Лимит запросов к ИИ на сегодня исчерпан.',
-    code: 'Лимит генераций кода на сегодня исчерпан.',
-    image: 'Лимит генераций изображений на сегодня исчерпан.',
-    voice: 'Лимит голосового режима на сегодня исчерпан.',
-    plan: 'Откройте больше возможностей на платном тарифе.',
-    default: 'Дневной лимит исчерпан.',
-};
-
 export function LimitExceededModal({ state, updateState }) {
     const paywall = state.paywall;
     const isDark = !!state.isDarkMode;
-    const context = paywall?.context || 'default';
 
     // Фазы: 'toast' (первая ≈1 с) → 'modal' (карточка). Отдельный локальный
     // стейт, а не в App — чтобы переход тост→модалка не гонял глобальный
@@ -128,7 +116,6 @@ export function LimitExceededModal({ state, updateState }) {
 
     if (!paywall) return null;
 
-    const hint = CONTEXT_HINTS[context] || CONTEXT_HINTS.default;
     const cardSrc = isDark ? PAYWALL_CARD_DARK : PAYWALL_CARD_LIGHT;
 
     // Фаза тоста: только короткая надпись сверху по центру, без backdrop.
@@ -169,17 +156,16 @@ export function LimitExceededModal({ state, updateState }) {
                     <Icons.X className="w-5 h-5" />
                 </button>
 
-                {/* Сама карточка (картинка заказчика, фон вырезан) */}
-                <img
-                    src={cardSrc}
-                    alt="Разблокируйте весь потенциал AI"
-                    draggable={false}
-                    className="w-full h-auto rounded-[1.75rem] shadow-2xl select-none"
-                />
-
-                {/* Контекстная подпись + CTA под карточкой */}
-                <div className="mt-4 flex flex-col items-stretch gap-3">
-                    <p className="text-center text-sm font-semibold text-white/90 drop-shadow">{hint}</p>
+                {/* Карточка (картинка заказчика, фон вырезан) + CTA прямо
+                    поверх баннера — компактно, без отдельной большой кнопки
+                    под изображением, как и просили. */}
+                <div className="relative">
+                    <img
+                        src={cardSrc}
+                        alt="Разблокируйте весь потенциал AI"
+                        draggable={false}
+                        className="w-full h-auto rounded-[1.75rem] shadow-2xl select-none"
+                    />
                     <button
                         ref={goBtnRef}
                         onClick={handleGoToPlans}
@@ -188,25 +174,10 @@ export function LimitExceededModal({ state, updateState }) {
                         onMouseLeave={(e) => release(e.currentTarget)}
                         onTouchStart={(e) => press(e.currentTarget)}
                         onTouchEnd={(e) => release(e.currentTarget)}
-                        className="w-full py-4 rounded-2xl bg-white text-gray-900 font-extrabold text-lg shadow-xl hover:bg-gray-100 transition-colors"
+                        className="absolute right-4 bottom-4 sm:right-5 sm:bottom-5 px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl bg-white text-gray-900 font-extrabold text-sm sm:text-base shadow-xl hover:bg-gray-100 transition-colors"
                     >
                         Перейти
                     </button>
-                    {/* Мелкие ссылки: условия / политика */}
-                    <div className="flex items-center justify-center gap-6 pt-0.5">
-                        <button
-                            onClick={() => updateState({ paywall: null, currentView: 'info', infoSection: 'terms' })}
-                            className="text-xs font-semibold text-white/60 hover:text-white/90 transition-colors"
-                        >
-                            Условия использования
-                        </button>
-                        <button
-                            onClick={() => updateState({ paywall: null, currentView: 'info', infoSection: 'privacy' })}
-                            className="text-xs font-semibold text-white/60 hover:text-white/90 transition-colors"
-                        >
-                            Политика конфиденциальности
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
