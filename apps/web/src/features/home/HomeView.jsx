@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { gsap } from 'gsap';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
@@ -199,6 +200,163 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
         return () => clearTimeout(tmr);
     }, []);
 
+    // ==========================================
+    // GOOGLE-STYLE FOCUS MODE — только GSAP
+    // ==========================================
+    // Нажатие на поле ввода: лёгкая press-анимация → поле «выезжает»
+    // вперёд (scale + y + тень), карточки уходят вниз за белый оверлей,
+    // над полем появляется стрелка «назад». Полный reverse — по клику на
+    // стрелку или при очистке поля. Ничего из этого не трогает существующую
+    // логику Composer/вложений/голоса — только визуальный слой поверх.
+    const [inputMode, setInputMode] = useState(false);
+    const [suggestions, setSuggestions] = useState([]);
+    const inputModeRef = useRef(false);
+    const tlRef = useRef(null);
+    const backArrowRef = useRef(null);
+    const shadowGlowRef = useRef(null);
+    const cardsSectionRef = useRef(null);
+    const overlayRef = useRef(null);
+    const suggestionsWrapRef = useRef(null);
+
+    const prefersReducedMotion = () =>
+        typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Начальные значения GSAP-управляемых элементов задаём ОДИН раз при
+    // монтаже через gsap.set (а не через style={{...}} в JSX) — иначе React
+    // пересоздавал бы style-объект на каждом ре-рендере и затирал бы то,
+    // что GSAP только что анимировал (классический конфликт React↔GSAP).
+    useEffect(() => {
+        gsap.set(backArrowRef.current, { opacity: 0, scale: 0.6 });
+        if (backArrowRef.current) backArrowRef.current.style.pointerEvents = 'none';
+        gsap.set(shadowGlowRef.current, { opacity: 0 });
+        gsap.set(overlayRef.current, { opacity: 0 });
+        // ВАЖНО: без этого невидимый (opacity:0) оверлей по умолчанию
+        // имел бы pointer-events:auto и молча блокировал бы клики по
+        // карточкам ниже ещё до того, как режим фокуса вообще включался.
+        if (overlayRef.current) overlayRef.current.style.pointerEvents = 'none';
+        return () => { tlRef.current?.kill(); };
+    }, []);
+
+    // Источник подсказок — только РЕАЛЬНЫЕ данные: заголовки последних
+    // непустых чатов + метки уже существующих быстрых действий/инструментов.
+    // Никаких придуманных записей. Дубли по названию (например, «Код»
+    // встречается и в «Попробуйте», и в «Инструментах») схлопываются.
+    const getSuggestions = (query) => {
+        const q = query.trim().toLowerCase();
+        if (!q) return [];
+        const chatMatches = (state.chatSessions || [])
+            .filter(c => c.messages && c.messages.length > 0 && c.title && c.title.toLowerCase().includes(q))
+            .slice(0, 4)
+            .map(c => ({
+                id: 'chat-' + c.id,
+                icon: Icons.History,
+                label: c.title,
+                onClick: () => { updateState({ currentView: 'chat', activeChatId: c.id, imageGenMode: false }); exitInputMode(); },
+            }));
+        const actionMatches = [...quickActionItems, ...toolTiles]
+            .filter(it => it.label.toLowerCase().includes(q))
+            .map((it, i) => ({
+                id: 'action-' + it.label + i,
+                icon: it.icon,
+                label: it.label,
+                onClick: () => { it.onClick(); exitInputMode(); },
+            }));
+        const seen = new Set();
+        return [...chatMatches, ...actionMatches]
+            .filter(s => { if (seen.has(s.label)) return false; seen.add(s.label); return true; })
+            .slice(0, 6);
+    };
+
+    // Скрыть подсказки со stagger-анимацией «на выход», а не мгновенно —
+    // затем очистить список (onComplete).
+    const hideSuggestionsAnimated = () => {
+        const items = suggestionsWrapRef.current?.querySelectorAll('.gsg-item');
+        if (!items || items.length === 0) { setSuggestions([]); return; }
+        const reduce = prefersReducedMotion();
+        gsap.to(items, {
+            opacity: 0, y: -6,
+            duration: reduce ? 0.01 : 0.2,
+            stagger: reduce ? 0 : 0.04,
+            ease: 'power2.in',
+            onComplete: () => setSuggestions([]),
+        });
+    };
+
+    // Появление подсказок анимируется отдельным эффектом (см. ниже),
+    // привязанным к самому массиву suggestions — гарантированно после
+    // коммита DOM, без гонок с requestAnimationFrame.
+    useEffect(() => {
+        const items = suggestionsWrapRef.current?.querySelectorAll('.gsg-item');
+        if (!items || items.length === 0) return;
+        const reduce = prefersReducedMotion();
+        gsap.fromTo(items,
+            { opacity: 0, y: 8 },
+            { opacity: 1, y: 0, duration: reduce ? 0.01 : 0.28, ease: 'power2.out', stagger: reduce ? 0 : 0.05 });
+    }, [suggestions]);
+
+    const enterInputMode = () => {
+        if (inputModeRef.current) return;
+        inputModeRef.current = true;
+        setInputMode(true);
+        if (state.inputValue && state.inputValue.trim()) setSuggestions(getSuggestions(state.inputValue));
+
+        const reduce = prefersReducedMotion();
+        tlRef.current?.kill();
+
+        if (!reduce) {
+            // Press: scale вниз + лёгкий bounce обратно — 120–150 мс суммарно.
+            gsap.timeline()
+                .to(homeComposerWrapRef.current, { scale: 0.975, duration: 0.06, ease: 'power2.out' })
+                .to(homeComposerWrapRef.current, { scale: 1, duration: 0.08, ease: 'back.out(3)' });
+        }
+
+        const tl = gsap.timeline({
+            defaults: { duration: reduce ? 0.01 : 0.4, ease: 'power3.out' },
+            onComplete: () => {
+                if (cardsSectionRef.current) cardsSectionRef.current.style.pointerEvents = 'none';
+                if (overlayRef.current) overlayRef.current.style.pointerEvents = 'auto';
+                if (backArrowRef.current) backArrowRef.current.style.pointerEvents = 'auto';
+            },
+            onReverseComplete: () => {
+                if (cardsSectionRef.current) cardsSectionRef.current.style.pointerEvents = '';
+                if (overlayRef.current) overlayRef.current.style.pointerEvents = '';
+                if (backArrowRef.current) backArrowRef.current.style.pointerEvents = 'none';
+                inputModeRef.current = false;
+            },
+        });
+        // Поле «выезжает вперёд»: чуть крупнее, чуть выше, с мягкой тенью
+        // (тень — отдельный blur-глow позади поля, т.к. box-shadow как
+        // CSS-строка ненадёжно анимируется через GSAP).
+        tl.to(homeComposerWrapRef.current, { scale: 1.03, y: -8 }, 0)
+            .to(shadowGlowRef.current, { opacity: 1 }, 0)
+            // Карточки уходят вниз и гаснут за белым оверлеем.
+            .to(cardsSectionRef.current, { opacity: 0, y: 24 }, 0)
+            .to(overlayRef.current, { opacity: 1 }, 0)
+            // Стрелка назад — fade + scale, с небольшим сдвигом по времени.
+            .fromTo(backArrowRef.current, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, ease: 'back.out(1.6)' }, 0.05);
+
+        tlRef.current = tl;
+    };
+
+    const exitInputMode = () => {
+        setInputMode(false);
+        hideSuggestionsAnimated();
+        if (tlRef.current) {
+            tlRef.current.reverse();
+        } else {
+            inputModeRef.current = false;
+        }
+    };
+
+    // Esc — тоже выход, как и «настоящий» браузерный autocomplete.
+    useEffect(() => {
+        if (!inputMode) return;
+        const onKey = (e) => { if (e.key === 'Escape') exitInputMode(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [inputMode]);
+
     return (
         <div className="flex-1 overflow-y-auto pb-12 h-full bg-[#f8f9fc] dark:bg-darkBg fade-in relative">
             <div className="fixed top-5 right-4 sm:top-6 sm:right-6 z-30">
@@ -261,6 +419,21 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                 </div>
 
                 <div className="void-input-rise relative max-w-4xl mx-auto pointer-events-auto mb-10">
+                    {/* Мягкое фиолетовое сияние позади поля — включается
+                        вместо анимации box-shadow (ненадёжно интерполируется
+                        через GSAP как CSS-строка). */}
+                    <div ref={shadowGlowRef} className="absolute -inset-3 rounded-[32px] bg-[#5b32d4]/10 blur-2xl pointer-events-none -z-10" />
+                    {/* Стрелка «назад» — над кнопкой «+», появляется только
+                        в режиме фокуса поля (см. enterInputMode). */}
+                    <button
+                        ref={backArrowRef}
+                        onClick={exitInputMode}
+                        title="Назад"
+                        aria-label="Назад"
+                        className="void-tap-target absolute -top-14 left-1 z-30 w-10 h-10 rounded-full bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder shadow-md flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                        <Icons.ChevronLeft className="w-5 h-5" />
+                    </button>
                     {(state.selectedImages && state.selectedImages.length > 0) && (
                         <div className="absolute -top-20 left-4 right-4 flex gap-2 overflow-x-auto pb-1 fade-in void-attach-scroll">
                             {state.selectedImages.map((img, i) => (
@@ -327,10 +500,20 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             placeholder=""
                             value={state.inputValue}
                             readOnly={voice.busy}
+                            onFocus={enterInputMode}
                             onChange={(e) => { 
-                                updateState({inputValue: e.target.value}); 
+                                const val = e.target.value;
+                                updateState({inputValue: val}); 
                                 e.target.style.height = 'auto'; 
                                 e.target.style.height = (e.target.scrollHeight < 128 ? e.target.scrollHeight : 128) + 'px'; 
+                                // Google-style: подсказки фильтруются в реальном
+                                // времени, очистка поля сворачивает режим фокуса.
+                                if (val.trim() === '') {
+                                    if (inputModeRef.current) exitInputMode();
+                                    else hideSuggestionsAnimated();
+                                } else {
+                                    setSuggestions(getSuggestions(val));
+                                }
                             }}
                             onKeyDown={(e) => { 
                                 // Задача 4: Enter не отправляет — переносит строку
@@ -380,6 +563,27 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             >
                                 <Icons.Waveform className="w-5 h-5" />
                             </button>
+                        )}
+                    </div>
+
+                    {/* Подсказки — как в браузере: плавающий список под
+                        полем, не раздвигает layout (position: absolute).
+                        Появление/исчезновение — stagger через GSAP (см.
+                        useEffect на [suggestions] и hideSuggestionsAnimated). */}
+                    <div ref={suggestionsWrapRef} className="absolute left-0 right-0 top-full mt-2 z-30">
+                        {suggestions.length > 0 && (
+                            <div className="bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder rounded-2xl shadow-xl overflow-hidden">
+                                {suggestions.map((s) => (
+                                    <button
+                                        key={s.id}
+                                        className="gsg-item w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left border-b border-gray-50 dark:border-gray-800/60 last:border-b-0"
+                                        onClick={s.onClick}
+                                    >
+                                        <s.icon className="w-4 h-4 text-gray-400 shrink-0" />
+                                        <span className="text-sm text-gray-700 dark:text-gray-200 truncate">{s.label}</span>
+                                    </button>
+                                ))}
+                            </div>
                         )}
                     </div>
                 </div>
@@ -452,11 +656,26 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                     document.body
                 )}
 
-                <QuickActions items={quickActionItems} />
+                <div className="relative">
+                    <div ref={cardsSectionRef}>
+                        <QuickActions items={quickActionItems} />
 
-                <ContinueWork state={state} updateState={updateState} />
+                        <ContinueWork state={state} updateState={updateState} />
 
-                <ToolsSection tools={toolTiles} onOpenAll={() => setShowAllTools(true)} />
+                        <ToolsSection tools={toolTiles} onOpenAll={() => setShowAllTools(true)} />
+                    </div>
+                    {/* Белый оверлей поверх карточек в режиме фокуса поля —
+                        те же opacity+y, что и у самих карточек, создают
+                        иллюзию, что они уходят вниз «за экран». Клик по
+                        оверлею тоже сворачивает режим (как тап в сторону
+                        у Google). */}
+                    <div
+                        ref={overlayRef}
+                        onClick={exitInputMode}
+                        aria-hidden="true"
+                        className="absolute inset-0 bg-[#f8f9fc] dark:bg-darkBg pointer-events-none"
+                    />
+                </div>
             </div>
 
             {showAllTools && (
