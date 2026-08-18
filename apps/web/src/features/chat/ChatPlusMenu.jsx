@@ -26,6 +26,7 @@ export function ChatPlusMenu({
     onPickFile,
     onEnableImage,
     onPickAgent,
+    onOpenAddToProject,
 }) {
     useLockBodyScroll();
     const [sub, setSub] = useState(null); // null | 'project' | 'agents' | 'connectors'
@@ -57,7 +58,23 @@ export function ChatPlusMenu({
 
             {/* Блок: добавить в проект + скиллы (строго под проектом) */}
             <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl overflow-hidden mb-3 divide-y divide-gray-100 dark:divide-gray-700/50">
-                <RowButton icon="Folder" label="Добавить в проект" chevron onClick={() => setSub('project')} />
+                <RowButton
+                    icon="Folder"
+                    label="Добавить в проект"
+                    chevron
+                    onClick={() => {
+                        // Открываем ТО ЖЕ окно AddToProjectModal, что и «⋮» в
+                        // шапке чата / истории чатов (см. ChatView.jsx,
+                        // handleChatMenuAction → 'moveToProj') — раньше здесь
+                        // была отдельная упрощённая реализация (ProjectPickerSheet
+                        // ниже), из-за чего один и тот же пункт вёл к двум
+                        // разным окнам. onOpenAddToProject сам закрывает меню
+                        // «+»; на случай, если пропс не передан (страховка),
+                        // используем старый локальный sub-экран как фолбэк.
+                        if (onOpenAddToProject) onOpenAddToProject();
+                        else setSub('project');
+                    }}
+                />
                 <RowButton icon="Skills" label="Скиллы" chevron onClick={() => setSub('skills')} />
             </div>
 

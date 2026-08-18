@@ -39,13 +39,28 @@ export function LimitExceededModal({ state, updateState }) {
     // Куда вернуть фокус после закрытия (доступность).
     const prevFocusRef = useRef(null);
 
-    // При каждом новом показе начинаем с фазы тоста.
+    // При каждом новом показе начинаем с фазы тоста. Полная карточка
+    // (фаза 'modal') показывается ТОЛЬКО платящим... точнее наоборот —
+    // только БЕСПЛАТНЫМ пользователям, у которых реально есть смысл
+    // предлагать платный тариф. Пользователь на Pro/Ultra, упёршийся в
+    // дневной лимит, видит просто тост «Ваш лимит исчерпан» — ему
+    // предлагать перейти на платный тариф уже не нужно, он там и есть.
+    // Исключение — явный запрос командой @plan (context: 'plan'): это
+    // осознанный клик человека, который сам захотел посмотреть тарифы,
+    // а не реактивное всплытие при исчерпании лимита, поэтому карточка
+    // показывается всегда, независимо от тарифа.
     useEffect(() => {
         if (!paywall) return;
         setPhase('toast');
         prevFocusRef.current = document.activeElement;
-        const t = setTimeout(() => setPhase('modal'), 1000);
+        const isFreeUser = (state.userPlan || 'free') === 'free';
+        const showFullCard = paywall.context === 'plan' || isFreeUser;
+        const t = setTimeout(() => {
+            if (showFullCard) setPhase('modal');
+            else updateState({ paywall: null });
+        }, 1000);
         return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [paywall]);
 
     const handleClose = () => {
@@ -174,7 +189,7 @@ export function LimitExceededModal({ state, updateState }) {
                         onMouseLeave={(e) => release(e.currentTarget)}
                         onTouchStart={(e) => press(e.currentTarget)}
                         onTouchEnd={(e) => release(e.currentTarget)}
-                        className="absolute right-4 bottom-4 sm:right-5 sm:bottom-5 px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl bg-white text-gray-900 font-extrabold text-sm sm:text-base shadow-xl hover:bg-gray-100 transition-colors"
+                        className="absolute left-4 bottom-4 sm:left-5 sm:bottom-5 px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl bg-white text-gray-900 font-extrabold text-sm sm:text-base shadow-xl hover:bg-gray-100 transition-colors"
                     >
                         Перейти
                     </button>

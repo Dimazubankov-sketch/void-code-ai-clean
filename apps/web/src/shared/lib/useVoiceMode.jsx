@@ -155,9 +155,18 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         } catch {
             stopVideo();
             setErrorMsg(source === 'screen' ? 'Не удалось начать демонстрацию экрана' : 'Нет доступа к камере');
+            // РАНЬШЕ здесь менялся только errorMsg, а statusText в оверлее
+            // показывает errorMsg ТОЛЬКО когда phase === ERROR — из-за этого
+            // отказ в доступе к камере/экрану (запрет разрешения, небезопасный
+            // контекст без HTTPS, отсутствие устройства) был полностью не
+            // виден пользователю: кнопка нажималась, ничего не происходило,
+            // выглядело как «не работает». Phase ERROR сам восстановится до
+            // LISTENING при следующей реплике — та же логика, что и у прочих
+            // ошибок голосового режима (см. resume/recognition выше).
+            setPhaseBoth(VOICE_MODE_PHASE.ERROR);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [videoSource, stopVideo]);
+    }, [videoSource, stopVideo, setPhaseBoth]);
 
     // Разговор в голосовом режиме ведётся в отдельной серверной сессии
     // чата — она создаётся один раз за вход в режим и переиспользуется,
@@ -341,6 +350,14 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     }, [speech.error, speech.limitExceeded, active]);
 
     const open = useCallback(() => {
+        // Задача 6: голосовой режим — одна из функций, доступных только
+        // после входа/регистрации. Гостю показываем модалку вместо запуска
+        // микрофона/сессии — тот же паттерн, что и у handleSendMessage /
+        // handleGenerateImage в App.jsx.
+        if (!stateRef.current.user) {
+            updateState({ showAuthModal: true });
+            return;
+        }
         // Оба вызова — синхронно внутри жеста пользователя: и «прогрев»
         // аудиоэлемента под autoplay-политику, и WebAudio для звука входа.
         speech.unlock();

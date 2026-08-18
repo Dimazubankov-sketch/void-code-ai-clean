@@ -17,6 +17,43 @@ import { ApiError } from '@/shared/api/client';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
+// linkifyText — превращает URL-ы в тексте письма в настоящие ссылки
+// ==========================================
+// Тело письма приходит с бэкенда как обычный текст (bodyText), поэтому
+// ссылки в нём — просто символы. Разбиваем текст по URL-регулярке и
+// рендерим найденные куски как <a>, остальное — как есть. dangerouslySetInnerHTML
+// сознательно не используется — раз тело не HTML, самодельная разметка
+// была бы и лишней, и небезопасной.
+const URL_RE = /(https?:\/\/[^\s<>"')\]]+|www\.[^\s<>"')\]]+)/gi;
+function linkifyText(text) {
+    if (!text) return text;
+    // split() с regex, содержащим ОДНУ группу захвата, сам расставляет
+    // совпадения по нечётным индексам результата — не нужно повторно
+    // гонять регулярку через .test() (это было бы хрупко из-за общего
+    // lastIndex у /g-регулярок).
+    const parts = text.split(URL_RE);
+    return parts.map((part, i) => {
+        if (!part) return null;
+        const isUrl = i % 2 === 1;
+        if (isUrl) {
+            const href = part.startsWith('www.') ? `https://${part}` : part;
+            return (
+                <a
+                    key={i}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#5b32d4] dark:text-purple-300 underline break-all hover:text-[#4a26b0] dark:hover:text-purple-200 transition-colors"
+                >
+                    {part}
+                </a>
+            );
+        }
+        return <span key={i}>{part}</span>;
+    });
+}
+
+// ==========================================
 // NOTIFICATION CENTER (Void Mail) — полноценное почтовое приложение
 // ==========================================
 // Боковое меню (бургер / свайп на телефоне) с папками: Все письма,
@@ -258,8 +295,17 @@ export function NotificationCenter({ state, updateState, onClose }) {
 
     // --- Свайп для открытия/закрытия бокового меню папок на телефоне ---
     // Свайп вправо от левой части экрана открывает меню, свайп влево закрывает.
-    const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+    // ВАЖНО: при открытом письме (или композере) этот жест отключается —
+    // иначе горизонтальный свайп поверх текста письма неожиданно открывал
+    // боковое меню поверх чтения. Открытое письмо должно листаться только
+    // вертикально (обычный overflow-y-auto), горизонтальных жестов там быть
+    // не должно.
+    const onTouchStart = (e) => {
+        if (openLetter || composing) return;
+        touchStartX.current = e.touches[0].clientX;
+    };
     const onTouchEnd = (e) => {
+        if (openLetter || composing) return;
         if (touchStartX.current === null) return;
         const dx = e.changedTouches[0].clientX - touchStartX.current;
         // Открытие: жест начат в левой трети экрана и палец ушёл вправо
@@ -537,8 +583,8 @@ export function NotificationCenter({ state, updateState, onClose }) {
                     <Icons.Trash className="w-4 h-4" />
                 </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
-                <h2 className="text-xl font-extrabold dark:text-white mb-4">{letter.title}</h2>
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 min-w-0">
+                <h2 className="text-xl font-extrabold dark:text-white mb-4 break-words">{letter.title}</h2>
                 <div className="flex items-center gap-3 mb-6 pb-6 border-b border-gray-100 dark:border-darkBorder">
                     <SenderAvatar system={letter.kind === 'update'} from={letter.from} size="w-11 h-11" />
                     <div>
@@ -546,7 +592,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                         <p className="text-[11px] text-gray-400">{fmtTime(letter.at)}</p>
                     </div>
                 </div>
-                <p className="text-sm dark:text-gray-200 leading-relaxed whitespace-pre-wrap">{letter.body}</p>
+                <p className="text-sm dark:text-gray-200 leading-relaxed whitespace-pre-wrap break-words max-w-full">{linkifyText(letter.body)}</p>
             </div>
         </div>
     );

@@ -34,6 +34,13 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
     const voice = useVoiceRecorder((text) => {
         updateState({ inputValue: ((state.inputValue || '') + (state.inputValue ? ' ' : '') + text).trim() });
     }, state.voiceLang || 'ru-RU');
+    // Задача 6: запись голоса — тоже функция «только после входа». Гостю
+    // показываем модалку вместо запуска микрофона (тот же паттерн, что и
+    // у handleSendMessage/voiceMode.open).
+    const startVoiceGuarded = () => {
+        if (!state.user) { updateState({ showAuthModal: true }); return; }
+        voice.start();
+    };
     // Ключ пересоздаёт логотип при клике — самый надёжный способ
     // перезапустить CSS-анимацию по требованию, а не только один раз
     // при первом появлении экрана.
@@ -135,7 +142,14 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         {/* Колокольчик — центр уведомлений (почта). Обводка круглая
                             (rounded-full), как и кнопка меню рядом — раньше была
                             квадратная rounded-xl. */}
-                        <button onClick={() => updateState({showNotifications: true})} className="void-tap-target relative flex-shrink-0 p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder">
+                        <button
+                            onClick={() => {
+                                // Задача 6: почта — тоже функция «только после входа».
+                                if (!state.user) { updateState({ showAuthModal: true }); return; }
+                                updateState({showNotifications: true});
+                            }}
+                            className="void-tap-target relative flex-shrink-0 p-2.5 bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-md text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-darkBorder"
+                        >
                             <Icons.Bell className="w-6 h-6" />
                             {(Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
                               || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
@@ -275,7 +289,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         {/* Микрофон: покой → запись (квадрат-стоп) → индикатор загрузки */}
                         {voice.supported && (
                             <button
-                                onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
+                                onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && startVoiceGuarded())}
                                 title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
                                 disabled={voice.transcribing}
                                 className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 flex items-center justify-center transition-all z-20 active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
@@ -351,7 +365,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-100 dark:border-darkBorder shrink-0">
                                 {voice.supported && (
                                     <button
-                                        onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
+                                        onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && startVoiceGuarded())}
                                         title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
                                         disabled={voice.transcribing}
                                         className={`void-tap-target w-11 h-11 rounded-full border-2 flex items-center justify-center transition-all active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
@@ -390,7 +404,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         <p className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 leading-snug">{t(lang, 'home.createImageDesc')}</p>
                     </div>
                     {/* Единая вкладка «Агенты»: Cockpit + магазин в одном приложении */}
-                    <div onClick={() => updateState({currentView: 'agent-store'})} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-indigo-500/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">
+                    <div onClick={() => { if (!state.user) { updateState({ showAuthModal: true }); return; } updateState({currentView: 'agent-store'}); }} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-indigo-500/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">
                         <div style={{animationDelay: '180ms'}} className="void-icon-pop w-11 h-11 sm:w-14 sm:h-14 md:w-14 md:h-14 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-2xl md:rounded-[1.25rem] flex items-center justify-center mb-3.5 sm:mb-5 md:mb-3.5 group-hover:scale-105 transition-transform"><Icons.Robot className="w-5 h-5 sm:w-7 sm:h-7" /></div>
                         <h3 className="font-semibold text-[15px] sm:text-lg md:text-lg mb-1 sm:mb-1.5 dark:text-white">{t(lang, 'home.agents')}</h3>
                         <p className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 leading-snug">{t(lang, 'home.agentsDesc')}</p>

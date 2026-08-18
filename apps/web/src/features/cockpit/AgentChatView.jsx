@@ -57,12 +57,22 @@ export function AgentChatView({ state, updateState }) {
         r.readAsDataURL(file);
     };
 
-    // Возврат в Cockpit без засорения истории: снимаем со стека запись
-    // 'cockpit', которую добавили при открытии чата, чтобы кнопка «Назад»
-    // в Cockpit вела в Хаб, а не обратно в этот чат.
+    // Возврат в Cockpit без засорения истории: снимаем со стека верхнюю
+    // запись, которую добавили при открытии чата, чтобы кнопка «Назад» в
+    // Cockpit вела в Хаб, а не обратно в этот чат.
+    // ВАЖНО: эта запись может быть 'cockpit' ИЛИ 'agent-store' — оба
+    // значения рендерят один и тот же AgentStoreApp (см. App.jsx), но
+    // именно 'agent-store' пушится, когда пользователь попал в Cockpit
+    // через плитку «Агенты» на Хабе (см. HomeView.jsx). Раньше здесь
+    // проверялось только 'cockpit', поэтому запись 'agent-store' никогда
+    // не снималась — лишний шаг оставался в истории, и первое нажатие
+    // «Назад» в Cockpit просто переключало currentView между 'cockpit' и
+    // 'agent-store' (тот же экран, никакой видимой навигации), и только
+    // ВТОРОЕ нажатие реально уводило в Хаб.
     const close = () => {
         const hist = state.viewHistory || [];
-        const trimmed = hist[hist.length - 1] === 'cockpit' ? hist.slice(0, -1) : hist;
+        const last = hist[hist.length - 1];
+        const trimmed = (last === 'cockpit' || last === 'agent-store') ? hist.slice(0, -1) : hist;
         updateState({ currentView: 'cockpit', activeAgentId: null, viewHistory: trimmed });
     };
 

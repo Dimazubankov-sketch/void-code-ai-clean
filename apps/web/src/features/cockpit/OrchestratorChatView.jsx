@@ -50,9 +50,13 @@ export function OrchestratorChatView({ state, updateState }) {
         endRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [thread.length, thinking]);
 
+    // См. подробный комментарий в AgentChatView.jsx: снимаем со стека
+    // 'cockpit' ИЛИ 'agent-store' — оба ведут на один и тот же AgentStoreApp,
+    // но именно 'agent-store' пушится при входе с плитки «Агенты» на Хабе.
     const close = () => {
         const hist = state.viewHistory || [];
-        const trimmed = hist[hist.length - 1] === 'cockpit' ? hist.slice(0, -1) : hist;
+        const last = hist[hist.length - 1];
+        const trimmed = (last === 'cockpit' || last === 'agent-store') ? hist.slice(0, -1) : hist;
         updateState({ currentView: 'cockpit', activeAgentId: null, viewHistory: trimmed });
     };
 

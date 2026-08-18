@@ -122,6 +122,12 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     const voice = useVoiceRecorder((text) => {
         updateState({ inputValue: ((state.inputValue || '') + (state.inputValue ? ' ' : '') + text).trim() });
     }, state.voiceLang || 'ru-RU');
+    // Задача 6: запись голоса доступна только после входа — гостю вместо
+    // запуска микрофона показываем модалку входа/регистрации.
+    const startVoiceGuarded = () => {
+        if (!state.user) { updateState({ showAuthModal: true }); return; }
+        voice.start();
+    };
 
     // Озвучка, фидбэк, шеринг. Приоритетно — через бэкенд (OpenAI TTS-1)
     // с фолбэком на Web Speech при ошибке.
@@ -724,7 +730,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         <div ref={composerBtnsRef} className="contents">
                         {voice.supported && (
                             <button
-                                onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
+                                onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && startVoiceGuarded())}
                                 title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
                                 disabled={voice.transcribing}
                                 className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 flex items-center justify-center transition-all z-20 active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
@@ -835,7 +841,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-100 dark:border-darkBorder shrink-0">
                             {voice.supported && (
                                 <button
-                                    onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && voice.start())}
+                                    onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && startVoiceGuarded())}
                                     title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
                                     disabled={voice.transcribing}
                                     className={`void-tap-target w-11 h-11 rounded-full border-2 flex items-center justify-center transition-all active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
@@ -908,6 +914,14 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                     onPickFile={() => openFilePicker(anyFileInputRef)}
                     onEnableImage={() => updateState({ imageGenMode: true, activeAgentId: null })}
                     onPickAgent={(agent) => updateState({ activeAgentId: agent.id, imageGenMode: false })}
+                    onOpenAddToProject={() => {
+                        // Тот же путь, что и «⋮» → «Добавить в проект» в шапке
+                        // чата/истории (handleChatMenuAction → 'moveToProj'),
+                        // чтобы это было ровно одно и то же окно, а не две
+                        // разные реализации одного и того же действия.
+                        setShowPlusMenu(false);
+                        handleChatMenuAction('moveToProj');
+                    }}
                 />
             )}
             {editingImage && (
