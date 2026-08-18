@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CockpitView } from '@/features/cockpit/CockpitView';
 import { StoreCard } from '@/features/agents/store/StoreCard';
 import { StoreDrawer } from '@/features/agents/store/StoreDrawer';
@@ -22,7 +22,15 @@ import { Icons } from '@/shared/ui/Icons';
 // ведёт в Cockpit, вторая — в обновлённый магазин без «профессий», где
 // для выбора остались строго два вида: Оркестраторы и Агенты.
 export function AgentStoreApp({ state, updateState }) {
-    const [nav, setNav] = useState('my');              // my (Cockpit — лендинг) | store | billing
+    // Deep-link: Хаб → чип «Создать агента» открывает сразу вкладку
+    // «Магазин» (nav='store'), а не landing Cockpit. Читаем один раз при
+    // монтаже и тут же гасим в App-state — тот же паттерн, что и у
+    // state.infoSection в InfoView.jsx.
+    const [nav, setNav] = useState(() => (state.agentStoreTab === 'store' ? 'store' : 'my'));
+    useEffect(() => {
+        if (state.agentStoreTab) updateState({ agentStoreTab: null });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [query, setQuery] = useState('');
     const [drawerItem, setDrawerItem] = useState(null);
     const [drawerPremium, setDrawerPremium] = useState(false);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ProjectMemoryTab, ProjectSkillsTab } from '@/features/projects/ProjectMemoryTab';
 import { goBack } from '@/shared/lib/navigation';
 import { t } from '@/shared/lib/i18n';
@@ -17,7 +17,11 @@ export function ProjectsView({ state, updateState }) {
     const [query, setQuery] = useState('');
     const [creating, setCreating] = useState(false);
     const [newName, setNewName] = useState('');
-    const [openProjectId, setOpenProjectId] = useState(null);
+    const [openProjectId, setOpenProjectId] = useState(() => state.projectsOpenId || null);
+    useEffect(() => {
+        if (state.projectsOpenId) updateState({ projectsOpenId: null });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [projectTab, setProjectTab] = useState('chats');
 
     const projects = state.projects || [];

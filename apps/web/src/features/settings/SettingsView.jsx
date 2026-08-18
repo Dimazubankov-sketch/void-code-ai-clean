@@ -15,7 +15,14 @@ import { ListItem } from '@/shared/ui/ListItem';
 export function SettingsView({ state, updateState }) {
     const lang = state.lang || 'ru';
     const [showAccounts, setShowAccounts] = useState(false);
-    const [showVoice, setShowVoice] = useState(false);
+    // Deep-link: Хаб → плитка «Voice Studio» открывает Настройки сразу на
+    // разделе «Голос», минуя список. Читаем один раз при монтаже и гасим —
+    // тот же паттерн, что и state.infoSection/state.agentStoreTab.
+    const [showVoice, setShowVoice] = useState(() => state.settingsOpenSection === 'voice');
+    useEffect(() => {
+        if (state.settingsOpenSection) updateState({ settingsOpenSection: null });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [showLimits, setShowLimits] = useState(false);
     const [showLang, setShowLang] = useState(false);
     const [showSound, setShowSound] = useState(false);

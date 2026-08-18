@@ -8,6 +8,10 @@ import { getAttachmentLimit } from '@/shared/config/models';
 import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
 import { compressImageFiles } from '@/shared/lib/imageCompress';
 import { useExpandableComposer } from '@/shared/lib/useExpandableComposer';
+import { QuickActions } from '@/features/home/QuickActions';
+import { ContinueWork } from '@/features/home/ContinueWork';
+import { ToolsSection } from '@/features/home/ToolsSection';
+import { AllToolsModal } from '@/features/home/AllToolsModal';
 
 
 // ==========================================
@@ -49,6 +53,67 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
     // включается отдельная анимация «всплытия».
     const [logoPopped, setLogoPopped] = useState(false);
     const [editingImage, setEditingImage] = useState(null);
+    const [showAllTools, setShowAllTools] = useState(false);
+
+    // Единая точка для «требует входа» — используется всеми пунктами
+    // ниже (Агенты, Voice Studio, Оркестраторы, Коннекторы, Проекты,
+    // Библиотека, Скиллы), тот же паттерн, что уже применён к чату/картинкам/
+    // голосу/Cockpit/почте (Задача 6).
+    const requireAuth = (fn) => () => {
+        if (!state.user) { updateState({ showAuthModal: true }); return; }
+        fn();
+    };
+    const goAgents = requireAuth(() => updateState({ currentView: 'agent-store' }));
+    const goAgentStoreCreate = requireAuth(() => updateState({ currentView: 'agent-store', agentStoreTab: 'store' }));
+    const goVoiceStudio = requireAuth(() => updateState({ currentView: 'settings', settingsOpenSection: 'voice' }));
+    const goConnectors = requireAuth(() => updateState({ currentView: 'plugins' }));
+    const goProjects = requireAuth(() => updateState({ currentView: 'projects' }));
+    const goLibrary = requireAuth(() => updateState({ currentView: 'library' }));
+    const goSkills = requireAuth(() => updateState({ currentView: 'skills' }));
+    const goAnalyzeFile = () => { startNewChat(); requestAnimationFrame(() => chatFileInputRef.current?.click()); };
+
+    // «Попробуйте» — второстепенные pill-кнопки, ровно та же
+    // функциональность, что раньше была на больших карточках 2×2.
+    const quickActionItems = [
+        { icon: Icons.Image, label: t(lang, 'home.createImage'), onClick: () => startNewChat({ imageGenMode: true }) },
+        { icon: Icons.Code, label: t(lang, 'home.codeGen'), onClick: () => startNewChat({ selectedModelId: 'pro' }) },
+        { icon: Icons.Robot, label: 'Создать агента', onClick: goAgentStoreCreate },
+        { icon: Icons.Paperclip, label: 'Проанализировать файл', onClick: goAnalyzeFile },
+    ];
+
+    // «Инструменты» — компактные tiles. Voice Mode сюда намеренно не
+    // входит (см. комментарий в ToolsSection.jsx) — это способ общения
+    // через Composer, а не отдельный инструмент.
+    const toolTiles = [
+        { icon: Icons.MessageSquare, label: 'Чат', color: 'text-[#5b32d4] bg-[#efecf9] dark:bg-purple-900/20', onClick: () => startNewChat({ selectedModelId: 'flash_ext' }) },
+        { icon: Icons.Image, label: 'Изображения', color: 'text-pink-600 bg-pink-50 dark:bg-pink-900/20', onClick: () => startNewChat({ imageGenMode: true }) },
+        { icon: Icons.Robot, label: 'Агенты', color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20', onClick: goAgents },
+        { icon: Icons.Volume2, label: 'Voice Studio', color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20', onClick: goVoiceStudio },
+        { icon: Icons.Code, label: 'Код', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', onClick: () => startNewChat({ selectedModelId: 'pro' }) },
+    ];
+
+    // «Все инструменты» — полный каталог, категоризированный, только
+    // реально существующие функции.
+    const toolCategories = [
+        { title: 'AI', items: [
+            { icon: Icons.MessageSquare, label: 'Чат', color: 'text-[#5b32d4] bg-[#efecf9] dark:bg-purple-900/20', onClick: () => startNewChat({ selectedModelId: 'flash_ext' }) },
+            { icon: Icons.Code, label: 'Код', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', onClick: () => startNewChat({ selectedModelId: 'pro' }) },
+            { icon: Icons.Image, label: 'Изображения', color: 'text-pink-600 bg-pink-50 dark:bg-pink-900/20', onClick: () => startNewChat({ imageGenMode: true }) },
+        ] },
+        { title: 'Создание', items: [
+            { icon: Icons.Volume2, label: 'Voice Studio', color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20', onClick: goVoiceStudio },
+        ] },
+        { title: 'Автоматизация', items: [
+            { icon: Icons.Robot, label: 'Агенты', color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20', onClick: goAgents },
+            { icon: Icons.Sparkles, label: 'Оркестраторы', color: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20', onClick: goAgentStoreCreate },
+            { icon: Icons.Plug, label: 'Коннекторы', color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/20', onClick: goConnectors },
+        ] },
+        { title: 'Рабочее пространство', items: [
+            { icon: Icons.Folder, label: 'Проекты', color: 'text-[#5b32d4] bg-[#efecf9] dark:bg-purple-900/20', onClick: goProjects },
+            { icon: Icons.Library, label: 'Библиотека', color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20', onClick: goLibrary },
+            { icon: Icons.Skills, label: 'Скиллы', color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20', onClick: goSkills },
+        ] },
+    ];
     const homeTextareaRef = useRef(null);
     const homeComposerWrapRef = useRef(null);
     const homeExpandedTextareaRef = useRef(null);
@@ -387,30 +452,16 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                     document.body
                 )}
 
-                <div className="grid grid-cols-2 gap-3.5 sm:gap-5 md:gap-6 mb-10 sm:mb-14">
-                    <div onClick={() => startNewChat({ selectedModelId: 'flash_ext' })} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-[#5b32d4]/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">
-                        <div style={{animationDelay: '0ms'}} className="void-icon-pop w-11 h-11 sm:w-14 sm:h-14 md:w-14 md:h-14 bg-purple-50 dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-400 rounded-2xl md:rounded-[1.25rem] flex items-center justify-center mb-3.5 sm:mb-5 md:mb-3.5 group-hover:scale-105 transition-transform"><Icons.MessageSquare className="w-5 h-5 sm:w-7 sm:h-7" /></div>
-                        <h3 className="font-semibold text-[15px] sm:text-lg md:text-lg mb-1 sm:mb-1.5 dark:text-white">{t(lang, 'home.smartChat')}</h3>
-                        <p className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 leading-snug">{t(lang, 'home.smartChatDesc')}</p>
-                    </div>
-                    <div onClick={() => startNewChat({ selectedModelId: 'pro' })} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-blue-500/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">
-                        <div style={{animationDelay: '60ms'}} className="void-icon-pop w-11 h-11 sm:w-14 sm:h-14 md:w-14 md:h-14 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-2xl md:rounded-[1.25rem] flex items-center justify-center mb-3.5 sm:mb-5 md:mb-3.5 group-hover:scale-105 transition-transform"><Icons.Code className="w-5 h-5 sm:w-7 sm:h-7" /></div>
-                        <h3 className="font-semibold text-[15px] sm:text-lg md:text-lg mb-1 sm:mb-1.5 dark:text-white">{t(lang, 'home.codeGen')}</h3>
-                        <p className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 leading-snug">{t(lang, 'home.codeGenDesc')}</p>
-                    </div>
-                    <div onClick={() => startNewChat({ imageGenMode: true })} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-pink-500/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">
-                        <div style={{animationDelay: '120ms'}} className="void-icon-pop w-11 h-11 sm:w-14 sm:h-14 md:w-14 md:h-14 bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 rounded-2xl md:rounded-[1.25rem] flex items-center justify-center mb-3.5 sm:mb-5 md:mb-3.5 group-hover:scale-105 transition-transform"><Icons.Image className="w-5 h-5 sm:w-7 sm:h-7" /></div>
-                        <h3 className="font-semibold text-[15px] sm:text-lg md:text-lg mb-1 sm:mb-1.5 dark:text-white">{t(lang, 'home.createImage')}</h3>
-                        <p className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 leading-snug">{t(lang, 'home.createImageDesc')}</p>
-                    </div>
-                    {/* Единая вкладка «Агенты»: Cockpit + магазин в одном приложении */}
-                    <div onClick={() => { if (!state.user) { updateState({ showAuthModal: true }); return; } updateState({currentView: 'agent-store'}); }} className="group bg-white dark:bg-darkCard p-5 sm:p-7 md:p-6 rounded-[1.75rem] md:rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm hover:shadow-lg hover:border-indigo-500/25 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer">
-                        <div style={{animationDelay: '180ms'}} className="void-icon-pop w-11 h-11 sm:w-14 sm:h-14 md:w-14 md:h-14 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-2xl md:rounded-[1.25rem] flex items-center justify-center mb-3.5 sm:mb-5 md:mb-3.5 group-hover:scale-105 transition-transform"><Icons.Robot className="w-5 h-5 sm:w-7 sm:h-7" /></div>
-                        <h3 className="font-semibold text-[15px] sm:text-lg md:text-lg mb-1 sm:mb-1.5 dark:text-white">{t(lang, 'home.agents')}</h3>
-                        <p className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 leading-snug">{t(lang, 'home.agentsDesc')}</p>
-                    </div>
-                </div>
+                <QuickActions items={quickActionItems} />
+
+                <ContinueWork state={state} updateState={updateState} />
+
+                <ToolsSection tools={toolTiles} onOpenAll={() => setShowAllTools(true)} />
             </div>
+
+            {showAllTools && (
+                <AllToolsModal categories={toolCategories} onClose={() => setShowAllTools(false)} />
+            )}
 
             {/* Компактная кнопка помощи — только стикер, угол экрана. */}
             {state.user && (
