@@ -104,6 +104,17 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         } catch { return null; }
     }, []);
 
+    // ВАЖНО: объявлено здесь, ДО stopVideo/startVideo — оба используют
+    // setPhaseBoth (startVideo — в catch и в своём массиве зависимостей
+    // useCallback). const-объявления в теле функции компонента исполняются
+    // по порядку сверху вниз на каждом рендере; если бы setPhaseBoth было
+    // объявлено НИЖЕ (как было раньше), обращение к нему из startVideo
+    // происходило бы ДО его инициализации — это давало жёсткий краш всего
+    // приложения: "ReferenceError: Cannot access '...' before initialization"
+    // (после минификации имя переменной превращается в одну букву, отсюда
+    // загадочное "Cannot access 'O' before initialization" в проде).
+    const setPhaseBoth = useCallback((p) => { phaseRef.current = p; setPhase(p); }, []);
+
     const stopVideo = useCallback(() => {
         try { videoStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* noop */ }
         videoStreamRef.current = null;
@@ -193,8 +204,6 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [updateState]);
-
-    const setPhaseBoth = useCallback((p) => { phaseRef.current = p; setPhase(p); }, []);
 
     // Пользователь заговорил (по данным распознавания). Во время речи Сары
     // этот колбэк уже не приходит — распознавание на паузе, перебивание
