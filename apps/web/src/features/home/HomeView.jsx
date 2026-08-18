@@ -9,7 +9,6 @@ import { getAttachmentLimit } from '@/shared/config/models';
 import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
 import { compressImageFiles } from '@/shared/lib/imageCompress';
 import { useExpandableComposer } from '@/shared/lib/useExpandableComposer';
-import { QuickActions } from '@/features/home/QuickActions';
 import { ContinueWork } from '@/features/home/ContinueWork';
 import { ToolsSection } from '@/features/home/ToolsSection';
 import { AllToolsModal } from '@/features/home/AllToolsModal';
@@ -213,6 +212,8 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
     const inputModeRef = useRef(false);
     const tlRef = useRef(null);
     const backArrowRef = useRef(null);
+    const plusButtonRef = useRef(null);
+    const logoBlockRef = useRef(null);
     const shadowGlowRef = useRef(null);
     const cardsSectionRef = useRef(null);
     const overlayRef = useRef(null);
@@ -314,13 +315,17 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
             defaults: { duration: reduce ? 0.01 : 0.4, ease: 'power3.out' },
             onComplete: () => {
                 if (cardsSectionRef.current) cardsSectionRef.current.style.pointerEvents = 'none';
+                if (logoBlockRef.current) logoBlockRef.current.style.pointerEvents = 'none';
                 if (overlayRef.current) overlayRef.current.style.pointerEvents = 'auto';
                 if (backArrowRef.current) backArrowRef.current.style.pointerEvents = 'auto';
+                if (plusButtonRef.current) plusButtonRef.current.style.pointerEvents = 'none';
             },
             onReverseComplete: () => {
                 if (cardsSectionRef.current) cardsSectionRef.current.style.pointerEvents = '';
+                if (logoBlockRef.current) logoBlockRef.current.style.pointerEvents = '';
                 if (overlayRef.current) overlayRef.current.style.pointerEvents = '';
                 if (backArrowRef.current) backArrowRef.current.style.pointerEvents = 'none';
+                if (plusButtonRef.current) plusButtonRef.current.style.pointerEvents = '';
                 inputModeRef.current = false;
             },
         });
@@ -329,10 +334,16 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
         // CSS-строка ненадёжно анимируется через GSAP).
         tl.to(homeComposerWrapRef.current, { scale: 1.03, y: -8 }, 0)
             .to(shadowGlowRef.current, { opacity: 1 }, 0)
+            // Логотип + «VOID CODE AI» + подпись справа — тоже уходят, как
+            // будто открылась совсем другая вкладка, а не просто мелкая
+            // деталь composer'а.
+            .to(logoBlockRef.current, { opacity: 0, y: -16 }, 0)
             // Карточки уходят вниз и гаснут за белым оверлеем.
             .to(cardsSectionRef.current, { opacity: 0, y: 24 }, 0)
             .to(overlayRef.current, { opacity: 1 }, 0)
-            // Стрелка назад — fade + scale, с небольшим сдвигом по времени.
+            // «+» и стрелка «назад» — в ОДНОМ И ТОМ ЖЕ месте внутри поля
+            // (не отдельный плавающий круг снаружи), кроссфейд между ними.
+            .to(plusButtonRef.current, { opacity: 0, scale: 0.6 }, 0)
             .fromTo(backArrowRef.current, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, ease: 'back.out(1.6)' }, 0.05);
 
         tlRef.current = tl;
@@ -401,7 +412,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                     подзаголовок растянут по ширине заголовка
                     (tracking + uppercase), поэтому читается как его
                     основание, а не как случайная строка снизу. */}
-                <div className="flex items-center gap-3 sm:gap-4 mb-8 sm:mb-10">
+                <div ref={logoBlockRef} className="flex items-center gap-3 sm:gap-4 mb-8 sm:mb-10">
                     <Icons.VoidLogo
                         key={logoPlayKey}
                         onClick={() => { setLogoPopped(true); setLogoPlayKey(k => k + 1); }}
@@ -418,22 +429,11 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                     </div>
                 </div>
 
-                <div className="void-input-rise relative max-w-4xl mx-auto pointer-events-auto mb-10">
+                <div className="void-input-rise relative max-w-4xl mx-auto pointer-events-auto mb-6">
                     {/* Мягкое фиолетовое сияние позади поля — включается
                         вместо анимации box-shadow (ненадёжно интерполируется
                         через GSAP как CSS-строка). */}
                     <div ref={shadowGlowRef} className="absolute -inset-3 rounded-[32px] bg-[#5b32d4]/10 blur-2xl pointer-events-none -z-10" />
-                    {/* Стрелка «назад» — над кнопкой «+», появляется только
-                        в режиме фокуса поля (см. enterInputMode). */}
-                    <button
-                        ref={backArrowRef}
-                        onClick={exitInputMode}
-                        title="Назад"
-                        aria-label="Назад"
-                        className="void-tap-target absolute -top-14 left-1 z-30 w-10 h-10 rounded-full bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder shadow-md flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                        <Icons.ChevronLeft className="w-5 h-5" />
-                    </button>
                     {(state.selectedImages && state.selectedImages.length > 0) && (
                         <div className="absolute -top-20 left-4 right-4 flex gap-2 overflow-x-auto pb-1 fade-in void-attach-scroll">
                             {state.selectedImages.map((img, i) => (
@@ -464,13 +464,30 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
-                        {/* «+» слева: при записи переворачивается в «×» (отмена записи) */}
+                        {/* «+» слева: при записи переворачивается в «×» (отмена записи).
+                            В режиме фокуса поля (inputMode) кроссфейдится со
+                            стрелкой «назад» в этом же самом месте — см. ниже. */}
                         <button
+                            ref={plusButtonRef}
                             onClick={() => voice.recording ? voice.cancel() : chatFileInputRef.current?.click()}
                             title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
                             className={`void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800`}
                         >
                             <Icons.Plus className={`w-6 h-6 void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
+                        </button>
+
+                        {/* Стрелка «назад» — РОВНО в том же месте, что и «+»
+                            (внутри поля, не отдельный плавающий круг снаружи).
+                            Появляется через кроссфейд, когда включён режим
+                            фокуса (enterInputMode/exitInputMode). */}
+                        <button
+                            ref={backArrowRef}
+                            onClick={exitInputMode}
+                            title="Назад"
+                            aria-label="Назад"
+                            className="void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        >
+                            <Icons.ChevronLeft className="w-6 h-6" />
                         </button>
 
                         {/* Анимация записи — на всё поле ввода */}
@@ -658,8 +675,6 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
 
                 <div className="relative">
                     <div ref={cardsSectionRef}>
-                        <QuickActions items={quickActionItems} />
-
                         <ContinueWork state={state} updateState={updateState} />
 
                         <ToolsSection tools={toolTiles} onOpenAll={() => setShowAllTools(true)} />
