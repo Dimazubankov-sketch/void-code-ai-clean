@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { AI_MODELS, getPlanLimits, REASONING_LEVELS, defaultReasoningFor, isReasoningAllowed, getReasoningLevel, isModelAllowedForPlan } from '@/shared/config/models';
 import { Icons } from '@/shared/ui/Icons';
@@ -13,7 +13,7 @@ import { PressButton } from '@/shared/ui/PressButton';
 // на наведение (лёгкое увеличение) и нажатие (лёгкое сжатие) — согласно
 // требованию использовать ТОЛЬКО GSAP для подобных анимаций, без
 // CSS-transition на transform.
-function IconCircleButton({ onClick, title, children, solid = false }) {
+function IconCircleButton({ onClick, title, children }) {
     const ref = useRef(null);
     const onEnter = () => gsap.to(ref.current, { scale: 1.08, duration: 0.18, ease: 'power2.out' });
     const onLeave = () => gsap.to(ref.current, { scale: 1, duration: 0.22, ease: 'power2.out' });
@@ -30,15 +30,12 @@ function IconCircleButton({ onClick, title, children, solid = false }) {
             onMouseUp={onUp}
             onTouchStart={onDown}
             onTouchEnd={onUp}
-            /* Стекло: полупрозрачный фон + backdrop-blur. Текст чата под
-               кнопкой остаётся едва различимым — именно этого требует
-               референс. solid больше не делает кнопку непрозрачной, он
-               лишь чуть плотнее: сплошной белый разрушал бы эффект. */
-            className={`void-tap-target flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-xl border shadow-sm ${
-                solid
-                    ? 'bg-white/60 dark:bg-white/[0.14] border-white/50 dark:border-white/15 text-gray-900 dark:text-white'
-                    : 'bg-white/45 dark:bg-white/[0.10] border-white/40 dark:border-white/10 text-gray-900 dark:text-white'
-            }`}
+            /* Задача 9: раньше кнопки шапки чата были полупрозрачным
+               «стеклом» (bg-white/45 + backdrop-blur) и слишком сильно
+               сливались с фоном чата. Теперь — тот же плотный стиль, что
+               и у кнопок в Хабе (bg-white/90 + shadow-md + сплошная
+               обводка), для всех кнопок шапки без исключения. */
+            className="void-tap-target flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg shadow-md border border-gray-200 dark:border-darkBorder text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             style={{ willChange: 'transform' }}
         >
             {children}
@@ -55,6 +52,26 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     const limitExhausted = maxDaily !== Infinity && state.usedDailyLimits >= maxDaily;
 
     const inChatView = state.currentView === 'chat';
+
+    // Задача 5: когда чат только что создан из Хаба (полоса ввода
+    // уехала вниз и стала нижней панелью чата — см. sendWithTransition
+    // в HomeView.jsx), кнопки шапки следом плавно всплывают (fade+y),
+    // а не появляются рывком. Триггер — активный чат пуст (0 сообщений):
+    // это надёжный признак «мы только что сюда попали», не требующий
+    // отдельного флага, пробрасываемого через несколько компонентов.
+    const headerRowRef = useRef(null);
+    const activeChat = (state.chatSessions || []).find(c => c.id === state.activeChatId);
+    const isFreshChat = inChatView && activeChat && (!activeChat.messages || activeChat.messages.length === 0);
+    useEffect(() => {
+        if (!isFreshChat || !headerRowRef.current) return;
+        const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const buttons = headerRowRef.current.querySelectorAll(':scope > div');
+        if (!buttons.length) return;
+        gsap.fromTo(buttons,
+            { opacity: 0, y: reduce ? 0 : 10 },
+            { opacity: 1, y: 0, duration: reduce ? 0.01 : 0.4, ease: 'power3.out', stagger: reduce ? 0 : 0.06, delay: reduce ? 0 : 0.05 });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.activeChatId]);
 
     // Задача 13 отменена по требованию — эффект блюра/fade под шапкой
     // убран полностью, шапка возвращена к исходному виду (bg /70).
@@ -73,7 +90,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     const ModelSelectorBlock = (
         <div className="flex items-center gap-1.5">
             <div className="relative min-w-0">
-                <PressButton onClick={() => setShowDropdown(!showDropdown)} className="void-tap-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/45 dark:bg-white/[0.10] backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-sm hover:bg-white/60 dark:hover:bg-white/[0.16] transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none">
+                <PressButton onClick={() => setShowDropdown(!showDropdown)} className="void-tap-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg border border-gray-200 dark:border-darkBorder shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none">
                     <div className="flex items-center gap-1 font-extrabold text-[13px] sm:text-[15px] md:text-lg dark:text-white leading-tight min-w-0">
                         <span className="truncate">{activeModel.name}</span> <Icons.ChevronDown className="w-4 h-4 flex-shrink-0" />
                     </div>
@@ -163,16 +180,10 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     </>
                 )}
             </div>
-            {/* Уровень рассуждений — компактный чип СПРАВА от модели.
-                Клик сразу открывает окно выбора уровня, минуя общий дропдаун. */}
-            <button
-                onClick={() => { setShowReasoning(true); setShowDropdown(false); }}
-                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300 text-xs font-bold hover:bg-[#e0dbf4] dark:hover:bg-purple-900/30 transition-colors"
-                title="Уровень рассуждений"
-            >
-                <Icons.Sparkles className="w-3.5 h-3.5" />
-                {currentReasoning.name}
-            </button>
+            {/* Задача 8: отдельная кнопка «Уровень рассуждений» рядом с
+                моделью убрана — рассуждения теперь открываются только
+                через сам выбор модели (строка «Уровень рассуждений» внизу
+                выпадающего списка выше), а не отдельным чипом в шапке. */}
         </div>
     );
 
@@ -197,7 +208,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                   градиент до полной прозрачности) — сглаживает переход к
                   обычному контенту чата, чтобы не было жёсткой границы.
                pointer-events-none — чтобы слои не перехватывали клики и скролл. */
-            <div className="sticky top-0 z-30 px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div ref={headerRowRef} className="sticky top-0 z-30 px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <div
                     aria-hidden
                     className="absolute inset-x-0 top-0 h-16 -z-10 pointer-events-none backdrop-blur-xl bg-white/40 dark:bg-darkBg/45"
@@ -233,11 +244,29 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                             />
                         </div>
                     )}
+                    {/* Задача 7: колокольчик (уведомления/почта) — та же
+                        логика и стиль, что и в Хабе, вставлен между
+                        троеточием и кнопкой «Меню». */}
+                    <button
+                        onClick={() => {
+                            if (!state.user) { updateState({ showAuthModal: true }); return; }
+                            updateState({ showNotifications: true });
+                        }}
+                        title="Уведомления"
+                        className="void-tap-target relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg shadow-md border border-gray-200 dark:border-darkBorder text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                        <Icons.Bell className="w-5 h-5" />
+                        {(Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
+                          || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
+                          || (state.inbox?.personal || []).some(m => !(state.readPersonalIds || []).includes(m.id))) && (
+                            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white dark:border-darkCard" />
+                        )}
+                    </button>
                     {/* Кнопка «Меню» (две полоски) — возвращена в шапку чата,
                         на том же крайнем правом месте, где она стоит в Хабе.
-                        Круглая обводка, непрозрачный белый фон (solid) —
-                        полностью идентична кнопке меню на главном экране. */}
-                    <IconCircleButton onClick={() => updateState({ isRightMenuOpen: true })} title="Меню" solid>
+                        Круглая обводка, непрозрачный белый фон — полностью
+                        идентична кнопке меню на главном экране. */}
+                    <IconCircleButton onClick={() => updateState({ isRightMenuOpen: true })} title="Меню">
                         <Icons.TwoLines className="w-5 h-5" />
                     </IconCircleButton>
                 </div>
@@ -260,7 +289,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     // В Хабе кнопка меню (TwoLines) — круглая, но с ОБЫЧНЫМ
                     // непрозрачным белым фоном (без backdrop-blur/полупрозрачности),
                     // в отличие от кнопок «Назад»/«Троеточие» в чате.
-                    <IconCircleButton onClick={() => updateState({isRightMenuOpen: true})} title="Меню" solid>
+                    <IconCircleButton onClick={() => updateState({isRightMenuOpen: true})} title="Меню">
                         <Icons.TwoLines className="w-5 h-5" />
                     </IconCircleButton>
                 ) : (

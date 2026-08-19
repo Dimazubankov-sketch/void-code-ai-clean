@@ -9,9 +9,6 @@ import { getAttachmentLimit } from '@/shared/config/models';
 import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
 import { compressImageFiles } from '@/shared/lib/imageCompress';
 import { useExpandableComposer } from '@/shared/lib/useExpandableComposer';
-import { ContinueWork } from '@/features/home/ContinueWork';
-import { ToolsSection } from '@/features/home/ToolsSection';
-import { AllToolsModal } from '@/features/home/AllToolsModal';
 
 
 // ==========================================
@@ -53,7 +50,6 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
     // включается отдельная анимация «всплытия».
     const [logoPopped, setLogoPopped] = useState(false);
     const [editingImage, setEditingImage] = useState(null);
-    const [showAllTools, setShowAllTools] = useState(false);
 
     // Единая точка для «требует входа» — используется всеми пунктами
     // ниже (Агенты, Voice Studio, Оркестраторы, Коннекторы, Проекты,
@@ -66,10 +62,6 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
     const goAgents = requireAuth(() => updateState({ currentView: 'agent-store' }));
     const goAgentStoreCreate = requireAuth(() => updateState({ currentView: 'agent-store', agentStoreTab: 'store' }));
     const goVoiceStudio = requireAuth(() => updateState({ currentView: 'settings', settingsOpenSection: 'voice' }));
-    const goConnectors = requireAuth(() => updateState({ currentView: 'plugins' }));
-    const goProjects = requireAuth(() => updateState({ currentView: 'projects' }));
-    const goLibrary = requireAuth(() => updateState({ currentView: 'library' }));
-    const goSkills = requireAuth(() => updateState({ currentView: 'skills' }));
     const goAnalyzeFile = () => { startNewChat(); requestAnimationFrame(() => chatFileInputRef.current?.click()); };
 
     // «Попробуйте» — второстепенные pill-кнопки, ровно та же
@@ -81,38 +73,16 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
         { icon: Icons.Paperclip, label: 'Проанализировать файл', onClick: goAnalyzeFile },
     ];
 
-    // «Инструменты» — компактные tiles. Voice Mode сюда намеренно не
-    // входит (см. комментарий в ToolsSection.jsx) — это способ общения
-    // через Composer, а не отдельный инструмент.
+    // «Инструменты» (данные для автодополнения поиска — сама секция
+    // с плитками убрана из хаба по требованию, но подсказки по этим
+    // названиям остаются рабочими: клик по подсказке «Агенты»/«Код»/
+    // «Voice Studio» ведёт туда же, куда вела бы плитка).
     const toolTiles = [
         { icon: Icons.MessageSquare, label: 'Чат', color: 'text-[#5b32d4] bg-[#efecf9] dark:bg-purple-900/20', onClick: () => startNewChat({ selectedModelId: 'flash_ext' }) },
         { icon: Icons.Image, label: 'Изображения', color: 'text-pink-600 bg-pink-50 dark:bg-pink-900/20', onClick: () => startNewChat({ imageGenMode: true }) },
         { icon: Icons.Robot, label: 'Агенты', color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20', onClick: goAgents },
         { icon: Icons.Volume2, label: 'Voice Studio', color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20', onClick: goVoiceStudio },
         { icon: Icons.Code, label: 'Код', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', onClick: () => startNewChat({ selectedModelId: 'pro' }) },
-    ];
-
-    // «Все инструменты» — полный каталог, категоризированный, только
-    // реально существующие функции.
-    const toolCategories = [
-        { title: 'AI', items: [
-            { icon: Icons.MessageSquare, label: 'Чат', color: 'text-[#5b32d4] bg-[#efecf9] dark:bg-purple-900/20', onClick: () => startNewChat({ selectedModelId: 'flash_ext' }) },
-            { icon: Icons.Code, label: 'Код', color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20', onClick: () => startNewChat({ selectedModelId: 'pro' }) },
-            { icon: Icons.Image, label: 'Изображения', color: 'text-pink-600 bg-pink-50 dark:bg-pink-900/20', onClick: () => startNewChat({ imageGenMode: true }) },
-        ] },
-        { title: 'Создание', items: [
-            { icon: Icons.Volume2, label: 'Voice Studio', color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20', onClick: goVoiceStudio },
-        ] },
-        { title: 'Автоматизация', items: [
-            { icon: Icons.Robot, label: 'Агенты', color: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20', onClick: goAgents },
-            { icon: Icons.Sparkles, label: 'Оркестраторы', color: 'text-violet-600 bg-violet-50 dark:bg-violet-900/20', onClick: goAgentStoreCreate },
-            { icon: Icons.Plug, label: 'Коннекторы', color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/20', onClick: goConnectors },
-        ] },
-        { title: 'Рабочее пространство', items: [
-            { icon: Icons.Folder, label: 'Проекты', color: 'text-[#5b32d4] bg-[#efecf9] dark:bg-purple-900/20', onClick: goProjects },
-            { icon: Icons.Library, label: 'Библиотека', color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20', onClick: goLibrary },
-            { icon: Icons.Skills, label: 'Скиллы', color: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20', onClick: goSkills },
-        ] },
     ];
     const homeTextareaRef = useRef(null);
     const homeComposerWrapRef = useRef(null);
@@ -200,48 +170,29 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
     }, []);
 
     // ==========================================
-    // GOOGLE-STYLE FOCUS MODE — только GSAP
+    // Composer «выезжает» вперёд / назад — только GSAP
     // ==========================================
-    // Нажатие на поле ввода: лёгкая press-анимация → поле «выезжает»
-    // вперёд (scale + y + тень), карточки уходят вниз за белый оверлей,
-    // над полем появляется стрелка «назад». Полный reverse — по клику на
-    // стрелку или при очистке поля. Ничего из этого не трогает существующую
-    // логику Composer/вложений/голоса — только визуальный слой поверх.
-    const [inputMode, setInputMode] = useState(false);
+    // По требованию (правки после предыдущей версии): ничего вокруг НЕ
+    // прячется — ни логотип, ни другие элементы. Меняется только сама
+    // полоса ввода: чуть крупнее и чуть выше при фокусе/наборе текста,
+    // возвращается в исходное положение, когда поле снова пустое.
+    // Логика: фокус → выехало; всё стёрли → задвинулось обратно; снова
+    // начали печатать → снова выехало.
     const [suggestions, setSuggestions] = useState([]);
-    const inputModeRef = useRef(false);
-    const tlRef = useRef(null);
-    const backArrowRef = useRef(null);
-    const plusButtonRef = useRef(null);
-    const logoBlockRef = useRef(null);
+    const pushedRef = useRef(false);
     const shadowGlowRef = useRef(null);
-    const cardsSectionRef = useRef(null);
-    const overlayRef = useRef(null);
     const suggestionsWrapRef = useRef(null);
 
     const prefersReducedMotion = () =>
         typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    // Начальные значения GSAP-управляемых элементов задаём ОДИН раз при
-    // монтаже через gsap.set (а не через style={{...}} в JSX) — иначе React
-    // пересоздавал бы style-объект на каждом ре-рендере и затирал бы то,
-    // что GSAP только что анимировал (классический конфликт React↔GSAP).
     useEffect(() => {
-        gsap.set(backArrowRef.current, { opacity: 0, scale: 0.6 });
-        if (backArrowRef.current) backArrowRef.current.style.pointerEvents = 'none';
         gsap.set(shadowGlowRef.current, { opacity: 0 });
-        gsap.set(overlayRef.current, { opacity: 0 });
-        // ВАЖНО: без этого невидимый (opacity:0) оверлей по умолчанию
-        // имел бы pointer-events:auto и молча блокировал бы клики по
-        // карточкам ниже ещё до того, как режим фокуса вообще включался.
-        if (overlayRef.current) overlayRef.current.style.pointerEvents = 'none';
-        return () => { tlRef.current?.kill(); };
     }, []);
 
     // Источник подсказок — только РЕАЛЬНЫЕ данные: заголовки последних
     // непустых чатов + метки уже существующих быстрых действий/инструментов.
-    // Никаких придуманных записей. Дубли по названию (например, «Код»
-    // встречается и в «Попробуйте», и в «Инструментах») схлопываются.
+    // Никаких придуманных записей.
     const getSuggestions = (query) => {
         const q = query.trim().toLowerCase();
         if (!q) return [];
@@ -252,7 +203,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                 id: 'chat-' + c.id,
                 icon: Icons.History,
                 label: c.title,
-                onClick: () => { updateState({ currentView: 'chat', activeChatId: c.id, imageGenMode: false }); exitInputMode(); },
+                onClick: () => { updateState({ currentView: 'chat', activeChatId: c.id, imageGenMode: false }); },
             }));
         const actionMatches = [...quickActionItems, ...toolTiles]
             .filter(it => it.label.toLowerCase().includes(q))
@@ -260,7 +211,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                 id: 'action-' + it.label + i,
                 icon: it.icon,
                 label: it.label,
-                onClick: () => { it.onClick(); exitInputMode(); },
+                onClick: it.onClick,
             }));
         const seen = new Set();
         return [...chatMatches, ...actionMatches]
@@ -268,8 +219,6 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
             .slice(0, 6);
     };
 
-    // Скрыть подсказки со stagger-анимацией «на выход», а не мгновенно —
-    // затем очистить список (onComplete).
     const hideSuggestionsAnimated = () => {
         const items = suggestionsWrapRef.current?.querySelectorAll('.gsg-item');
         if (!items || items.length === 0) { setSuggestions([]); return; }
@@ -283,9 +232,6 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
         });
     };
 
-    // Появление подсказок анимируется отдельным эффектом (см. ниже),
-    // привязанным к самому массиву suggestions — гарантированно после
-    // коммита DOM, без гонок с requestAnimationFrame.
     useEffect(() => {
         const items = suggestionsWrapRef.current?.querySelectorAll('.gsg-item');
         if (!items || items.length === 0) return;
@@ -295,78 +241,49 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
             { opacity: 1, y: 0, duration: reduce ? 0.01 : 0.28, ease: 'power2.out', stagger: reduce ? 0 : 0.05 });
     }, [suggestions]);
 
-    const enterInputMode = () => {
-        if (inputModeRef.current) return;
-        inputModeRef.current = true;
-        setInputMode(true);
-        if (state.inputValue && state.inputValue.trim()) setSuggestions(getSuggestions(state.inputValue));
-
+    const pushForward = () => {
+        if (pushedRef.current) return;
+        pushedRef.current = true;
         const reduce = prefersReducedMotion();
-        tlRef.current?.kill();
-
+        if (!homeComposerWrapRef.current) return;
         if (!reduce) {
-            // Press: scale вниз + лёгкий bounce обратно — 120–150 мс суммарно.
+            // Press: лёгкий scale вниз + bounce обратно — 120–150 мс суммарно.
             gsap.timeline()
                 .to(homeComposerWrapRef.current, { scale: 0.975, duration: 0.06, ease: 'power2.out' })
                 .to(homeComposerWrapRef.current, { scale: 1, duration: 0.08, ease: 'back.out(3)' });
         }
-
-        const tl = gsap.timeline({
-            defaults: { duration: reduce ? 0.01 : 0.4, ease: 'power3.out' },
-            onComplete: () => {
-                if (cardsSectionRef.current) cardsSectionRef.current.style.pointerEvents = 'none';
-                if (logoBlockRef.current) logoBlockRef.current.style.pointerEvents = 'none';
-                if (overlayRef.current) overlayRef.current.style.pointerEvents = 'auto';
-                if (backArrowRef.current) backArrowRef.current.style.pointerEvents = 'auto';
-                if (plusButtonRef.current) plusButtonRef.current.style.pointerEvents = 'none';
-            },
-            onReverseComplete: () => {
-                if (cardsSectionRef.current) cardsSectionRef.current.style.pointerEvents = '';
-                if (logoBlockRef.current) logoBlockRef.current.style.pointerEvents = '';
-                if (overlayRef.current) overlayRef.current.style.pointerEvents = '';
-                if (backArrowRef.current) backArrowRef.current.style.pointerEvents = 'none';
-                if (plusButtonRef.current) plusButtonRef.current.style.pointerEvents = '';
-                inputModeRef.current = false;
-            },
+        gsap.to(homeComposerWrapRef.current, {
+            scale: reduce ? 1 : 1.03, y: reduce ? 0 : -8,
+            duration: reduce ? 0.01 : 0.4, ease: 'power3.out',
         });
-        // Поле «выезжает вперёд»: чуть крупнее, чуть выше, с мягкой тенью
-        // (тень — отдельный blur-глow позади поля, т.к. box-shadow как
-        // CSS-строка ненадёжно анимируется через GSAP).
-        tl.to(homeComposerWrapRef.current, { scale: 1.03, y: -8 }, 0)
-            .to(shadowGlowRef.current, { opacity: 1 }, 0)
-            // Логотип + «VOID CODE AI» + подпись справа — тоже уходят, как
-            // будто открылась совсем другая вкладка, а не просто мелкая
-            // деталь composer'а.
-            .to(logoBlockRef.current, { opacity: 0, y: -16 }, 0)
-            // Карточки уходят вниз и гаснут за белым оверлеем.
-            .to(cardsSectionRef.current, { opacity: 0, y: 24 }, 0)
-            .to(overlayRef.current, { opacity: 1 }, 0)
-            // «+» и стрелка «назад» — в ОДНОМ И ТОМ ЖЕ месте внутри поля
-            // (не отдельный плавающий круг снаружи), кроссфейд между ними.
-            .to(plusButtonRef.current, { opacity: 0, scale: 0.6 }, 0)
-            .fromTo(backArrowRef.current, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, ease: 'back.out(1.6)' }, 0.05);
-
-        tlRef.current = tl;
+        gsap.to(shadowGlowRef.current, { opacity: 1, duration: reduce ? 0.01 : 0.4, ease: 'power3.out' });
     };
 
-    const exitInputMode = () => {
-        setInputMode(false);
-        hideSuggestionsAnimated();
-        if (tlRef.current) {
-            tlRef.current.reverse();
-        } else {
-            inputModeRef.current = false;
+    const pushBack = () => {
+        if (!pushedRef.current) return;
+        pushedRef.current = false;
+        const reduce = prefersReducedMotion();
+        if (homeComposerWrapRef.current) {
+            gsap.to(homeComposerWrapRef.current, { scale: 1, y: 0, duration: reduce ? 0.01 : 0.35, ease: 'power3.out' });
         }
+        gsap.to(shadowGlowRef.current, { opacity: 0, duration: reduce ? 0.01 : 0.35, ease: 'power3.out' });
+        hideSuggestionsAnimated();
     };
 
-    // Esc — тоже выход, как и «настоящий» браузерный autocomplete.
-    useEffect(() => {
-        if (!inputMode) return;
-        const onKey = (e) => { if (e.key === 'Escape') exitInputMode(); };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [inputMode]);
+    // Плавный переход «Хаб → новый чат» (только GSAP): полоса ввода
+    // хаба уезжает вниз и гаснет, как будто становится нижней панелью
+    // чата, и только после этого происходит реальная отправка/переход
+    // (HomeView размонтируется, ChatView смонтируется с уже нижним
+    // composer'ом — иллюзия непрерывности без сложной cross-view
+    // DOM-идентичности между разными экранами).
+    const sendWithTransition = () => {
+        const reduce = prefersReducedMotion();
+        if (reduce || !homeComposerWrapRef.current) { handleSendMessage(); return; }
+        gsap.to(homeComposerWrapRef.current, {
+            y: 220, opacity: 0.35, duration: 0.32, ease: 'power2.in',
+            onComplete: () => handleSendMessage(),
+        });
+    };
 
     return (
         <div className="flex-1 overflow-y-auto pb-12 h-full bg-[#f8f9fc] dark:bg-darkBg fade-in relative">
@@ -403,21 +320,14 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
             </div>
 
             <div className="px-6 pt-16 sm:pt-20 max-w-4xl mx-auto">
-                {/* Логотип и текст — единый блок, а не две независимые
-                    детали. Раньше логотип был крупнее текста и висел с
-                    произвольным mt, из-за чего смотрелся отдельно от
-                    подписи. Теперь: логотип соразмерен блоку текста,
-                    выравнивание по центру по вертикали, а заголовок и
-                    подзаголовок связаны единой оптической сеткой —
-                    подзаголовок растянут по ширине заголовка
-                    (tracking + uppercase), поэтому читается как его
-                    основание, а не как случайная строка снизу. */}
-                <div ref={logoBlockRef} className="flex items-center gap-3 sm:gap-4 mb-8 sm:mb-10">
+                {/* Логотип и текст — теперь по центру, над полем ввода
+                    (как у Grok), а не прижаты влево. */}
+                <div className="flex flex-col items-center text-center gap-3 sm:gap-4 mb-8 sm:mb-10">
                     <Icons.VoidLogo
                         key={logoPlayKey}
                         onClick={() => { setLogoPopped(true); setLogoPlayKey(k => k + 1); }}
                         title="Нажмите, чтобы повторить анимацию"
-                        className={`${logoPopped ? 'void-home-logo-pop' : 'void-home-logo'} w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 flex-shrink-0 cursor-pointer`}
+                        className={`${logoPopped ? 'void-home-logo-pop' : 'void-home-logo'} w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 flex-shrink-0 cursor-pointer`}
                     />
                     <div className="min-w-0">
                         <div className="void-title-rise font-extrabold tracking-tight leading-[1.05] text-2xl sm:text-3xl md:text-4xl">
@@ -464,30 +374,13 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
-                        {/* «+» слева: при записи переворачивается в «×» (отмена записи).
-                            В режиме фокуса поля (inputMode) кроссфейдится со
-                            стрелкой «назад» в этом же самом месте — см. ниже. */}
+                        {/* «+» слева: при записи переворачивается в «×» (отмена записи). */}
                         <button
-                            ref={plusButtonRef}
                             onClick={() => voice.recording ? voice.cancel() : chatFileInputRef.current?.click()}
                             title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
                             className={`void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800`}
                         >
                             <Icons.Plus className={`w-6 h-6 void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
-                        </button>
-
-                        {/* Стрелка «назад» — РОВНО в том же месте, что и «+»
-                            (внутри поля, не отдельный плавающий круг снаружи).
-                            Появляется через кроссфейд, когда включён режим
-                            фокуса (enterInputMode/exitInputMode). */}
-                        <button
-                            ref={backArrowRef}
-                            onClick={exitInputMode}
-                            title="Назад"
-                            aria-label="Назад"
-                            className="void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800"
-                        >
-                            <Icons.ChevronLeft className="w-6 h-6" />
                         </button>
 
                         {/* Анимация записи — на всё поле ввода */}
@@ -517,18 +410,18 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             placeholder=""
                             value={state.inputValue}
                             readOnly={voice.busy}
-                            onFocus={enterInputMode}
+                            onFocus={pushForward}
+                            onBlur={() => { if (!state.inputValue.trim()) pushBack(); }}
                             onChange={(e) => { 
                                 const val = e.target.value;
                                 updateState({inputValue: val}); 
                                 e.target.style.height = 'auto'; 
                                 e.target.style.height = (e.target.scrollHeight < 128 ? e.target.scrollHeight : 128) + 'px'; 
-                                // Google-style: подсказки фильтруются в реальном
-                                // времени, очистка поля сворачивает режим фокуса.
+                                // Пусто → задвинулось обратно; печатаем → снова выехало.
                                 if (val.trim() === '') {
-                                    if (inputModeRef.current) exitInputMode();
-                                    else hideSuggestionsAnimated();
+                                    pushBack();
                                 } else {
+                                    pushForward();
                                     setSuggestions(getSuggestions(val));
                                 }
                             }}
@@ -564,7 +457,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         )}
                         {(state.inputValue.trim() || (state.selectedImages && state.selectedImages.length > 0)) ? (
                             <button
-                                onClick={() => handleSendMessage()}
+                                onClick={sendWithTransition}
                                 disabled={state.isGenerating || voice.busy}
                                 title="Отправить"
                                 className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
@@ -606,8 +499,8 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                 </div>
 
                 {composerExpanded && createPortal(
-                    <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-stretch sm:items-center sm:justify-center p-0 sm:p-4 fade-in">
-                        <div className="bg-white dark:bg-darkCard w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl sm:rounded-3xl flex flex-col shadow-2xl">
+                    <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-stretch justify-stretch fade-in">
+                        <div className="bg-white dark:bg-darkCard w-full h-full flex flex-col shadow-2xl">
                             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-darkBorder shrink-0">
                                 <button
                                     onClick={() => composerInsertIndent(homeExpandedTextareaRef.current)}
@@ -672,30 +565,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                     </div>,
                     document.body
                 )}
-
-                <div className="relative">
-                    <div ref={cardsSectionRef}>
-                        <ContinueWork state={state} updateState={updateState} />
-
-                        <ToolsSection tools={toolTiles} onOpenAll={() => setShowAllTools(true)} />
-                    </div>
-                    {/* Белый оверлей поверх карточек в режиме фокуса поля —
-                        те же opacity+y, что и у самих карточек, создают
-                        иллюзию, что они уходят вниз «за экран». Клик по
-                        оверлею тоже сворачивает режим (как тап в сторону
-                        у Google). */}
-                    <div
-                        ref={overlayRef}
-                        onClick={exitInputMode}
-                        aria-hidden="true"
-                        className="absolute inset-0 bg-[#f8f9fc] dark:bg-darkBg pointer-events-none"
-                    />
-                </div>
             </div>
-
-            {showAllTools && (
-                <AllToolsModal categories={toolCategories} onClose={() => setShowAllTools(false)} />
-            )}
 
             {/* Компактная кнопка помощи — только стикер, угол экрана. */}
             {state.user && (

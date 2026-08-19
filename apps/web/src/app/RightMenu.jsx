@@ -238,6 +238,12 @@ export function RightMenu({ state, updateState }) {
                             <NavButton icon={Icons.Skills} label={t(lang, 'menu.skills')} onClick={() => updateState({ currentView: 'skills', isRightMenuOpen: false })} />
                             <NavButton icon={Icons.Plug} label={t(lang, 'menu.plugins')} onClick={() => updateState({ currentView: 'plugins', isRightMenuOpen: false })} />
                             <NavButton icon={Icons.Library} label={t(lang, 'menu.library')} onClick={() => updateState({ currentView: 'library', isRightMenuOpen: false })} />
+                            {/* Агенты (Cockpit) — раньше была отдельной плиткой на
+                                Хабе, теперь живёт здесь, под «Библиотекой». Та же
+                                иконка-робот, та же логика перехода: currentView
+                                становится 'agent-store' — попадаем ровно туда же,
+                                куда вела плитка в хабе. */}
+                            <NavButton icon={Icons.Robot} label="Агенты" onClick={() => updateState({ currentView: 'agent-store', isRightMenuOpen: false })} />
                         </div>
 
                         {/* Серый разделитель «Недавние» между кнопками меню и чатами */}

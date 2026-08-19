@@ -782,8 +782,13 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 полностью решает это — дерево рендерится в document.body,
                 вне любых родительских z-index/position/transform. */}
             {composerExpanded && createPortal(
-                <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-stretch sm:items-center sm:justify-center p-0 sm:p-4 fade-in">
-                    <div className="bg-white dark:bg-darkCard w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl sm:rounded-3xl flex flex-col shadow-2xl">
+                <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-stretch justify-stretch fade-in">
+                    {/* Задача 6: раньше на десктопе (sm: и выше) это окно
+                        схлопывалось в маленькую центрированную карточку
+                        (sm:h-auto sm:max-h-[85vh] sm:max-w-2xl) — «полноэкранный
+                        ввод» на ПК был вовсе не полноэкранным. Теперь занимает
+                        весь экран на любом брейкпоинте, как и задумано. */}
+                    <div className="bg-white dark:bg-darkCard w-full h-full flex flex-col shadow-2xl">
                         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-darkBorder shrink-0">
                             <button
                                 onClick={() => composerInsertIndent(expandedTextareaRef.current)}
