@@ -128,22 +128,49 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
     }, { scope, dependencies: [phase] });
 
     // ---- SPEAKING: анимация В ТОН реальной озвучке ----
-    // Орб пульсирует по НАСТОЯЩЕЙ громкости голоса Сары. Данные берутся не
-    // с аудиоэлемента напрямую (createMediaElementSource в этом проекте
+    // Орб пульсирует по НАСТОЯЩЕЙ громкости голоса. Данные берутся не с
+    // аудиоэлемента напрямую (createMediaElementSource в этом проекте
     // искажает звук и роняет события — см. шапку файла), а из огибающей,
     // посчитанной заранее из тех же MP3-байтов в useVoiceModeSpeech.
-    // Здесь мы лишь читаем audio.currentTime и берём соответствующий пик —
-    // это копеечная операция на кадр, на скорость режима не влияет.
-    // Если огибающая ещё не досчиталась (первые доли секунды) или декод не
-    // удался — плавно «дышим» запасным паттерном, без рывков.
+    //
+    // Ключ к ощущению «в унисон» — АСИММЕТРИЧНОЕ сглаживание. Раньше здесь
+    // был симметричный коэффициент 0.35 на подъём и на спад: орб одинаково
+    // лениво реагировал и на начало слога, и на паузу, из-за чего движение
+    // расходилось со звуком и выглядело как отдельная фоновая пульсация.
+    // Живые аудиовизуализаторы работают иначе: быстрая АТАКА (мгновенно
+    // ловим начало звука) и медленный СПАД (мягко опадаем в паузе) — ровно
+    // так ведут себя компрессоры и стрелочные индикаторы уровня. Разница
+    // между 0.55 и 0.12 — это и есть разница между «дышит рядом со звуком»
+    // и «дышит вместе со звуком».
     useEffect(() => {
         if (phase !== VOICE_MODE_PHASE.SPEAKING) return undefined;
         if (!coreRef.current) return undefined;
         idleTweensRef.current.forEach((tw) => tw?.pause());
 
-        const scaleTo = gsap.quickTo(coreRef.current, 'scale', { duration: 0.12, ease: 'power2.out' });
-        const h1To = halo1Ref.current ? gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.18, ease: 'power2.out' }) : null;
-        const h2To = halo2Ref.current ? gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.24, ease: 'power2.out' }) : null;
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        // При reduced-motion орб не пульсирует масштабом вовсе — остаётся
+        // только смена цвета (отдельный эффект выше), которой достаточно,
+        // чтобы понять «сейчас говорит». Движение убираем, состояние — нет.
+        if (reduce) {
+            const targets = [coreRef.current, halo1Ref.current, halo2Ref.current].filter(Boolean);
+            if (targets.length) gsap.set(targets, { scale: 1 });
+            return () => settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef);
+        }
+
+        // duration чуть короче шага кадра сглаживания: quickTo здесь нужен
+        // как «последняя миля» интерполяции, основную плавность даёт
+        // огибающая ниже. Слишком длинный duration тут = запаздывание.
+        const scaleTo = gsap.quickTo(coreRef.current, 'scale', { duration: 0.09, ease: 'power2.out' });
+        const h1To = halo1Ref.current ? gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.16, ease: 'power2.out' }) : null;
+        const h2To = halo2Ref.current ? gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.22, ease: 'power2.out' }) : null;
+        // Гало реагируют не только масштабом, но и прозрачностью: на
+        // громких слогах орб «раскрывается» свечением. Это тот слой,
+        // который читается как энергия голоса, а не как просто размер.
+        const h1Alpha = halo1Ref.current ? gsap.quickTo(halo1Ref.current, 'autoAlpha', { duration: 0.18, ease: 'power2.out' }) : null;
+        const h2Alpha = halo2Ref.current ? gsap.quickTo(halo2Ref.current, 'autoAlpha', { duration: 0.24, ease: 'power2.out' }) : null;
+
+        const ATTACK = 0.55;   // быстро вверх — ловим начало слога
+        const RELEASE = 0.12;  // медленно вниз — мягкий хвост в паузе
 
         let raf = null;
         let smooth = 0;
@@ -156,21 +183,29 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
                 const idx = Math.min(env.peaks.length - 1, Math.max(0, Math.floor((t / env.duration) * env.peaks.length)));
                 target = env.peaks[idx] || 0;
             } else {
-                // Запасной вариант на время, пока огибающая считается:
-                // мягкая синусоида, чтобы орб не стоял мёртвым.
+                // Пока огибающая считается (первые доли секунды) — мягкая
+                // синусоида, чтобы орб не стоял мёртвым.
                 target = 0.45 + 0.25 * Math.sin(Date.now() / 220);
             }
-            // Сглаживание, чтобы не дёргалось на резких пиках.
-            smooth += (target - smooth) * 0.35;
-            const scale = 1 + Math.min(smooth, 1) * 0.26;
+            const k = target > smooth ? ATTACK : RELEASE;
+            smooth += (target - smooth) * k;
+
+            const level = Math.min(smooth, 1);
+            const scale = 1 + level * 0.26;
             scaleTo(scale);
             h1To?.(scale + 0.07);
             h2To?.(scale + 0.13);
+            h1Alpha?.(0.28 + level * 0.34);
+            h2Alpha?.(0.2 + level * 0.28);
             raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
         return () => {
             if (raf) cancelAnimationFrame(raf);
+            // Гало возвращаем к базовой прозрачности покоя, иначе орб
+            // остался бы неестественно ярким после конца реплики.
+            const halos = [halo1Ref.current, halo2Ref.current].filter(Boolean);
+            if (halos.length) gsap.to(halos, { autoAlpha: (i) => (i === 0 ? 0.28 : 0.2), duration: 0.3, ease: 'power2.out' });
             settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef);
         };
     }, [phase, speechAudioRef, speechEnvelopeRef]);

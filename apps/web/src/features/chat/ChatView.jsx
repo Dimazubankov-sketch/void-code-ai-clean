@@ -13,6 +13,7 @@ import { ImageGenLoader } from '@/features/chat/ImageGenLoader';
 import { GeneratedImage } from '@/features/chat/GeneratedImage';
 import { ScrollDownButton } from '@/features/chat/ScrollDownButton';
 import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
+import { pressProps, prefersReducedMotion, EASE, DUR } from '@/shared/lib/motion';
 import { Toast } from '@/shared/ui/Toast';
 import { UserMessageBubble } from '@/features/chat/UserMessageBubble';
 import { ChatPlusMenu } from '@/features/chat/ChatPlusMenu';
@@ -163,6 +164,26 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             { y: 18, scale: 0.72, autoAlpha: 0 },
             { y: 0, scale: 1, autoAlpha: 1, duration: 0.4, ease: 'back.out(1.8)', stagger: 0.07 });
     }, { dependencies: [voiceMode?.active] });
+
+    // Отклик поля ввода на фокус: очень сдержанный подъём + чуть более
+    // выраженная тень. Это единственная анимация, которую пользователь
+    // видит десятки раз за сессию, поэтому она намеренно на грани
+    // заметности — движение на 2px, не «выезд». Задача — подтвердить, что
+    // фокус пойман, а не устроить представление.
+    useEffect(() => {
+        const el = composerWrapRef.current;
+        const ta = editableTextareaRef.current;
+        if (!el || !ta) return undefined;
+        if (prefersReducedMotion()) return undefined;
+        const onFocus = () => gsap.to(el, { y: -2, duration: DUR.dropdown, ease: EASE.out, overwrite: 'auto' });
+        const onBlur = () => gsap.to(el, { y: 0, duration: DUR.dropdown, ease: EASE.out, overwrite: 'auto' });
+        ta.addEventListener('focus', onFocus);
+        ta.addEventListener('blur', onBlur);
+        return () => {
+            ta.removeEventListener('focus', onFocus);
+            ta.removeEventListener('blur', onBlur);
+        };
+    }, []);
 
     const speakMessage = (idx, text) => {
         // Голосовой режим открыт — читаем тем же голосом и через тот же
@@ -631,6 +652,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             иначе открывает меню действий (проект/изображение/агенты/…) */}
                         <button
                             onClick={() => voice.recording ? voice.cancel() : setShowPlusMenu(true)}
+                            {...pressProps(gsap)}
                             title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
                             className={`void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800`}
                         >
@@ -731,9 +753,10 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         {voice.supported && (
                             <button
                                 onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && startVoiceGuarded())}
+                                {...pressProps(gsap)}
                                 title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
                                 disabled={voice.transcribing}
-                                className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 flex items-center justify-center transition-all z-20 active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
+                                className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 flex items-center justify-center transition-colors z-20 active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
                             >
                                 {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
                             </button>
@@ -746,9 +769,10 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         {(state.inputValue.trim() || (state.selectedImages && state.selectedImages.length > 0)) ? (
                             <button
                                 onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()}
+                                {...pressProps(gsap)}
                                 disabled={state.isGenerating || voice.busy}
                                 title="Отправить"
-                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
+                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-colors shadow-md z-20"
                             ><Icons.ArrowUp className="w-5 h-5" /></button>
                         ) : state.imageGenMode ? (
                             // В режиме генерации изображений поле пустым быть не может —
@@ -762,9 +786,10 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         ) : (
                             <button
                                 onClick={voiceMode.open}
+                                {...pressProps(gsap)}
                                 disabled={state.isGenerating || voice.busy}
                                 title="Voice Mode"
-                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-md z-20"
+                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-colors shadow-md z-20"
                             ><Icons.Waveform className="w-5 h-5" /></button>
                         )}
                         </div>
@@ -847,9 +872,10 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             {voice.supported && (
                                 <button
                                     onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && startVoiceGuarded())}
+                                {...pressProps(gsap)}
                                     title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
                                     disabled={voice.transcribing}
-                                    className={`void-tap-target w-11 h-11 rounded-full border-2 flex items-center justify-center transition-all active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
+                                    className={`void-tap-target w-11 h-11 rounded-full border-2 flex items-center justify-center transition-colors active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
                                 >
                                     {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
                                 </button>

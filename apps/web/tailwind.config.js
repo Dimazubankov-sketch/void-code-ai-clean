@@ -2,6 +2,11 @@
 export default {
     darkMode: 'class',
     content: ['./index.html', './src/**/*.{js,jsx}'],
+    // hover:-классы применяются ТОЛЬКО на устройствах с настоящей мышью.
+    // Без этого флага на тач-экранах hover срабатывает после тапа и
+    // «залипает»: кнопка остаётся в наведённом состоянии, пока не тапнешь
+    // в другое место. Одна строка вместо ручного @media на каждый hover.
+    future: { hoverOnlyWhenSupported: true },
     theme: {
         extend: {
             colors: {

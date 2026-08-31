@@ -14,7 +14,6 @@ import { VoiceModeOverlay } from '@/features/chat/VoiceModeOverlay';
 import { useVoiceMode } from '@/shared/lib/useVoiceMode';
 import { getVoiceOpts } from '@/shared/lib/voiceOpts';
 import { GuideView } from '@/features/guide/GuideView';
-import { HomeView } from '@/features/home/HomeView';
 import { LibraryView } from '@/features/library/LibraryView';
 import { LimitsView } from '@/features/settings/LimitsView';
 import { InfoView } from '@/features/settings/InfoView';
@@ -57,7 +56,8 @@ export function App() {
     // Если её нет — используем значения по умолчанию, как раньше.
     const [state, setState] = useState(() => {
         const defaults = {
-            currentView: 'home',
+            // Хаб удалён — приложение открывается сразу в чате.
+            currentView: 'chat',
             isDarkMode: false,
             lang: 'ru',
             user: null, // До входа - null
@@ -291,6 +291,30 @@ export function App() {
     // запоминаем, откуда пришли. Это работает для ВСЕХ переходов по
     // всему приложению без необходимости трогать каждый вызов отдельно.
     const updateState = (updates) => setState(prev => {
+        // ХАБ УДАЛЁН НАВСЕГДА. Экрана 'home' больше не существует, но
+        // ссылки на него разбросаны по десятку файлов (goBack(..., 'home'),
+        // логаут, удаление последнего чата и т.д.). Вместо правки каждого
+        // вызова нормализуем здесь, в единственной точке, через которую
+        // проходят ВСЕ переходы: 'home' → 'chat'. Так ни один старый путь
+        // не приведёт на несуществующий экран.
+        if (updates.currentView === 'home') {
+            updates = { ...updates, currentView: 'chat' };
+        }
+        // Раз чат теперь стартовый экран, в нём всегда должен быть активный
+        // чат — иначе пользователь попадёт в пустоту. Если чата нет,
+        // создаём его тем же способом, что и кнопка «Новый чат».
+        if (updates.currentView === 'chat' && updates.activeChatId === undefined) {
+            const sessions = prev.chatSessions || [];
+            const hasActive = prev.activeChatId && sessions.some(s => s.id === prev.activeChatId);
+            if (!hasActive) {
+                const nid = Date.now();
+                updates = {
+                    ...updates,
+                    chatSessions: [{ id: nid, title: 'Новый чат', messages: [] }, ...sessions],
+                    activeChatId: nid,
+                };
+            }
+        }
         // Уборка «мусорных» пустых чатов: если пользователь создал новый чат,
         // ничего не написал и ушёл на другой экран — такой чат (без сообщений)
         // удаляем из истории, чтобы она не забивалась пустышками. Не трогаем
@@ -802,7 +826,6 @@ export function App() {
             )}
 
             <main className="flex-1 flex flex-col h-full w-full relative z-10 transition-transform">
-                {state.currentView === 'home' && <HomeView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} chatFileInputRef={chatFileInputRef} voiceMode={voiceMode} />}
                 {state.currentView === 'chat' && <ChatView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} messagesEndRef={messagesEndRef} chatFileInputRef={chatFileInputRef} voiceMode={voiceMode} />}
                 {state.currentView === 'settings' && <SettingsView state={state} updateState={updateState} />}
                 {state.currentView === 'pricing' && <PricingView state={state} updateState={updateState} />}

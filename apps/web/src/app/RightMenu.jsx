@@ -190,11 +190,12 @@ export function RightMenu({ state, updateState }) {
 
     // Кнопка навигации меню: белый фон, без постоянной обводки; серая обводка
     // появляется при наведении/нажатии. Отступы плотные.
-    const NavButton = ({ icon: Icon, label, onClick, primary = false }) => (
+    const NavButton = ({ icon: Icon, label, onClick, primary = false, right = null }) => (
         <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold transition-colors border ${primary
             ? 'bg-[#5b32d4] hover:bg-[#4a26b0] text-white border-transparent shadow-md'
             : 'bg-white dark:bg-darkCard text-gray-800 dark:text-gray-200 border-transparent hover:border-gray-200 dark:hover:border-gray-700 active:border-gray-300'}`}>
             <Icon className="w-5 h-5 flex-shrink-0" /> {label}
+            {right && <span className="ml-auto flex items-center">{right}</span>}
         </button>
     );
 
@@ -244,6 +245,17 @@ export function RightMenu({ state, updateState }) {
                                 становится 'agent-store' — попадаем ровно туда же,
                                 куда вела плитка в хабе. */}
                             <NavButton icon={Icons.Robot} label="Агенты" onClick={() => updateState({ currentView: 'agent-store', isRightMenuOpen: false })} />
+                            {/* Почта вынесена сюда из шапки чата: там она
+                                занимала постоянное место ради нечастого
+                                действия. Показываем счётчик непрочитанного,
+                                чтобы вынос в меню не «спрятал» новые письма. */}
+                            <NavButton icon={Icons.MailLogo} label="Почта" onClick={() => updateState({ showNotifications: true, isRightMenuOpen: false })} right={
+                                (Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
+                                  || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
+                                  || (state.inbox?.personal || []).some(m => !(state.readPersonalIds || []).includes(m.id)))
+                                    ? <span className="w-2 h-2 rounded-full bg-red-500" />
+                                    : null
+                            } />
                         </div>
 
                         {/* Серый разделитель «Недавние» между кнопками меню и чатами */}

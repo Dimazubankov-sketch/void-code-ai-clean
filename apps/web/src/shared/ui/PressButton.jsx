@@ -1,27 +1,33 @@
 import { useRef } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
 
 // ==========================================
 // PressButton — общий эффект нажатия через GSAP
 // ==========================================
-// Один и тот же паттерн раньше был размножен по нескольким файлам
-// (VoiceModeSettings, VoiceModeOverlay) копипастой. Вынесен сюда, чтобы
-// выбор модели и уровня рассуждений в шапке чата (и любое другое место)
-// получали одинаковый, по-настоящему GSAP-шный отклик на нажатие, а не
-// CSS active:scale.
+// Отклик живёт на НАЖАТИИ (pointerdown), а не на отпускании: как только
+// появляется задержка между касанием и реакцией, ощущение прямого
+// управления рассыпается. Ждать click/pointerup — значит выглядеть мёртвым.
+//
+// Глубина нажатия намеренно небольшая (0.96, не 0.94): кнопка должна
+// «поддаться» под пальцем, а не проваливаться. Возврат — с едва заметным
+// овершутом, чтобы движение читалось как физическое, а не как линейный
+// откат. При reduced-motion не масштабируем вообще.
 export function PressButton({ onClick, className, title, disabled, children, as: As = 'button' }) {
     const ref = useRef(null);
     const pressRef = useRef(() => {});
     const releaseRef = useRef(() => {});
 
     useGSAP((context, contextSafe) => {
+        const reduce = prefersReducedMotion();
         pressRef.current = contextSafe(() => {
-            if (disabled) return;
-            gsap.to(ref.current, { scale: 0.94, duration: 0.09, ease: 'power2.out', overwrite: 'auto' });
+            if (disabled || reduce) return;
+            gsap.to(ref.current, { scale: 0.96, duration: DUR.press, ease: EASE.out, overwrite: 'auto' });
         });
         releaseRef.current = contextSafe(() => {
-            gsap.to(ref.current, { scale: 1, duration: 0.28, ease: 'back.out(2.4)', overwrite: 'auto' });
+            if (reduce) return;
+            gsap.to(ref.current, { scale: 1, duration: DUR.release, ease: EASE.press, overwrite: 'auto' });
         });
     }, { scope: ref });
 

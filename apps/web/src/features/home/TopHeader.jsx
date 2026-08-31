@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { gsap } from 'gsap';
 import { AI_MODELS, getPlanLimits, REASONING_LEVELS, defaultReasoningFor, isReasoningAllowed, getReasoningLevel, isModelAllowedForPlan } from '@/shared/config/models';
 import { Icons } from '@/shared/ui/Icons';
 import { ChatActionsMenu } from '@/features/chat/ChatActionsMenu';
 import { PressButton } from '@/shared/ui/PressButton';
+import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
 
 // ==========================================
 // IconCircleButton — круглая кнопка с полупрозрачной обводкой + GSAP
@@ -15,10 +16,19 @@ import { PressButton } from '@/shared/ui/PressButton';
 // CSS-transition на transform.
 function IconCircleButton({ onClick, title, children }) {
     const ref = useRef(null);
-    const onEnter = () => gsap.to(ref.current, { scale: 1.08, duration: 0.18, ease: 'power2.out' });
-    const onLeave = () => gsap.to(ref.current, { scale: 1, duration: 0.22, ease: 'power2.out' });
-    const onDown = () => gsap.to(ref.current, { scale: 0.9, duration: 0.1, ease: 'power2.out' });
-    const onUp = () => gsap.to(ref.current, { scale: 1.08, duration: 0.15, ease: 'back.out(2.4)' });
+    // Общие motion-токены вместо значений «на глаз»: те же кривые и
+    // тайминги, что и у PressButton, чтобы шапка и остальной интерфейс
+    // двигались одинаково. Hover-эффект — только для настоящей мыши:
+    // на тач-экране hover срабатывает ложно после тапа и кнопка залипает
+    // в увеличенном состоянии.
+    const canHover = typeof window !== 'undefined' && window.matchMedia
+        && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    const reduce = prefersReducedMotion();
+    const onEnter = () => { if (canHover && !reduce) gsap.to(ref.current, { scale: 1.06, duration: DUR.tooltip, ease: EASE.out, overwrite: 'auto' }); };
+    const onLeave = () => { if (canHover && !reduce) gsap.to(ref.current, { scale: 1, duration: DUR.release, ease: EASE.out, overwrite: 'auto' }); };
+    // Нажатие мельче прежнего 0.9: кнопка должна поддаться, а не провалиться.
+    const onDown = () => { if (!reduce) gsap.to(ref.current, { scale: 0.94, duration: DUR.press, ease: EASE.out, overwrite: 'auto' }); };
+    const onUp = () => { if (!reduce) gsap.to(ref.current, { scale: canHover ? 1.06 : 1, duration: DUR.release, ease: EASE.press, overwrite: 'auto' }); };
     return (
         <button
             ref={ref}
@@ -35,7 +45,7 @@ function IconCircleButton({ onClick, title, children }) {
                сливались с фоном чата. Теперь — тот же плотный стиль, что
                и у кнопок в Хабе (bg-white/90 + shadow-md + сплошная
                обводка), для всех кнопок шапки без исключения. */
-            className="void-tap-target flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg shadow-md border border-gray-200 dark:border-darkBorder text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="void-tap-target flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-white/70 dark:bg-white/10 backdrop-blur-xl shadow-sm border border-black/[0.06] dark:border-white/10 text-gray-800 dark:text-gray-100 hover:bg-white/90 dark:hover:bg-white/[0.16] transition-colors"
             style={{ willChange: 'transform' }}
         >
             {children}
@@ -52,26 +62,6 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     const limitExhausted = maxDaily !== Infinity && state.usedDailyLimits >= maxDaily;
 
     const inChatView = state.currentView === 'chat';
-
-    // Задача 5: когда чат только что создан из Хаба (полоса ввода
-    // уехала вниз и стала нижней панелью чата — см. sendWithTransition
-    // в HomeView.jsx), кнопки шапки следом плавно всплывают (fade+y),
-    // а не появляются рывком. Триггер — активный чат пуст (0 сообщений):
-    // это надёжный признак «мы только что сюда попали», не требующий
-    // отдельного флага, пробрасываемого через несколько компонентов.
-    const headerRowRef = useRef(null);
-    const activeChat = (state.chatSessions || []).find(c => c.id === state.activeChatId);
-    const isFreshChat = inChatView && activeChat && (!activeChat.messages || activeChat.messages.length === 0);
-    useEffect(() => {
-        if (!isFreshChat || !headerRowRef.current) return;
-        const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const buttons = headerRowRef.current.querySelectorAll(':scope > div');
-        if (!buttons.length) return;
-        gsap.fromTo(buttons,
-            { opacity: 0, y: reduce ? 0 : 10 },
-            { opacity: 1, y: 0, duration: reduce ? 0.01 : 0.4, ease: 'power3.out', stagger: reduce ? 0 : 0.06, delay: reduce ? 0 : 0.05 });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [state.activeChatId]);
 
     // Задача 13 отменена по требованию — эффект блюра/fade под шапкой
     // убран полностью, шапка возвращена к исходному виду (bg /70).
@@ -90,7 +80,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     const ModelSelectorBlock = (
         <div className="flex items-center gap-1.5">
             <div className="relative min-w-0">
-                <PressButton onClick={() => setShowDropdown(!showDropdown)} className="void-tap-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg border border-gray-200 dark:border-darkBorder shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none">
+                <PressButton onClick={() => setShowDropdown(!showDropdown)} className="void-tap-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/70 dark:bg-white/10 backdrop-blur-xl border border-black/[0.06] dark:border-white/10 shadow-sm hover:bg-white/90 dark:hover:bg-white/[0.16] transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none">
                     <div className="flex items-center gap-1 font-extrabold text-[13px] sm:text-[15px] md:text-lg dark:text-white leading-tight min-w-0">
                         <span className="truncate">{activeModel.name}</span> <Icons.ChevronDown className="w-4 h-4 flex-shrink-0" />
                     </div>
@@ -208,7 +198,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                   градиент до полной прозрачности) — сглаживает переход к
                   обычному контенту чата, чтобы не было жёсткой границы.
                pointer-events-none — чтобы слои не перехватывали клики и скролл. */
-            <div ref={headerRowRef} className="sticky top-0 z-30 px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div className="sticky top-0 z-30 px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <div
                     aria-hidden
                     className="absolute inset-x-0 top-0 h-16 -z-10 pointer-events-none backdrop-blur-xl bg-white/40 dark:bg-darkBg/45"
@@ -218,8 +208,17 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     className="absolute inset-x-0 top-16 h-8 -z-10 pointer-events-none bg-gradient-to-b from-white/40 to-transparent dark:from-darkBg/45 dark:to-transparent"
                 />
                 <div className="flex items-center justify-self-start">
-                    <IconCircleButton onClick={() => updateState({ currentView: 'home' })} title="Назад">
-                        <Icons.ChevronLeft className="w-5 h-5" />
+                    {/* Хаб удалён, поэтому «назад в хаб» больше нет. Осталась
+                        осмысленная кнопка на этом месте — новый чат: самое
+                        частое действие на стартовом экране. */}
+                    <IconCircleButton onClick={() => {
+                        const nid = Date.now();
+                        updateState({
+                            chatSessions: [{ id: nid, title: 'Новый чат', messages: [] }, ...(state.chatSessions || [])],
+                            activeChatId: nid, currentView: 'chat', imageGenMode: false,
+                        });
+                    }} title="Новый чат">
+                        <Icons.Plus className="w-5 h-5" />
                     </IconCircleButton>
                 </div>
                 <div className="justify-self-center">
@@ -229,7 +228,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     {/* Троеточие (действия с чатом) — сдвинуто левее, чтобы
                         освободить крайнее правое место под кнопку «Меню»
                         (см. ниже), которая должна стоять там же, где и в Хабе. */}
-                    {onChatMenuAction && (
+                    {onChatMenuAction && state.user && (
                         <div className="relative">
                             <IconCircleButton onClick={() => setShowChatMenu(v => !v)} title="Действия с чатом">
                                 <Icons.Dots className="w-5 h-5" />
@@ -244,31 +243,27 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                             />
                         </div>
                     )}
-                    {/* Задача 7: колокольчик (уведомления/почта) — та же
-                        логика и стиль, что и в Хабе, вставлен между
-                        троеточием и кнопкой «Меню». */}
-                    <button
-                        onClick={() => {
-                            if (!state.user) { updateState({ showAuthModal: true }); return; }
-                            updateState({ showNotifications: true });
-                        }}
-                        title="Уведомления"
-                        className="void-tap-target relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-white/90 dark:bg-darkCard/90 backdrop-blur-lg shadow-md border border-gray-200 dark:border-darkBorder text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    >
-                        <Icons.Bell className="w-5 h-5" />
-                        {(Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
-                          || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
-                          || (state.inbox?.personal || []).some(m => !(state.readPersonalIds || []).includes(m.id))) && (
-                            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white dark:border-darkCard" />
-                        )}
-                    </button>
-                    {/* Кнопка «Меню» (две полоски) — возвращена в шапку чата,
-                        на том же крайнем правом месте, где она стоит в Хабе.
-                        Круглая обводка, непрозрачный белый фон — полностью
-                        идентична кнопке меню на главном экране. */}
-                    <IconCircleButton onClick={() => updateState({ isRightMenuOpen: true })} title="Меню">
-                        <Icons.TwoLines className="w-5 h-5" />
-                    </IconCircleButton>
+                    {/* Колокольчик убран из шапки: почта переехала в меню
+                        (см. RightMenu.jsx). В шапке чата ему больше не место —
+                        она и так плотно занята, а почта не то действие, ради
+                        которого нужна постоянная кнопка на главном экране. */}
+                    {/* Гость видит на этом месте одну кнопку «Войти» вместо
+                        меню: до регистрации функции всё равно закрыты, и
+                        показывать меню с недоступными пунктами — врать о
+                        состоянии интерфейса. После входа кнопка сменяется
+                        обычным меню и всё становится доступно. */}
+                    {state.user ? (
+                        <IconCircleButton onClick={() => updateState({ isRightMenuOpen: true })} title="Меню">
+                            <Icons.TwoLines className="w-5 h-5" />
+                        </IconCircleButton>
+                    ) : (
+                        <PressButton
+                            onClick={() => updateState({ showAuthModal: true })}
+                            className="void-tap-target flex-shrink-0 px-4 py-2 bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold rounded-full shadow-md text-sm whitespace-nowrap transition-colors"
+                        >
+                            Войти
+                        </PressButton>
+                    )}
                 </div>
             </div>
         );
