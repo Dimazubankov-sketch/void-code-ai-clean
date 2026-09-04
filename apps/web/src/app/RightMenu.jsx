@@ -243,56 +243,65 @@ export function RightMenu({ state, updateState }) {
                 обычная выезжающая по isRightMenuOpen панель. */}
             <div className={`fixed top-0 right-0 h-full ${collapsed ? 'w-[85vw] md:w-16' : 'w-[85vw] md:w-96'} bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : 'translate-x-full'} md:translate-x-0`}>
                 <div className={`p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden ${collapsed ? 'md:px-3' : ''}`}>
-                    {/* Шапка: слева «Свернуть» (только ПК) + лупа, «Меню» по
-                        центру (скрыт при сворачивании — не помещается),
-                        справа крестик (только мобильный — на ПК панель не
-                        закрывается совсем, только сворачивается в рельс). */}
-                    <div className="flex items-center mb-6 mt-2 shrink-0 relative h-8">
-                        <div className="absolute left-0 flex items-center gap-0.5">
-                            <button
-                                onClick={() => setCollapsed(v => !v)}
-                                title={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
-                                className="void-tap-target hidden md:flex p-2 -ml-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-                            >
-                                <Icons.PanelRight className="w-5 h-5" />
-                            </button>
-                            {/* Лупа сдвинута правее (задача 4 из прошлой сессии)
-                                за счёт того, что делит верхний левый угол со
-                                «Свернуть», а не стоит там одна. На мобильном
-                                -ml-2 компенсирует отсутствие кнопки слева. */}
-                            <button onClick={() => setSearchOpen(true)} className="void-tap-target p-2 md:-ml-0 -ml-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors" title={t(lang, 'menu.search')}>
-                                <Icons.Search className="w-6 h-6" />
-                            </button>
-                        </div>
-                        {!collapsed && <span className="font-extrabold text-xl dark:text-white mx-auto">{t(lang, 'menu.title')}</span>}
+                    {/* Шапка: на мобильном — всегда обычный вид (лупа слева,
+                        «Меню» по центру, крестик справа), collapsed её не
+                        касается. На ПК шапка меняется целиком: либо обычный
+                        ряд (развёрнуто), либо становится первыми двумя
+                        иконками вертикального рельса (свёрнуто) — весь
+                        рельс, включая шапку, отрисовывается ОДНИМ блоком
+                        ниже, чтобы «Развернуть»/«Поиск» были в той же
+                        вертикальной колонке и по центру, что и остальные
+                        иконки, а не отдельным прижатым влево рядом сверху. */}
+                    <div className={`md:hidden flex items-center mb-6 mt-2 shrink-0 relative h-8`}>
+                        <button onClick={() => setSearchOpen(true)} className="void-tap-target absolute left-0 -ml-2 p-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors" title={t(lang, 'menu.search')}>
+                            <Icons.Search className="w-6 h-6" />
+                        </button>
+                        <span className="font-extrabold text-xl dark:text-white mx-auto">{t(lang, 'menu.title')}</span>
                         <button
                             onClick={() => updateState({ isRightMenuOpen: false })}
                             title="Закрыть меню"
-                            // Задача 10: раньше у кнопки не было flex-центрирования
-                            // иконки внутри хитбокса (только padding), из-за чего
-                            // сама иконка X сидела не по центру кликабельной
-                            // области — и нативная обводка фокуса браузера
-                            // визуально «съезжала» вправо относительно иконки.
-                            // Явный w-9 h-9 + flex items-center justify-center
-                            // центрируют иконку РОВНО по центру обводки. Обводка
-                            // теперь появляется только в момент нажатия
-                            // (active:ring-2), в покое (focus:outline-none) —
-                            // невидима.
-                            // Задача 1: крестик теперь только мобильный —
-                            // на ПК панель не закрывается полностью вообще,
-                            // только «Свернуть» в рельс.
-                            className="void-tap-target md:hidden absolute right-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors focus:outline-none active:ring-2 active:ring-gray-300 dark:active:ring-gray-600"
+                            className="void-tap-target absolute right-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors focus:outline-none active:ring-2 active:ring-gray-300 dark:active:ring-gray-600"
                         >
                             <Icons.X />
                         </button>
                     </div>
 
+                    {/* ПК, развёрнуто: обычная шапка со «Свернуть»+лупой слева. */}
+                    {!collapsed && (
+                        <div className="hidden md:flex items-center mb-6 mt-2 shrink-0 relative h-8">
+                            <div className="absolute left-0 flex items-center gap-0.5">
+                                <button
+                                    onClick={() => setCollapsed(true)}
+                                    title="Свернуть панель"
+                                    className="void-tap-target p-2 -ml-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                                >
+                                    <Icons.PanelRight className="w-5 h-5" />
+                                </button>
+                                <button onClick={() => setSearchOpen(true)} className="void-tap-target p-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors" title={t(lang, 'menu.search')}>
+                                    <Icons.Search className="w-6 h-6" />
+                                </button>
+                            </div>
+                            <span className="font-extrabold text-xl dark:text-white mx-auto">{t(lang, 'menu.title')}</span>
+                        </div>
+                    )}
+
+                    {/* ПК, свёрнуто: вертикальный рельс, ВСЕ иконки по
+                        центру узкой полоски (задача 1) — «Развернуть»,
+                        «Поиск», затем полный набор разделов и «Почта»,
+                        с «Настройками» отдельно внизу (см. ниже). */}
                     {collapsed && (
-                        // Свёрнутое состояние на ПК: узкая полоска-рельс с
-                        // самой частой командой (новый чат) — это состояние
-                        // ПО УМОЛЧАНИЮ на десктопе (задача 1), а не панель,
-                        // которую нужно сначала открыть и потом свернуть.
-                        <div className="hidden md:flex flex-col items-center gap-2 pt-1">
+                        <div className="hidden md:flex flex-col items-center gap-1 pt-1 pb-2 shrink-0">
+                            <button
+                                onClick={() => setCollapsed(false)}
+                                title="Развернуть панель"
+                                className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                            >
+                                <Icons.PanelRight className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => setSearchOpen(true)} title={t(lang, 'menu.search')} className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                                <Icons.Search className="w-5 h-5" />
+                            </button>
+                            <div className="w-6 h-px bg-gray-100 dark:bg-gray-800 my-1" />
                             <button
                                 onClick={() => {
                                     const nid = Date.now();
@@ -302,6 +311,29 @@ export function RightMenu({ state, updateState }) {
                                 className="void-tap-target w-10 h-10 rounded-full bg-[#5b32d4] hover:bg-[#4a26b0] text-white flex items-center justify-center shadow-md transition-colors"
                             >
                                 <Icons.Plus className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => updateState({ currentView: 'projects', isRightMenuOpen: false })} title={t(lang, 'menu.projects')} className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                                <Icons.Folder className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => updateState({ currentView: 'skills', isRightMenuOpen: false })} title={t(lang, 'menu.skills')} className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                                <Icons.Skills className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => updateState({ currentView: 'plugins', isRightMenuOpen: false })} title={t(lang, 'menu.plugins')} className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                                <Icons.Plug className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => updateState({ currentView: 'library', isRightMenuOpen: false })} title={t(lang, 'menu.library')} className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                                <Icons.Library className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => updateState({ currentView: 'agent-store', isRightMenuOpen: false })} title="Агенты" className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                                <Icons.Robot className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => updateState({ showNotifications: true, isRightMenuOpen: false })} title="Почта" className="void-tap-target relative w-10 h-10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                                <Icons.Mail className="w-5 h-5" />
+                                {(Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
+                                  || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
+                                  || (state.inbox?.personal || []).some(m => !(state.readPersonalIds || []).includes(m.id))) && (
+                                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />
+                                )}
                             </button>
                         </div>
                     )}
@@ -357,12 +389,21 @@ export function RightMenu({ state, updateState }) {
                         </div>
                     </div>
 
-                    {/* Кнопка настроек — зафиксирована снизу поверх прокрутки */}
-                    <div className="absolute bottom-6 left-6">
+                    {/* Кнопка настроек — зафиксирована снизу поверх прокрутки.
+                        В свёрнутом рельсе (задача 1) заменяется отдельной
+                        центрированной версией ниже, эта скрыта на md+. */}
+                    <div className={`absolute bottom-6 left-6 ${collapsed ? 'md:hidden' : ''}`}>
                         <button onClick={() => updateState({ currentView: 'settings', isRightMenuOpen: false })} className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm text-gray-700 dark:text-gray-300">
                             <Icons.Settings className="w-6 h-6" />
                         </button>
                     </div>
+                    {collapsed && (
+                        <div className="hidden md:flex absolute bottom-4 inset-x-0 justify-center">
+                            <button onClick={() => updateState({ currentView: 'settings', isRightMenuOpen: false })} title="Настройки" className="void-tap-target w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+                                <Icons.Settings className="w-5 h-5" />
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
