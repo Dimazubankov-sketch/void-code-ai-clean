@@ -14,6 +14,7 @@ import { GeneratedImage } from '@/features/chat/GeneratedImage';
 import { ScrollDownButton } from '@/features/chat/ScrollDownButton';
 import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
 import { pressProps, prefersReducedMotion, EASE, DUR } from '@/shared/lib/motion';
+import { ModelSelector } from '@/features/chat/ModelSelector';
 import { Toast } from '@/shared/ui/Toast';
 import { UserMessageBubble } from '@/features/chat/UserMessageBubble';
 import { ChatPlusMenu } from '@/features/chat/ChatPlusMenu';
@@ -685,7 +686,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                            кнопке — чтобы верхняя кнопка «на весь экран» и нижний
                            ряд кнопок физически не могли наложиться друг на друга
                            (см. задачу 6). */
-                        className={`flex items-end bg-white dark:bg-darkCard rounded-[26px] border transition-colors relative ${composerManyChars ? 'min-h-[104px]' : ''} ${state.imageGenMode ? 'border-[#5b32d4]/30 focus-within:border-[#5b32d4]/50' : 'border-gray-200 dark:border-darkBorder focus-within:border-gray-300 dark:focus-within:border-gray-600'}`}
+                        className={`flex flex-col bg-white dark:bg-darkCard rounded-[26px] border transition-colors relative ${state.imageGenMode ? 'border-[#5b32d4]/30 focus-within:border-[#5b32d4]/50' : 'border-gray-200 dark:border-darkBorder focus-within:border-gray-300 dark:focus-within:border-gray-600'}`}
                     >
                         {/* multiple — нативный мультивыбор из галереи: пользователь
                             отмечает галочками несколько фото за один заход системного
@@ -718,153 +719,165 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
-                        {/* «+» слева: при записи переворачивается в «×» (отмена записи),
-                            иначе открывает меню действий (проект/изображение/агенты/…) */}
-                        <button
-                            onClick={() => voice.recording ? voice.cancel() : setShowPlusMenu(true)}
-                            {...pressProps(gsap)}
-                            title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
-                            className={`void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800`}
-                        >
-                            <Icons.Plus className={`w-6 h-6 void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
-                        </button>
-                        {/* Анимация записи — на всё поле ввода */}
-                        {voice.recording && (
-                            <div className="absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center pl-16 pr-32 pointer-events-none fade-in">
-                                {/* Новая анимация записи: плоская линия в тишине,
-                                    волна под речь. Уровень читается напрямую из
-                                    analyserRef, экспортированного из useVoiceRecorder
-                                    (Web Audio API). См. VoiceWaveMic.jsx. */}
-                                <VoiceWaveMic
-                                    analyserRef={voice.analyserRef}
-                                    className="text-[#5b32d4] dark:text-purple-300"
-                                />
-                            </div>
-                        )}
-                        {/* Плейсхолдер фазы «Преобразование в текст» */}
-                        {voice.transcribing && !state.inputValue && (
-                            <div className="void-transcribe-hint absolute left-14 right-32 top-0 py-5 pointer-events-none text-[#5b32d4] dark:text-purple-300 text-[16px] font-semibold truncate z-10">
-                                {t(lang, 'chat.transcribing')}…
-                            </div>
-                        )}
-                        <textarea 
-                            ref={editableTextareaRef}
-                            className={`w-full pl-14 pr-28 pb-5 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[64px] text-[16px] void-input-scroll ${composerManyChars ? 'pt-11' : 'pt-5'} ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
-                            placeholder={voice.busy ? '' : (state.imageGenMode ? t(lang, 'chat.imagePlaceholder') : t(lang, 'home.inputPlaceholder'))}
-                            readOnly={voice.busy}
-                            value={state.inputValue}
-                            onChange={(e) => {
-                                updateState({inputValue: e.target.value});
-                                // Плавно анимируем высоту через GSAP: считаем target
-                                // с учётом max-h 220px, а gsap.to() создаёт мягкий
-                                // переход вместо резкого прыжка на каждое нажатие.
-                                const target = e.target;
-                                const prev = parseFloat(target.style.height || '0') || target.offsetHeight;
-                                target.style.height = 'auto';
-                                // Пустое поле обязано вернуться к исходной высоте:
-                                // scrollHeight у пустого textarea сохраняет прежний
-                                // размер вместе с padding, из-за чего после удаления
-                                // длинного текста поле оставалось раздутым.
-                                const nextH = e.target.value ? Math.min(target.scrollHeight, 220) : 0;
-                                target.style.height = prev + 'px';
-                                import('gsap').then(({ gsap }) => {
-                                    if (!nextH) {
-                                        // Возврат в исходное состояние: снимаем
-                                        // инлайновую высоту, чтобы снова работал
-                                        // min-h из классов.
-                                        gsap.to(target, {
-                                            height: 64, duration: 0.18, ease: 'power2.out', overwrite: true,
-                                            onComplete: () => { target.style.height = ''; },
-                                        });
-                                        return;
-                                    }
-                                    gsap.to(target, { height: nextH, duration: 0.18, ease: 'power2.out', overwrite: true });
-                                });
-                            }}
-                            onKeyDown={(e) => { 
-                                // Задача 4: Enter больше НЕ отправляет сообщение — на
-                                // мобильной клавиатуре кнопка "отправить"/"ввод" должна
-                                // просто переносить строку (стандартное поведение
-                                // textarea, поэтому Enter здесь не перехватывается).
-                                // Отправка — только явным нажатием на кнопку-стрелку.
-                                if (e.key === 'Tab') { e.preventDefault(); composerInsertIndent(editableTextareaRef.current); }
-                            }}
-                            onFocus={(e) => {
-                                // На телефоне клавиатура может перекрыть поле ввода — после
-                                // её открытия (с небольшой задержкой на анимацию) подскролливаем
-                                // и само поле, и чат, чтобы переписка не пряталась за клавиатурой.
-                                setTimeout(() => {
-                                    e.target.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                                    followScroll();
-                                }, 300);
-                            }}
-                            rows={1}
-                        />
-                        {/* Задача 2 (повторный раунд): кнопка полноэкранного
-                            режима появляется только после 57 символов ИЛИ 3
-                            вставленных отступов (см. useExpandableComposer) —
-                            раньше срабатывало по высоте textarea, слишком
-                            рано. Непрозрачный фон + высокий z, чтобы не
-                            терялась за кнопками отправки/микрофона. */}
-                        {composerManyChars && (
+                        {/* ── Ряд 1: текстовое поле + всё, что накладывается
+                            поверх него (запись, «преобразование в текст»,
+                            кнопка «на весь экран») ── */}
+                        <div className="relative">
+                            {/* Анимация записи — на всё текстовое поле */}
+                            {voice.recording && (
+                                <div className="absolute inset-0 z-10 rounded-t-[26px] bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center px-5 pointer-events-none fade-in">
+                                    <VoiceWaveMic
+                                        analyserRef={voice.analyserRef}
+                                        className="text-[#5b32d4] dark:text-purple-300"
+                                    />
+                                </div>
+                            )}
+                            {/* Плейсхолдер фазы «Преобразование в текст» */}
+                            {voice.transcribing && !state.inputValue && (
+                                <div className="void-transcribe-hint absolute left-5 right-5 top-0 py-5 pointer-events-none text-[#5b32d4] dark:text-purple-300 text-[16px] font-semibold truncate z-10">
+                                    {t(lang, 'chat.transcribing')}…
+                                </div>
+                            )}
+                            <textarea 
+                                ref={editableTextareaRef}
+                                className={`w-full px-5 pt-5 pb-2 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[56px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
+                                placeholder={voice.busy ? '' : (state.imageGenMode ? t(lang, 'chat.imagePlaceholder') : t(lang, 'home.inputPlaceholder'))}
+                                readOnly={voice.busy}
+                                value={state.inputValue}
+                                onChange={(e) => {
+                                    updateState({inputValue: e.target.value});
+                                    // Плавно анимируем высоту через GSAP: считаем target
+                                    // с учётом max-h 220px, а gsap.to() создаёт мягкий
+                                    // переход вместо резкого прыжка на каждое нажатие.
+                                    const target = e.target;
+                                    const prev = parseFloat(target.style.height || '0') || target.offsetHeight;
+                                    target.style.height = 'auto';
+                                    // Пустое поле обязано вернуться к исходной высоте:
+                                    // scrollHeight у пустого textarea сохраняет прежний
+                                    // размер вместе с padding, из-за чего после удаления
+                                    // длинного текста поле оставалось раздутым.
+                                    const nextH = e.target.value ? Math.min(target.scrollHeight, 220) : 0;
+                                    target.style.height = prev + 'px';
+                                    import('gsap').then(({ gsap }) => {
+                                        if (!nextH) {
+                                            // Возврат в исходное состояние: снимаем
+                                            // инлайновую высоту, чтобы снова работал
+                                            // min-h из классов.
+                                            gsap.to(target, {
+                                                height: 56, duration: 0.18, ease: 'power2.out', overwrite: true,
+                                                onComplete: () => { target.style.height = ''; },
+                                            });
+                                            return;
+                                        }
+                                        gsap.to(target, { height: nextH, duration: 0.18, ease: 'power2.out', overwrite: true });
+                                    });
+                                }}
+                                onKeyDown={(e) => { 
+                                    // Задача 4: Enter больше НЕ отправляет сообщение — на
+                                    // мобильной клавиатуре кнопка "отправить"/"ввод" должна
+                                    // просто переносить строку (стандартное поведение
+                                    // textarea, поэтому Enter здесь не перехватывается).
+                                    // Отправка — только явным нажатием на кнопку-стрелку.
+                                    if (e.key === 'Tab') { e.preventDefault(); composerInsertIndent(editableTextareaRef.current); }
+                                }}
+                                onFocus={(e) => {
+                                    // На телефоне клавиатура может перекрыть поле ввода — после
+                                    // её открытия (с небольшой задержкой на анимацию) подскролливаем
+                                    // и само поле, и чат, чтобы переписка не пряталась за клавиатурой.
+                                    setTimeout(() => {
+                                        e.target.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                                        followScroll();
+                                    }, 300);
+                                }}
+                                rows={1}
+                            />
+                            {/* Задача 2 (повторный раунд): кнопка полноэкранного
+                                режима появляется только после 57 символов ИЛИ 3
+                                вставленных отступов (см. useExpandableComposer) —
+                                раньше срабатывало по высоте textarea, слишком
+                                рано. */}
+                            {composerManyChars && (
+                                <button
+                                    onClick={composerEnterFullscreen}
+                                    title="Развернуть на весь экран"
+                                    className="void-tap-target absolute z-30 top-2 right-3 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
+                                >
+                                    <Icons.Maximize className="w-5 h-5" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* ── Ряд 2: панель инструментов — «+», модель, затем
+                            (справа) микрофон и отправка/Voice Mode. Задача 7:
+                            селектор модели переехал сюда из шапки. Задача 8:
+                            вся строка теперь обычный flex-ряд (как в референсе),
+                            а не абсолютно спозиционированные поверх текста
+                            кнопки. ── */}
+                        <div ref={composerBtnsRef} className="flex items-center gap-2 px-3 pb-3 pt-1">
+                            {/* «+» слева: при записи переворачивается в «×» (отмена записи),
+                                иначе открывает меню действий (проект/изображение/агенты/…) */}
                             <button
-                                onClick={composerEnterFullscreen}
-                                title="Развернуть на весь экран"
-                                className="void-tap-target absolute z-30 top-2.5 right-3 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300 transition-colors"
+                                onClick={() => voice.recording ? voice.cancel() : setShowPlusMenu(true)}
+                                {...pressProps(gsap)}
+                                title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
+                                className="void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                             >
-                                <Icons.Maximize className="w-5 h-5" />
+                                <Icons.Plus className={`w-5 h-5 void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
                             </button>
-                        )}
-                        {/* Общий контейнер кнопок: нужен, чтобы после выхода
-                            из голосового режима они всплывали одной группой
-                            (см. useGSAP выше). Позиционирование прежнее —
-                            absolute у самих кнопок, контейнер их не смещает. */}
-                        <div ref={composerBtnsRef} className="contents">
-                        {voice.supported && (
-                            <button
-                                onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && startVoiceGuarded())}
-                                {...pressProps(gsap)}
-                                title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
-                                disabled={voice.transcribing}
-                                className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 flex items-center justify-center transition-colors z-20 active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
-                            >
-                                {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
-                            </button>
-                        )}
-                        {/* Кнопка отправки/Voice Mode: пока поле ввода пустое (и нет
-                            вложений) — показываем вход в разговорный Voice Mode
-                            (значок микрофона на месте кнопки отправки). Как
-                            только появляется текст или фото — кнопка тут же
-                            становится обычной стрелкой отправки, как и раньше. */}
-                        {(state.inputValue.trim() || (state.selectedImages && state.selectedImages.length > 0)) ? (
-                            <button
-                                onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()}
-                                {...pressProps(gsap)}
-                                disabled={state.isGenerating || voice.busy}
-                                title="Отправить"
-                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-colors shadow-md z-20"
-                            ><Icons.ArrowUp className="w-5 h-5" /></button>
-                        ) : state.imageGenMode ? (
-                            // В режиме генерации изображений поле пустым быть не может —
-                            // кнопка остаётся стрелкой (просто неактивной), Voice Mode
-                            // здесь не предлагаем: это отдельный от диалога режим.
-                            <button
-                                disabled
-                                title="Отправить"
-                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-gray-200 dark:bg-gray-800 text-gray-400 rounded-full border-2 border-transparent flex items-center justify-center z-20"
-                            ><Icons.ArrowUp className="w-5 h-5" /></button>
-                        ) : (
-                            <button
-                                ref={voiceBtnRef}
-                                onClick={voiceMode.open}
-                                {...pressProps(gsap)}
-                                onMouseEnter={onVoiceEnter}
-                                onMouseLeave={onVoiceLeave}
-                                disabled={state.isGenerating || voice.busy}
-                                title="Voice Mode"
-                                className="void-voice-btn void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-colors shadow-md z-20"
-                            ><Icons.Waveform className="w-5 h-5" /></button>
-                        )}
+
+                            {/* Задача 7: выбор модели — прямо в поле ввода,
+                                компактной pill-кнопкой (как «⚡ Быстрый» в
+                                референсе), а не в шапке. */}
+                            <ModelSelector state={state} updateState={updateState} compact />
+
+                            <div className="flex-1" />
+
+                            {voice.supported && (
+                                <button
+                                    onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && startVoiceGuarded())}
+                                    {...pressProps(gsap)}
+                                    title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
+                                    disabled={voice.transcribing}
+                                    className={`void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center transition-colors ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                                >
+                                    {voice.recording ? <Icons.Square className="w-4 h-4" /> : voice.transcribing ? <Icons.Spinner className="w-4 h-4" /> : <Icons.Mic className="w-4 h-4" />}
+                                </button>
+                            )}
+                            {/* Кнопка отправки/Voice Mode: пока поле ввода пустое (и нет
+                                вложений) — показываем вход в разговорный Voice Mode
+                                (значок волны на месте кнопки отправки, тот же фиолетовый,
+                                что и раньше, без подписи — задача 8). Как только
+                                появляется текст или фото — кнопка тут же становится
+                                обычной стрелкой отправки. */}
+                            {(state.inputValue.trim() || (state.selectedImages && state.selectedImages.length > 0)) ? (
+                                <button
+                                    onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()}
+                                    {...pressProps(gsap)}
+                                    disabled={state.isGenerating || voice.busy}
+                                    title="Отправить"
+                                    className="void-tap-target w-9 h-9 shrink-0 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full flex items-center justify-center transition-colors"
+                                ><Icons.ArrowUp className="w-4 h-4" /></button>
+                            ) : state.imageGenMode ? (
+                                // В режиме генерации изображений поле пустым быть не может —
+                                // кнопка остаётся стрелкой (просто неактивной), Voice Mode
+                                // здесь не предлагаем: это отдельный от диалога режим.
+                                <button
+                                    disabled
+                                    title="Отправить"
+                                    className="void-tap-target w-9 h-9 shrink-0 bg-gray-200 dark:bg-gray-800 text-gray-400 rounded-full flex items-center justify-center"
+                                ><Icons.ArrowUp className="w-4 h-4" /></button>
+                            ) : (
+                                <button
+                                    ref={voiceBtnRef}
+                                    onClick={voiceMode.open}
+                                    {...pressProps(gsap)}
+                                    onMouseEnter={onVoiceEnter}
+                                    onMouseLeave={onVoiceLeave}
+                                    disabled={state.isGenerating || voice.busy}
+                                    title="Voice Mode"
+                                    className="void-voice-btn void-tap-target w-9 h-9 shrink-0 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full flex items-center justify-center transition-colors"
+                                ><Icons.Waveform className="w-4 h-4" /></button>
+                            )}
                         </div>
                     </div>
                 </div>

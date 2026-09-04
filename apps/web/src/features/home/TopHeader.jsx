@@ -216,7 +216,9 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                         оставался по центру. */}
                 </div>
                 <div className="justify-self-center">
-                    {ModelSelectorBlock}
+                    {/* Задача 7: селектор модели убран из шапки — теперь
+                        живёт прямо в поле ввода (см. ChatView.jsx). Слот
+                        остаётся, чтобы 3-колоночная сетка не съезжала. */}
                 </div>
                 <div className="flex items-center gap-2 justify-self-end">
                     {/* Троеточие (действия с чатом) — сдвинуто левее, чтобы
