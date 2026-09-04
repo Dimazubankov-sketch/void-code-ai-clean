@@ -718,22 +718,16 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
-                        {/* Задача 3: постоянная кнопка «+» (меню действий:
-                            проект/изображение/агенты/…) убрана из чата
-                            целиком. Раньше она же превращалась в «×» для
-                            отмены записи — эта функция сохранена, но теперь
-                            существует ТОЛЬКО пока идёт запись, не как
-                            постоянно висящая кнопка. */}
-                        {voice.recording && (
-                            <button
-                                onClick={() => voice.cancel()}
-                                {...pressProps(gsap)}
-                                title={t(lang, 'chat.cancelRecording')}
-                                className="void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800"
-                            >
-                                <Icons.X className="w-6 h-6" />
-                            </button>
-                        )}
+                        {/* «+» слева: при записи переворачивается в «×» (отмена записи),
+                            иначе открывает меню действий (проект/изображение/агенты/…) */}
+                        <button
+                            onClick={() => voice.recording ? voice.cancel() : setShowPlusMenu(true)}
+                            {...pressProps(gsap)}
+                            title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
+                            className={`void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800`}
+                        >
+                            <Icons.Plus className={`w-6 h-6 void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
+                        </button>
                         {/* Анимация записи — на всё поле ввода */}
                         {voice.recording && (
                             <div className="absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center pl-16 pr-32 pointer-events-none fade-in">

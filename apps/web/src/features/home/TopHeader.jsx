@@ -208,18 +208,12 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     className="absolute inset-x-0 top-16 h-8 -z-10 pointer-events-none bg-gradient-to-b from-white/40 to-transparent dark:from-darkBg/45 dark:to-transparent"
                 />
                 <div className="flex items-center justify-self-start">
-                    {/* Хаб удалён, поэтому «назад в хаб» больше нет. Осталась
-                        осмысленная кнопка на этом месте — новый чат: самое
-                        частое действие на стартовом экране. */}
-                    <IconCircleButton onClick={() => {
-                        const nid = Date.now();
-                        updateState({
-                            chatSessions: [{ id: nid, title: 'Новый чат', messages: [] }, ...(state.chatSessions || [])],
-                            activeChatId: nid, currentView: 'chat', imageGenMode: false,
-                        });
-                    }} title="Новый чат">
-                        <Icons.Plus className="w-5 h-5" />
-                    </IconCircleButton>
+                    {/* Кнопка «+ Новый чат» здесь убрана — она дублировала
+                        «Создать новый чат» в меню (RightMenu.jsx). Левый
+                        слот шапки остаётся пустым, сетка (grid-cols
+                        [1fr_auto_1fr]) не требует содержимого в крайних
+                        колонках, чтобы центральный селектор модели
+                        оставался по центру. */}
                 </div>
                 <div className="justify-self-center">
                     {ModelSelectorBlock}
