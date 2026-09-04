@@ -3,6 +3,7 @@ import { gsap } from 'gsap';
 import { Icons } from '@/shared/ui/Icons';
 import { PressButton } from '@/shared/ui/PressButton';
 import { generateBackendImage, submitBackendVideo, pollBackendVideo } from '@/shared/api/chat';
+import { compressImageFiles } from '@/shared/lib/imageCompress';
 import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
 
 // ==========================================
@@ -21,8 +22,8 @@ import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
 
 const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'];
 const VIDEO_MODELS = [
-    { id: 'x-ai/grok-imagine-video', name: 'Grok Imagine Video' },
-    { id: 'x-ai/grok-imagine-video-1.5', name: 'Grok Imagine Video 1.5' },
+    { id: 'x-ai/grok-imagine-video', name: 'Стандартная' },
+    { id: 'x-ai/grok-imagine-video-1.5', name: 'Продвинутая' },
 ];
 
 export function ImagesView({ state, updateState }) {
@@ -36,6 +37,12 @@ export function ImagesView({ state, updateState }) {
     const [showVideoModel, setShowVideoModel] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(null);
+    // Задача 1: референсные фото — как в чате, до 4 штук, используются
+    // и для image-to-image (обычная генерация картинок уже поддерживает
+    // это на бэкенде), и для image-to-video (первое фото уходит как
+    // imageUrl — задаёт первый кадр видео).
+    const [referenceImages, setReferenceImages] = useState([]);
+    const refFileInputRef = useRef(null);
     const gridRef = useRef(null);
 
     const images = state.generatedImages || [];
@@ -79,11 +86,12 @@ export function ImagesView({ state, updateState }) {
         setBusy(true);
         setError(null);
         try {
-            const url = await generateBackendImage(prompt.trim());
+            const url = await generateBackendImage(prompt.trim(), referenceImages);
             updateState({
                 generatedImages: [{ id: Date.now() + Math.random(), prompt: prompt.trim(), url, timestamp: Date.now(), chatId: null }, ...(stateRef.current.generatedImages || [])],
             });
             setPrompt('');
+            setReferenceImages([]);
         } catch (e) {
             setError(e?.message || 'Не удалось сгенерировать изображение');
         } finally {
@@ -129,11 +137,12 @@ export function ImagesView({ state, updateState }) {
         setError(null);
         const localId = Date.now() + Math.random();
         try {
-            const { jobId } = await submitBackendVideo({ prompt: prompt.trim(), model: videoModel, aspectRatio, duration, resolution });
+            const { jobId } = await submitBackendVideo({ prompt: prompt.trim(), model: videoModel, aspectRatio, duration, resolution, imageUrl: referenceImages[0] || undefined });
             updateState({
                 generatedVideos: [{ id: localId, prompt: prompt.trim(), timestamp: Date.now(), status: 'pending', jobId, model: videoModel }, ...(stateRef.current.generatedVideos || [])],
             });
             setPrompt('');
+            setReferenceImages([]);
             pollVideo(localId, jobId);
         } catch (e) {
             setError(e?.message || 'Не удалось отправить задачу на генерацию видео');
@@ -150,7 +159,7 @@ export function ImagesView({ state, updateState }) {
                 механика, что и кнопка «Изображения» в шапке чата: одна
                 кнопка, назначение меняется в зависимости от текущего
                 экрана). На ПК переход уже есть в постоянном меню. */}
-            <div className="md:hidden sticky top-0 z-20 flex items-center px-4 pt-4 pb-2 bg-white/80 dark:bg-darkBg/80 backdrop-blur-xl">
+            <div className="md:hidden sticky top-0 z-20 flex items-center justify-center px-4 pt-4 pb-2 bg-white/80 dark:bg-darkBg/80 backdrop-blur-xl">
                 <PressButton
                     onClick={() => updateState({ currentView: 'chat' })}
                     className="void-tap-target flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/70 dark:bg-white/10 backdrop-blur-xl border border-black/[0.06] dark:border-white/10 shadow-sm hover:bg-white/90 dark:hover:bg-white/[0.16] transition-colors text-sm font-bold text-gray-800 dark:text-gray-100"
@@ -160,11 +169,42 @@ export function ImagesView({ state, updateState }) {
             </div>
             <div className="max-w-4xl mx-auto px-4 md:px-8 py-8 md:py-12">
                 <h1 className="text-2xl md:text-3xl font-extrabold text-center mb-8 dark:text-white">
-                    {mode === 'image' ? 'Что мы будем создавать?' : 'Что мы будем imagine?'}
+                    Что мы будем создавать?
                 </h1>
 
                 {/* Composer: текст + режим + настройки + отправка */}
                 <div className="bg-white dark:bg-darkCard rounded-[26px] border border-gray-200 dark:border-darkBorder shadow-sm p-4">
+                    <input
+                        type="file"
+                        ref={refFileInputRef}
+                        multiple
+                        accept="image/jpeg, image/png, image/webp, image/heic"
+                        className="hidden"
+                        onChange={(e) => {
+                            const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/')).slice(0, 4 - referenceImages.length);
+                            if (files.length > 0) {
+                                compressImageFiles(files).then((results) => {
+                                    setReferenceImages(prev => [...prev, ...results].slice(0, 4));
+                                });
+                            }
+                            e.target.value = '';
+                        }}
+                    />
+                    {referenceImages.length > 0 && (
+                        <div className="flex items-center gap-2 mb-3">
+                            {referenceImages.map((img, i) => (
+                                <div key={i} className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-gray-200 dark:border-darkBorder">
+                                    <img src={img} alt="" className="w-full h-full object-cover" />
+                                    <button
+                                        onClick={() => setReferenceImages(prev => prev.filter((_, idx) => idx !== i))}
+                                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md"
+                                    >
+                                        <Icons.X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                     <textarea
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
@@ -173,6 +213,17 @@ export function ImagesView({ state, updateState }) {
                         className="w-full bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none text-[16px] mb-3"
                     />
                     <div className="flex items-center flex-wrap gap-2">
+                        {/* Задача 1: «+» — прикрепить референсные фото. Для
+                            изображений это image-to-image (уже поддержано
+                            бэкендом), для видео — первый кадр (image-to-video). */}
+                        <button
+                            onClick={() => refFileInputRef.current?.click()}
+                            disabled={referenceImages.length >= 4}
+                            title="Прикрепить референс"
+                            className="void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors"
+                        >
+                            <Icons.Plus className="w-5 h-5" />
+                        </button>
                         {/* Переключатель Изображение/Видео */}
                         <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-full p-1">
                             <button
@@ -189,7 +240,14 @@ export function ImagesView({ state, updateState }) {
                             </button>
                         </div>
 
-                        {/* Соотношение сторон — общее для обоих режимов */}
+                        {/* Соотношение сторон — общее для обоих режимов.
+                            Задача 4: раньше дропдаун был absolute-позиционирован
+                            ОТ КНОПКИ (left-0), из-за чего на телефоне на узком
+                            экране мог вылезать за правый край — кнопка сидит
+                            в ряду тулбара, который сам может быть смещён. Теперь
+                            на мобильном это фиксированный «bottom sheet» на всю
+                            ширину экрана (не зависит от того, где именно кнопка),
+                            на ПК — обычный поповер у кнопки. */}
                         <div className="relative">
                             <button onClick={() => setShowAspect(v => !v)} className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                                 {aspectRatio}
@@ -197,7 +255,7 @@ export function ImagesView({ state, updateState }) {
                             {showAspect && (
                                 <>
                                     <div className="fixed inset-0 z-40" onClick={() => setShowAspect(false)} />
-                                    <div className="absolute left-0 bottom-full mb-2 w-40 bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl shadow-2xl z-50 overflow-hidden p-1">
+                                    <div className="fixed left-3 right-3 bottom-24 md:absolute md:left-auto md:right-0 md:bottom-full md:mb-2 md:w-40 md:inset-x-auto bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl shadow-2xl z-50 overflow-hidden p-1">
                                         {ASPECT_RATIOS.map(r => (
                                             <button key={r} onClick={() => { setAspectRatio(r); setShowAspect(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${r === aspectRatio ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
                                                 {r}
@@ -218,7 +276,7 @@ export function ImagesView({ state, updateState }) {
                                     {showVideoModel && (
                                         <>
                                             <div className="fixed inset-0 z-40" onClick={() => setShowVideoModel(false)} />
-                                            <div className="absolute left-0 bottom-full mb-2 w-56 bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl shadow-2xl z-50 overflow-hidden p-1">
+                                            <div className="fixed left-3 right-3 bottom-24 md:absolute md:left-auto md:right-0 md:bottom-full md:mb-2 md:w-56 md:inset-x-auto bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl shadow-2xl z-50 overflow-hidden p-1">
                                                 {VIDEO_MODELS.map(m => (
                                                     <button key={m.id} onClick={() => { setVideoModel(m.id); setShowVideoModel(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${m.id === videoModel ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
                                                         {m.name}
@@ -251,6 +309,21 @@ export function ImagesView({ state, updateState }) {
                         </PressButton>
                     </div>
                 </div>
+
+                {/* Задача 5: честная подсказка вместо кнопки выбора голоса —
+                    у Grok Imagine Video НЕТ параметра API для выбора голоса
+                    озвучки/диалога: звук и реплики модель генерирует сама
+                    из ТЕКСТА промпта (см. пример ниже). Полноценный выбор
+                    из своих/клонированных голосов потребовал бы отдельного
+                    пайплайна (озвучка через уже работающий Fish Audio +
+                    склейка с видео через ffmpeg на сервере) — это отдельная
+                    по объёму задача, сейчас не подключена. */}
+                {mode === 'video' && (
+                    <p className="text-xs text-gray-400 mt-3 text-center leading-relaxed">
+                        Голос и реплики создаёт сама модель — опишите их в тексте, например:
+                        «...тёплый женский голос за кадром говорит: "Привет!"»
+                    </p>
+                )}
 
                 {error && (
                     <p className="text-sm text-red-500 font-semibold mt-3 text-center">{error}</p>
