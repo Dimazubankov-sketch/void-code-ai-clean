@@ -210,11 +210,12 @@ export function RightMenu({ state, updateState }) {
                     // блокирует long-press.
                     role="button"
                     tabIndex={0}
-                    onClick={() => updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false })}
+                    onClick={() => { updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false }); setCollapsed(true); }}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false });
+                            setCollapsed(true);
                         }
                     }}
                     className={`group w-full flex items-center gap-3 p-2 rounded-xl text-left transition-colors cursor-pointer ${state.activeChatId === chat.id ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'} touch-manipulation`}
@@ -375,11 +376,12 @@ export function RightMenu({ state, updateState }) {
                             <NavButton primary icon={Icons.Plus} label={t(lang, 'menu.createChat')} onClick={() => {
                                 const nid = Date.now();
                                 updateState({ chatSessions: [{ id: nid, title: t(lang, 'menu.newChat'), messages: [] }, ...state.chatSessions], activeChatId: nid, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false });
+                                setCollapsed(true);
                             }} />
-                            <NavButton icon={Icons.Folder} label={t(lang, 'menu.projects')} onClick={() => updateState({ currentView: 'projects', isRightMenuOpen: false })} />
-                            <NavButton icon={Icons.Skills} label={t(lang, 'menu.skills')} onClick={() => updateState({ currentView: 'skills', isRightMenuOpen: false })} />
-                            <NavButton icon={Icons.Plug} label={t(lang, 'menu.plugins')} onClick={() => updateState({ currentView: 'plugins', isRightMenuOpen: false })} />
-                            <NavButton icon={Icons.Library} label={t(lang, 'menu.library')} onClick={() => updateState({ currentView: 'library', isRightMenuOpen: false })} />
+                            <NavButton icon={Icons.Folder} label={t(lang, 'menu.projects')} onClick={() => { updateState({ currentView: 'projects', isRightMenuOpen: false }); setCollapsed(true); }} />
+                            <NavButton icon={Icons.Skills} label={t(lang, 'menu.skills')} onClick={() => { updateState({ currentView: 'skills', isRightMenuOpen: false }); setCollapsed(true); }} />
+                            <NavButton icon={Icons.Plug} label={t(lang, 'menu.plugins')} onClick={() => { updateState({ currentView: 'plugins', isRightMenuOpen: false }); setCollapsed(true); }} />
+                            <NavButton icon={Icons.Library} label={t(lang, 'menu.library')} onClick={() => { updateState({ currentView: 'library', isRightMenuOpen: false }); setCollapsed(true); }} />
                             {/* Задача 3: на месте прежней постоянной кнопки
                                 «Агенты» теперь «Больше» (…) — реже нужные
                                 пункты (Агенты, Почта) спрятаны за одним
@@ -395,12 +397,12 @@ export function RightMenu({ state, updateState }) {
                                 />
                             ) : (
                                 <div ref={moreRevealRef} className="space-y-1">
-                                    <NavButton icon={Icons.Robot} label="Агенты" onClick={() => updateState({ currentView: 'agent-store', isRightMenuOpen: false })} />
+                                    <NavButton icon={Icons.Robot} label="Агенты" onClick={() => { updateState({ currentView: 'agent-store', isRightMenuOpen: false }); setCollapsed(true); }} />
                                     {/* Почта вынесена сюда из шапки чата: там она
                                         занимала постоянное место ради нечастого
                                         действия. Показываем счётчик непрочитанного,
                                         чтобы вынос в меню не «спрятал» новые письма. */}
-                                    <NavButton icon={Icons.Mail} label="Почта" onClick={() => updateState({ showNotifications: true, isRightMenuOpen: false })} right={
+                                    <NavButton icon={Icons.Mail} label="Почта" onClick={() => { updateState({ showNotifications: true, isRightMenuOpen: false }); setCollapsed(true); }} right={
                                         (Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
                                           || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
                                           || (state.inbox?.personal || []).some(m => !(state.readPersonalIds || []).includes(m.id)))
@@ -425,7 +427,7 @@ export function RightMenu({ state, updateState }) {
                         В свёрнутом рельсе (задача 1) заменяется отдельной
                         центрированной версией ниже, эта скрыта на md+. */}
                     <div className={`absolute bottom-6 left-6 ${collapsed ? 'md:hidden' : ''}`}>
-                        <button onClick={() => updateState({ currentView: 'settings', isRightMenuOpen: false })} className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm text-gray-700 dark:text-gray-300">
+                        <button onClick={() => { updateState({ currentView: 'settings', isRightMenuOpen: false }); setCollapsed(true); }} className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm text-gray-700 dark:text-gray-300">
                             <Icons.Settings className="w-6 h-6" />
                         </button>
                     </div>
