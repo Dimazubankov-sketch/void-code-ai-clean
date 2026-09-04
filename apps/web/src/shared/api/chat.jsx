@@ -94,6 +94,26 @@ export async function generateBackendImage(prompt, images = []) {
   return data.url;
 }
 
+// ==========================================
+// Генерация видео (OpenRouter Grok Imagine Video / 1.5) — задача 6
+// ==========================================
+// Асинхронно: submit сразу возвращает jobId (без ожидания результата —
+// сама генерация занимает от ~30с до нескольких минут), дальше клиент
+// сам опрашивает status по интервалу. Ни один отдельный запрос не
+// держится долго, поэтому таймауты прокси/Cloudflare не грозят.
+export async function submitBackendVideo({ prompt, model, aspectRatio, duration, resolution, imageUrl }) {
+  const data = await apiFetch('/videos/generate', {
+    method: 'POST',
+    body: { prompt, model, aspectRatio, duration, resolution, ...(imageUrl ? { imageUrl } : {}) },
+  });
+  return data; // { jobId, pollingUrl }
+}
+
+export async function pollBackendVideo(jobId) {
+  const data = await apiFetch(`/videos/status/${encodeURIComponent(jobId)}`, { method: 'GET' });
+  return data; // { status, url, error, cost }
+}
+
 // Извлекает основной текст с указанной страницы через бэкенд, чтобы
 // подмешать его в запрос к LLM. Возвращает { url, title, text, truncated }
 // или бросает исключение при ошибке (нет доступа, неподдерживаемый формат).

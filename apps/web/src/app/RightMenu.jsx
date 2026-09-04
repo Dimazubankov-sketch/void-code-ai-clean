@@ -345,6 +345,9 @@ export function RightMenu({ state, updateState }) {
                             >
                                 <Icons.Plus className="w-5 h-5" />
                             </button>
+                            <button onClick={() => updateState({ currentView: 'images', isRightMenuOpen: false })} title="Изображения" className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+                                <Icons.Image className="w-5 h-5" />
+                            </button>
                             <button onClick={() => updateState({ currentView: 'projects', isRightMenuOpen: false })} title={t(lang, 'menu.projects')} className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
                                 <Icons.Folder className="w-5 h-5" />
                             </button>
@@ -378,6 +381,11 @@ export function RightMenu({ state, updateState }) {
                                 updateState({ chatSessions: [{ id: nid, title: t(lang, 'menu.newChat'), messages: [] }, ...state.chatSessions], activeChatId: nid, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false });
                                 setCollapsed(true);
                             }} />
+                            {/* Задача 5: «Изображения» — отдельный инструмент
+                                (как Imagine у Grok), не привязанный к истории
+                                чата. На ПК живёт здесь, в меню; на телефоне —
+                                переключателем в шапке чата (см. TopHeader.jsx). */}
+                            <NavButton icon={Icons.Image} label="Изображения" onClick={() => { updateState({ currentView: 'images', isRightMenuOpen: false }); setCollapsed(true); }} />
                             <NavButton icon={Icons.Folder} label={t(lang, 'menu.projects')} onClick={() => { updateState({ currentView: 'projects', isRightMenuOpen: false }); setCollapsed(true); }} />
                             <NavButton icon={Icons.Skills} label={t(lang, 'menu.skills')} onClick={() => { updateState({ currentView: 'skills', isRightMenuOpen: false }); setCollapsed(true); }} />
                             <NavButton icon={Icons.Plug} label={t(lang, 'menu.plugins')} onClick={() => { updateState({ currentView: 'plugins', isRightMenuOpen: false }); setCollapsed(true); }} />

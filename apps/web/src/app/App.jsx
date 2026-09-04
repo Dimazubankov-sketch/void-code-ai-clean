@@ -15,6 +15,7 @@ import { useVoiceMode } from '@/shared/lib/useVoiceMode';
 import { getVoiceOpts } from '@/shared/lib/voiceOpts';
 import { GuideView } from '@/features/guide/GuideView';
 import { LibraryView } from '@/features/library/LibraryView';
+import { ImagesView } from '@/features/images/ImagesView';
 import { LimitsView } from '@/features/settings/LimitsView';
 import { InfoView } from '@/features/settings/InfoView';
 import { SupportChatView } from '@/features/support/SupportChatView';
@@ -104,6 +105,7 @@ export function App() {
             customSkills: [],
             isGeneratingImage: false,
             generatedImages: [],
+            generatedVideos: [],
             generatedDocuments: [],
             aiAgents: [],
             walletBalance: 0,
@@ -165,6 +167,7 @@ export function App() {
             chatSessions: defaults.chatSessions,
             activeChatId: null,
             generatedImages: [],
+            generatedVideos: [],
             generatedDocuments: [],
             aiAgents: [],
             walletBalance: 0,
@@ -179,6 +182,7 @@ export function App() {
         const accountHistory = isGuest ? guestEmpty : {
             chatSessions: (saved.chatSessions && saved.chatSessions.length > 0) ? saved.chatSessions.map(c => ({ ...c, messages: (c.messages || []).map(m => m.isAnimated ? { ...m, isAnimated: false } : m) })) : defaults.chatSessions,
             generatedImages: saved.generatedImages || [],
+            generatedVideos: saved.generatedVideos || [],
             generatedDocuments: saved.generatedDocuments || [],
             aiAgents: saved.aiAgents || [],
             walletTransactions: saved.walletTransactions || [],
@@ -848,6 +852,7 @@ export function App() {
                 {state.currentView === 'skills' && <SkillsView state={state} updateState={updateState} />}
                 {state.currentView === 'plugins' && <PluginsView state={state} updateState={updateState} />}
                 {state.currentView === 'library' && <LibraryView state={state} updateState={updateState} />}
+                {state.currentView === 'images' && <ImagesView state={state} updateState={updateState} />}
                 {state.currentView === 'wallet' && <WalletView state={state} updateState={updateState} />}
                 {state.currentView === 'guide' && <GuideView state={state} updateState={updateState} />}
                 {/* Единая вкладка «Агенты»: Cockpit — главная страница, магазин — внутри */}

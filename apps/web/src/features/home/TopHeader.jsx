@@ -208,12 +208,19 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     className="absolute inset-x-0 top-16 h-8 -z-10 pointer-events-none bg-gradient-to-b from-white/40 to-transparent dark:from-darkBg/45 dark:to-transparent"
                 />
                 <div className="flex items-center justify-self-start">
-                    {/* Кнопка «+ Новый чат» здесь убрана — она дублировала
-                        «Создать новый чат» в меню (RightMenu.jsx). Левый
-                        слот шапки остаётся пустым, сетка (grid-cols
-                        [1fr_auto_1fr]) не требует содержимого в крайних
-                        колонках, чтобы центральный селектор модели
-                        оставался по центру. */}
+                    {/* Задача 5: на телефоне здесь — переключатель Чат↔Изображения
+                        (одна кнопка, меняет и текст, и назначение в зависимости
+                        от того, где мы сейчас). На ПК тот же переход уже есть
+                        в постоянном меню (RightMenu.jsx), поэтому здесь только
+                        мобильный вариант (md:hidden). */}
+                    {state.user && (
+                        <PressButton
+                            onClick={() => updateState({ currentView: 'images' })}
+                            className="void-tap-target md:hidden flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/70 dark:bg-white/10 backdrop-blur-xl border border-black/[0.06] dark:border-white/10 shadow-sm hover:bg-white/90 dark:hover:bg-white/[0.16] transition-colors text-sm font-bold text-gray-800 dark:text-gray-100"
+                        >
+                            <Icons.Image className="w-4 h-4" /> Изображения
+                        </PressButton>
+                    )}
                 </div>
                 <div className="justify-self-center">
                     {/* Задача 7: селектор модели убран из шапки — теперь
