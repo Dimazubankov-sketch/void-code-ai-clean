@@ -179,8 +179,12 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         const bars = voiceBtnRef.current.querySelectorAll('svg path');
         if (!bars.length) return;
         voiceHoverTlRef.current?.kill();
-        voiceHoverTlRef.current = gsap.timeline({ repeat: -1, yoyo: true })
-            .to(bars, { scaleY: 1.7, duration: 0.32, ease: 'sine.inOut', stagger: { each: 0.06, from: 'center' } }, 0);
+        // Задача 4: раньше это был бесконечный yoyo-луп (repeat: -1) —
+        // выглядело навязчиво, если курсор просто задержался на кнопке.
+        // Теперь один короткий «вздох»: бары один раз подскакивают и сами
+        // возвращаются (yoyo: true, repeat: 1 = туда-обратно и стоп).
+        voiceHoverTlRef.current = gsap.timeline()
+            .to(bars, { scaleY: 1.6, duration: 0.22, ease: 'sine.out', stagger: { each: 0.05, from: 'center' }, yoyo: true, repeat: 1 }, 0);
     };
     const onVoiceLeave = () => {
         voiceHoverTlRef.current?.kill();
@@ -714,16 +718,22 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
-                        {/* «+» слева: при записи переворачивается в «×» (отмена записи),
-                            иначе открывает меню действий (проект/изображение/агенты/…) */}
-                        <button
-                            onClick={() => voice.recording ? voice.cancel() : setShowPlusMenu(true)}
-                            {...pressProps(gsap)}
-                            title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
-                            className={`void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800`}
-                        >
-                            <Icons.Plus className={`w-6 h-6 void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
-                        </button>
+                        {/* Задача 3: постоянная кнопка «+» (меню действий:
+                            проект/изображение/агенты/…) убрана из чата
+                            целиком. Раньше она же превращалась в «×» для
+                            отмены записи — эта функция сохранена, но теперь
+                            существует ТОЛЬКО пока идёт запись, не как
+                            постоянно висящая кнопка. */}
+                        {voice.recording && (
+                            <button
+                                onClick={() => voice.cancel()}
+                                {...pressProps(gsap)}
+                                title={t(lang, 'chat.cancelRecording')}
+                                className="void-tap-target absolute left-3 sm:left-4 bottom-2.5 sm:bottom-3 p-2.5 sm:p-2 transition-colors rounded-full flex items-center justify-center z-20 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800"
+                            >
+                                <Icons.X className="w-6 h-6" />
+                            </button>
+                        )}
                         {/* Анимация записи — на всё поле ввода */}
                         {voice.recording && (
                             <div className="absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center pl-16 pr-32 pointer-events-none fade-in">

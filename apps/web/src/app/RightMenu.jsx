@@ -73,7 +73,11 @@ export function RightMenu({ state, updateState }) {
     // целиком, а сжимается до узкой полоски с иконками (не пропадает
     // полностью, как при обычном закрытии). На мобильном ничего не
     // меняется — там по-прежнему крестик, полный слайд-аут панели.
-    const [collapsed, setCollapsed] = useState(false);
+    // Задача 1: на ПК панель теперь ПОСТОЯННО на экране — либо узкой
+    // полоской-рельсом (по умолчанию, collapsed=true), либо развёрнутой
+    // на полную ширину. Нет больше состояния «полностью скрыта»: значение
+    // isRightMenuOpen ниже управляет только мобильной выезжающей панелью.
+    const [collapsed, setCollapsed] = useState(true);
     if (!state.user) return null;
 
     const searchResults = searchChatHistory(state.chatSessions, searchQuery);
@@ -220,13 +224,29 @@ export function RightMenu({ state, updateState }) {
 
     return (
         <>
-            <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity duration-300 ${state.isRightMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => updateState({ isRightMenuOpen: false })} />
-            <div className={`fixed top-0 right-0 h-full ${collapsed ? 'w-[85vw] md:w-16' : 'w-[85vw] md:w-96'} bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            {/* Задача 2: размытие фона убрано — остаётся только затемнение
+                (bg-black/40), без backdrop-blur, и на ПК, и на мобильном.
+                Задача 1: на ПК затемнение теперь появляется только когда
+                панель РАЗВЁРНУТА на полную ширину (!collapsed) — узкая
+                постоянная полоска ничего не блокирует и не требует фона.
+                На мобильном логика прежняя: показывается вместе с
+                выезжающей панелью (state.isRightMenuOpen). */}
+            <div
+                className={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-300 ${state.isRightMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} ${!collapsed ? 'md:opacity-100 md:pointer-events-auto' : 'md:opacity-0 md:pointer-events-none'}`}
+                onClick={() => { updateState({ isRightMenuOpen: false }); setCollapsed(true); }}
+            />
+            {/* Задача 1: на ПК панель больше не открывается/закрывается —
+                она ПОСТОЯННО на экране (md:translate-x-0 без условий), в
+                свёрнутом виде выглядит узкой полоской-рельсом (как на
+                референсе), а разворачивается в полный список тем же
+                «Свернуть»/«Развернуть». На мобильном ничего не изменилось:
+                обычная выезжающая по isRightMenuOpen панель. */}
+            <div className={`fixed top-0 right-0 h-full ${collapsed ? 'w-[85vw] md:w-16' : 'w-[85vw] md:w-96'} bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : 'translate-x-full'} md:translate-x-0`}>
                 <div className={`p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden ${collapsed ? 'md:px-3' : ''}`}>
                     {/* Шапка: слева «Свернуть» (только ПК) + лупа, «Меню» по
                         центру (скрыт при сворачивании — не помещается),
-                        справа крестик (только мобильный — на ПК закрыть можно
-                        кликом по фону, а «Свернуть» занимает его место). */}
+                        справа крестик (только мобильный — на ПК панель не
+                        закрывается совсем, только сворачивается в рельс). */}
                     <div className="flex items-center mb-6 mt-2 shrink-0 relative h-8">
                         <div className="absolute left-0 flex items-center gap-0.5">
                             <button
@@ -236,10 +256,10 @@ export function RightMenu({ state, updateState }) {
                             >
                                 <Icons.PanelRight className="w-5 h-5" />
                             </button>
-                            {/* Лупа сдвинута правее (задача 4) за счёт того, что
-                                теперь делит верхний левый угол с «Свернуть»,
-                                а не стоит там одна. На мобильном -ml-2
-                                компенсирует отсутствие кнопки слева от неё. */}
+                            {/* Лупа сдвинута правее (задача 4 из прошлой сессии)
+                                за счёт того, что делит верхний левый угол со
+                                «Свернуть», а не стоит там одна. На мобильном
+                                -ml-2 компенсирует отсутствие кнопки слева. */}
                             <button onClick={() => setSearchOpen(true)} className="void-tap-target p-2 md:-ml-0 -ml-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors" title={t(lang, 'menu.search')}>
                                 <Icons.Search className="w-6 h-6" />
                             </button>
@@ -258,9 +278,9 @@ export function RightMenu({ state, updateState }) {
                             // теперь появляется только в момент нажатия
                             // (active:ring-2), в покое (focus:outline-none) —
                             // невидима.
-                            // Задача 4: на ПК крестик больше не показывается —
-                            // его роль (спрятать панель) теперь у «Свернуть»,
-                            // а полное закрытие доступно кликом по фону.
+                            // Задача 1: крестик теперь только мобильный —
+                            // на ПК панель не закрывается полностью вообще,
+                            // только «Свернуть» в рельс.
                             className="void-tap-target md:hidden absolute right-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors focus:outline-none active:ring-2 active:ring-gray-300 dark:active:ring-gray-600"
                         >
                             <Icons.X />
@@ -268,9 +288,10 @@ export function RightMenu({ state, updateState }) {
                     </div>
 
                     {collapsed && (
-                        // Свёрнутое состояние на ПК: узкая полоска с одной
-                        // самой частой командой (новый чат) — панель не
-                        // исчезла целиком, но и не занимает полную ширину.
+                        // Свёрнутое состояние на ПК: узкая полоска-рельс с
+                        // самой частой командой (новый чат) — это состояние
+                        // ПО УМОЛЧАНИЮ на десктопе (задача 1), а не панель,
+                        // которую нужно сначала открыть и потом свернуть.
                         <div className="hidden md:flex flex-col items-center gap-2 pt-1">
                             <button
                                 onClick={() => {

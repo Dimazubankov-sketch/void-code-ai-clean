@@ -828,7 +828,14 @@ export function App() {
                 />
             )}
 
-            <main className="flex-1 flex flex-col h-full w-full relative z-10 transition-transform">
+            {/* Задача 1: RightMenu на ПК теперь постоянный элемент экрана
+                (узкая полоска-рельс шириной 64px), а не оверлей поверх
+                всего. md:mr-16 резервирует под неё реальное место в
+                layout, чтобы правый край чата не оказывался под панелью.
+                Когда пользователь разворачивает панель на полную ширину —
+                это уже временный оверлей (как и на мобильном), с тем же
+                затемнением фона. */}
+            <main className={`flex-1 flex flex-col h-full w-full relative z-10 transition-transform ${state.user ? 'md:mr-16' : ''}`}>
                 {state.currentView === 'chat' && <ChatView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} messagesEndRef={messagesEndRef} chatFileInputRef={chatFileInputRef} voiceMode={voiceMode} />}
                 {state.currentView === 'settings' && <SettingsView state={state} updateState={updateState} />}
                 {state.currentView === 'pricing' && <PricingView state={state} updateState={updateState} />}

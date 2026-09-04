@@ -253,9 +253,14 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                         состоянии интерфейса. После входа кнопка сменяется
                         обычным меню и всё становится доступно. */}
                     {state.user ? (
-                        <IconCircleButton onClick={() => updateState({ isRightMenuOpen: true })} title="Меню">
-                            <Icons.TwoLines className="w-5 h-5" />
-                        </IconCircleButton>
+                        // Задача 1: на ПК RightMenu теперь постоянная полоска
+                        // сбоку (см. RightMenu.jsx) — отдельная кнопка
+                        // «открыть меню» там не нужна, поэтому скрыта на md+.
+                        <div className="md:hidden">
+                            <IconCircleButton onClick={() => updateState({ isRightMenuOpen: true })} title="Меню">
+                                <Icons.TwoLines className="w-5 h-5" />
+                            </IconCircleButton>
+                        </div>
                     ) : (
                         <PressButton
                             onClick={() => updateState({ showAuthModal: true })}
