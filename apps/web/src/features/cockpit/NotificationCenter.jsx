@@ -337,25 +337,6 @@ export function NotificationCenter({ state, updateState, onClose }) {
 
     const goFolder = (id) => { setActiveFolder(id); setOpenOrchestratorId(null); setOpenLetter(null); setComposing(false); closeSidebar(); };
 
-    // Задача 1: «Прочитать всё» — помечает прочитанными обновления
-    // платформы и входящие письма. НЕ трогает Корзину (там всё равно нет
-    // смысла в статусе прочитанности) и «Оповещения агентов» (pendingReports
-    // требуют явного решения human-in-the-loop, их нельзя молча закрыть).
-    const markAllRead = () => {
-        if (unreadUpdates > 0) {
-            const allUpdateIds = inbox.updates.map(u => u.id);
-            updateState({ readUpdateIds: Array.from(new Set([...readUpdates, ...allUpdateIds])) });
-        }
-        const unreadMailIds = inboxItems.filter(m => !m.isRead).map(m => m.id);
-        if (unreadMailIds.length > 0) {
-            setMailData(prev => ({
-                ...prev,
-                inbox: prev.inbox.map(x => unreadMailIds.includes(x.id) ? { ...x, isRead: true } : x),
-            }));
-            unreadMailIds.forEach((id) => { setMailRead(id, true).catch(() => {}); });
-        }
-    };
-
     const openUpdate = (u) => {
         setOpenLetter({ ...u, kind: 'update' });
         if (!readUpdates.includes(u.id)) updateState({ readUpdateIds: [...readUpdates, u.id] });
@@ -797,11 +778,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                         />
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                        {(unreadUpdates + unreadInbox) > 0 && (
-                            <button onClick={markAllRead} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-400 hover:text-[#5b32d4] dark:hover:text-purple-300" title="Прочитать всё">
-                                <Icons.Check className="w-5 h-5" />
-                            </button>
-                        )}
+                        {/* Задача 5: кнопка «Прочитать всё» убрана. */}
                         <button onClick={toggleExpand} className="hidden sm:flex p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-400" title={expanded ? 'Свернуть' : 'На весь экран'}>
                             {expanded ? <Icons.Collapse className="w-5 h-5" /> : <Icons.Expand2 className="w-5 h-5" />}
                         </button>

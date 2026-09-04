@@ -165,6 +165,31 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             { y: 0, scale: 1, autoAlpha: 1, duration: 0.4, ease: 'back.out(1.8)', stagger: 0.07 });
     }, { dependencies: [voiceMode?.active] });
 
+    // Кнопка Voice Mode: SVG-волна «оживает» при наведении — каждый бар
+    // растёт от своего центра со сдвигом по времени от середины к краям,
+    // как реально играющий эквалайзер, а не статичная иконка. Только для
+    // настоящей мыши (hover: hover) — на тач-экране это не имеет смысла и
+    // могло бы «залипнуть» после тапа.
+    const voiceBtnRef = useRef(null);
+    const voiceHoverTlRef = useRef(null);
+    const onVoiceEnter = () => {
+        const canHover = typeof window !== 'undefined' && window.matchMedia
+            && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        if (!canHover || prefersReducedMotion() || !voiceBtnRef.current) return;
+        const bars = voiceBtnRef.current.querySelectorAll('svg path');
+        if (!bars.length) return;
+        voiceHoverTlRef.current?.kill();
+        voiceHoverTlRef.current = gsap.timeline({ repeat: -1, yoyo: true })
+            .to(bars, { scaleY: 1.7, duration: 0.32, ease: 'sine.inOut', stagger: { each: 0.06, from: 'center' } }, 0);
+    };
+    const onVoiceLeave = () => {
+        voiceHoverTlRef.current?.kill();
+        voiceHoverTlRef.current = null;
+        const bars = voiceBtnRef.current?.querySelectorAll('svg path');
+        if (bars?.length) gsap.to(bars, { scaleY: 1, duration: DUR.release, ease: EASE.out, overwrite: 'auto' });
+    };
+    useEffect(() => () => voiceHoverTlRef.current?.kill(), []);
+
     // Отклик поля ввода на фокус: очень сдержанный подъём + чуть более
     // выраженная тень. Это единственная анимация, которую пользователь
     // видит десятки раз за сессию, поэтому она намеренно на грани
@@ -377,8 +402,18 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
     // programmatic updateState(). Теперь после вставки текста вручную
     // считаем нужную высоту и анимируем её тем же способом, что и обычная
     // печать (GSAP, а не резкий скачок).
-    const handleEditMessage = (content) => {
-        updateState({ inputValue: content });
+    const handleEditMessage = (idx, content) => {
+        // Настоящее редактирование (задача 2): обрезаем историю чата ДО
+        // этого сообщения включительно — старый ответ ИИ на него (и всё,
+        // что шло дальше) исчезает. Раньше текст просто копировался в
+        // поле ввода, а история не менялась вовсе: отправка добавляла
+        // новую пару вопрос/ответ в КОНЕЦ чата, оставляя старую нетронутой.
+        updateState({
+            chatSessions: (state.chatSessions || []).map(s =>
+                s.id === state.activeChatId ? { ...s, messages: s.messages.slice(0, idx) } : s
+            ),
+            inputValue: content,
+        });
         requestAnimationFrame(() => {
             const el = editableTextareaRef.current;
             if (el) {
@@ -393,6 +428,36 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             }
         });
     };
+
+    // Повторить (задача 2): та же логика обрезки, что и у редактирования,
+    // но без ручного ввода — сразу переотправляем исходный текст вопроса.
+    // updateState здесь и handleSendMessage ниже относятся к РАЗНЫМ
+    // рендерам (React ещё не закоммитил обрезанную историю к моменту,
+    // когда выполнялся бы обычный код после updateState), поэтому сама
+    // отправка отложена до useEffect на retryQueued — тот срабатывает уже
+    // после коммита, когда state.chatSessions в этом же рендере ChatView
+    // гарантированно отражает обрезку (тот же паттерн, что и pendingHitl
+    // в App.jsx).
+    const [retryQueued, setRetryQueued] = useState(null);
+    const retryMessage = (assistantIdx) => {
+        const userIdx = assistantIdx - 1;
+        const userMsg = messages[userIdx];
+        if (!userMsg || userMsg.role !== 'user') return;
+        updateState({
+            chatSessions: (state.chatSessions || []).map(s =>
+                s.id === state.activeChatId ? { ...s, messages: s.messages.slice(0, userIdx) } : s
+            ),
+            selectedImage: userMsg.image || null,
+            selectedImages: userMsg.images || [],
+        });
+        setRetryQueued({ text: userMsg.content, key: Date.now() });
+    };
+    useEffect(() => {
+        if (!retryQueued) return;
+        setRetryQueued(null);
+        handleSendMessage(retryQueued.text);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [retryQueued]);
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-darkBg relative w-full max-w-full fade-in">
@@ -415,7 +480,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                     {messages.map((msg, idx) => (
                         <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-4xl transition-colors rounded-2xl min-w-0 ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
                             {msg.role === 'user' ? (
-                                <UserMessageBubble msg={msg} onCopied={setShareToast} onEdit={handleEditMessage} />
+                                <UserMessageBubble msg={msg} onCopied={setShareToast} onEdit={(content) => handleEditMessage(idx, content)} />
                             ) : (
                             <div className={`p-4 md:p-5 rounded-3xl void-selectable min-w-0 max-w-full overflow-hidden break-words bg-white dark:bg-darkBg text-gray-900 dark:text-gray-100 rounded-tl-sm`}>
                                 {msg.image && <img src={msg.image} alt="Upload" className="max-w-full md:max-w-sm rounded-xl mb-3 shadow-sm border border-gray-100 dark:border-gray-800" />}
@@ -487,6 +552,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                             onShare={shareDialog}
                                             onFeedback={(type) => setFeedback({ idx, type })}
                                             onSpeak={() => speakMessage(idx, msg.content)}
+                                            onRetry={() => retryMessage(idx)}
                                             speaking={ttsMsgIdx === idx && tts.speaking}
                                             speakLoading={ttsMsgIdx === idx && tts.loading}
                                             voiceStyle={!!voiceMode?.active}
@@ -785,11 +851,14 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             ><Icons.ArrowUp className="w-5 h-5" /></button>
                         ) : (
                             <button
+                                ref={voiceBtnRef}
                                 onClick={voiceMode.open}
                                 {...pressProps(gsap)}
+                                onMouseEnter={onVoiceEnter}
+                                onMouseLeave={onVoiceLeave}
                                 disabled={state.isGenerating || voice.busy}
                                 title="Voice Mode"
-                                className="void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-colors shadow-md z-20"
+                                className="void-voice-btn void-tap-target absolute right-2.5 sm:right-3 bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-colors shadow-md z-20"
                             ><Icons.Waveform className="w-5 h-5" /></button>
                         )}
                         </div>

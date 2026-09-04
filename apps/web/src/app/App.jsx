@@ -83,7 +83,10 @@ export function App() {
             selectedBank: 'sber',
             chatSessions: [{ id: Date.now(), title: 'Новый чат', messages: [] }],
             activeChatId: null,
-            selectedModelId: 'flash_ext',
+            // Задача 6: по умолчанию всегда Void Mini — на Free другие
+            // модели недоступны, а раньше по умолчанию выбирался Void Plus,
+            // который на бесплатном тарифе всё равно заблокирован.
+            selectedModelId: 'flash',
             reasoningByModel: {},              // modelId -> уровень рассуждений (low/medium/high/max)
             inputValue: '',
             isGenerating: false,
@@ -454,7 +457,7 @@ export function App() {
             return;
         }
 
-        const activeModel = AI_MODELS.find(m => m.id === state.selectedModelId) || AI_MODELS[1];
+        const activeModel = AI_MODELS.find(m => m.id === state.selectedModelId) || AI_MODELS[0];
         const maxLimits = getPlanLimits(state.userPlan);
 
         // ПРОВЕРКА ЛИМИТОВ (задача 6): список списывается по фактическому

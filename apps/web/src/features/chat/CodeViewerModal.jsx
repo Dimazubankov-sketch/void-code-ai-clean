@@ -102,8 +102,8 @@ export function CodeViewerModal({ block, siblings = [], onClose }) {
     };
 
     return (
-        <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center sm:p-4 fade-in ${fullscreen ? 'sm:p-0' : ''}`}>
-            <div className={`bg-white dark:bg-darkCard w-full shadow-2xl border border-gray-100 dark:border-darkBorder flex flex-col overflow-hidden overscroll-contain transition-all ${fullscreen ? 'sm:max-w-full sm:h-screen sm:rounded-none code-modal-h rounded-t-[2rem]' : 'sm:max-w-3xl code-modal-h rounded-t-[2rem] sm:rounded-[2rem]'}`}>
+        <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center ${fullscreen ? 'p-0' : 'sm:p-4'} fade-in`}>
+            <div className={`bg-white dark:bg-darkCard w-full shadow-2xl border border-gray-100 dark:border-darkBorder flex flex-col overflow-hidden overscroll-contain transition-all ${fullscreen ? 'max-w-full h-dvh rounded-none' : 'sm:max-w-3xl code-modal-h rounded-t-[2rem] sm:rounded-[2rem]'}`}>
                 {/* Шапка с кнопкой закрытия — всегда видна, вне скроллящейся
                     области, чтобы выход был доступен в любой момент. */}
                 <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 dark:border-darkBorder flex-shrink-0 relative z-10 bg-white dark:bg-darkCard">
@@ -116,8 +116,11 @@ export function CodeViewerModal({ block, siblings = [], onClose }) {
                         </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                        {/* Полноэкранный режим — только для ПК (скрыт на телефоне классом hidden sm:flex) */}
-                        <button onClick={() => setFullscreen(v => !v)} title={fullscreen ? 'Свернуть' : 'Развернуть на весь экран'} className="void-tap-target hidden sm:flex p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors items-center justify-center">
+                        {/* Полноэкранный режим — теперь доступен и на телефоне,
+                            а не только на ПК (была задача 1: раньше кнопка
+                            была скрыта классом hidden sm:flex, и мобильный
+                            вообще не мог развернуть превью). */}
+                        <button onClick={() => setFullscreen(v => !v)} title={fullscreen ? 'Свернуть' : 'Развернуть на весь экран'} className="void-tap-target flex p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors items-center justify-center">
                             {fullscreen ? <Icons.Minimize className="w-5 h-5" /> : <Icons.Maximize className="w-5 h-5" />}
                         </button>
                         <button onClick={onClose} className="void-tap-target hidden sm:flex p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors items-center justify-center"><Icons.X /></button>

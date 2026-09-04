@@ -22,7 +22,7 @@ function ToolbarButton({ icon: IconC, label, onClick, active, activeColor, loadi
     );
 }
 
-export function ChatToolbar({ text, onShare, onFeedback, onSpeak, speaking, speakLoading, feedbackValue, voiceStyle }) {
+export function ChatToolbar({ text, onShare, onFeedback, onSpeak, onRetry, speaking, speakLoading, feedbackValue, voiceStyle }) {
     const [copied, setCopied] = useState(false);
 
     const copy = async () => {
@@ -50,6 +50,9 @@ export function ChatToolbar({ text, onShare, onFeedback, onSpeak, speaking, spea
                 (волна), а не как динамик — так понятнее, что читать будет
                 тот же голос, которым идёт разговор. */}
             <ToolbarButton icon={voiceStyle ? Icons.Waveform : Icons.Volume2} label={speakLoading ? 'Генерирую озвучку…' : 'Озвучить'} onClick={onSpeak} active={speaking} activeColor="text-[#5b32d4] bg-[#efecf9] dark:bg-purple-900/20" loading={speakLoading} />
+            {/* Повторить: тот же вопрос уходит ИИ заново, старый ответ
+                (и всё, что шло после него) удаляется — задача 2. */}
+            {onRetry && <ToolbarButton icon={Icons.Refresh} label="Повторить" onClick={onRetry} />}
 
             {copied && (
                 <span className="absolute -top-8 left-0 px-2.5 py-1 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-[11px] font-semibold shadow-lg void-copied-pop">Скопировано</span>

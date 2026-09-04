@@ -131,6 +131,14 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
 @media (max-width: 767px) {
     .void-tap-target { min-width: 44px; min-height: 44px; }
 }
+
+/* Задача 7: SVG-бары иконки Voice Mode должны расти каждый ОТ СВОЕГО
+   ЦЕНТРА при наведении, а не от начала координат всего SVG (иначе
+   scaleY сдвигает бар вбок вместо роста «на месте»). transform-box:
+   fill-box переключает точку отсчёта transform-origin на bounding box
+   самого <path>, а не всего viewBox. Не внутри мобильного media-запроса —
+   этот эффект специально только для настоящей мыши (см. onVoiceEnter). */
+.void-voice-btn svg path { transform-box: fill-box; transform-origin: center; }
 /* Отступ снизу под "чёлку"/индикатор жестов на iPhone, чтобы кнопка отправки
    не упиралась в край экрана. calc() всегда даёт минимум базовый отступ,
    даже если env(safe-area-inset-bottom) не поддерживается браузером. */

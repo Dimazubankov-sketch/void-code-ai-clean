@@ -57,7 +57,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
     const [showDropdown, setShowDropdown] = useState(false);
     const [showReasoning, setShowReasoning] = useState(false);
     const [showChatMenu, setShowChatMenu] = useState(false);
-    const activeModel = AI_MODELS.find(m => m.id === state.selectedModelId) || AI_MODELS[1];
+    const activeModel = AI_MODELS.find(m => m.id === state.selectedModelId) || AI_MODELS[0];
     const maxDaily = getPlanLimits(state.userPlan).daily;
     const limitExhausted = maxDaily !== Infinity && state.usedDailyLimits >= maxDaily;
 

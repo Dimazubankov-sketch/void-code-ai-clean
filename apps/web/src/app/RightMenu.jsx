@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { gsap } from 'gsap';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
 import { useLongPressMenu } from '@/shared/lib/useLongPressMenu';
 import { RenameChatModal, DeleteChatModal, AddToProjectModal } from '@/features/chat/ChatActionModals';
 import { ChatActionsMenu } from '@/features/chat/ChatActionsMenu';
 import { buildShareLink, dialogToText } from '@/shared/lib/shareDialog';
+import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
 
 // Ищет по всем чатам сообщения, содержащие ключевое слово, и возвращает
 // короткий фрагмент текста вокруг найденного места (как в поиске Ctrl+F).
@@ -55,6 +57,23 @@ export function RightMenu({ state, updateState }) {
     const [chatAction, setChatAction] = useState(null); // {type, chat}
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    // Задача 3: «Больше» → Агенты + Почта. Стейт живёт здесь (не сбрасывается
+    // при повторных открытиях меню, пока сама RightMenu не размонтируется —
+    // это осознанный выбор: развернув один раз за сессию, не нужно делать
+    // это заново на каждое открытие панели).
+    const [showMore, setShowMore] = useState(false);
+    const moreRevealRef = useRef(null);
+    useEffect(() => {
+        if (!showMore || !moreRevealRef.current || prefersReducedMotion()) return;
+        gsap.fromTo(moreRevealRef.current.children,
+            { opacity: 0, y: -6 },
+            { opacity: 1, y: 0, duration: DUR.dropdown, ease: EASE.out, stagger: 0.05 });
+    }, [showMore]);
+    // Задача 4: на ПК крестик заменён на «Свернуть» — панель не закрывается
+    // целиком, а сжимается до узкой полоски с иконками (не пропадает
+    // полностью, как при обычном закрытии). На мобильном ничего не
+    // меняется — там по-прежнему крестик, полный слайд-аут панели.
+    const [collapsed, setCollapsed] = useState(false);
     if (!state.user) return null;
 
     const searchResults = searchChatHistory(state.chatSessions, searchQuery);
@@ -202,14 +221,30 @@ export function RightMenu({ state, updateState }) {
     return (
         <>
             <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity duration-300 ${state.isRightMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => updateState({ isRightMenuOpen: false })} />
-            <div className={`fixed top-0 right-0 h-full w-[85vw] md:w-96 bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-transform duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden">
-                    {/* Шапка: слева лупа, «Меню» по центру, справа крестик */}
+            <div className={`fixed top-0 right-0 h-full ${collapsed ? 'w-[85vw] md:w-16' : 'w-[85vw] md:w-96'} bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                <div className={`p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden ${collapsed ? 'md:px-3' : ''}`}>
+                    {/* Шапка: слева «Свернуть» (только ПК) + лупа, «Меню» по
+                        центру (скрыт при сворачивании — не помещается),
+                        справа крестик (только мобильный — на ПК закрыть можно
+                        кликом по фону, а «Свернуть» занимает его место). */}
                     <div className="flex items-center mb-6 mt-2 shrink-0 relative h-8">
-                        <button onClick={() => setSearchOpen(true)} className="void-tap-target absolute left-0 p-2 -ml-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors" title={t(lang, 'menu.search')}>
-                            <Icons.Search className="w-6 h-6" />
-                        </button>
-                        <span className="font-extrabold text-xl dark:text-white mx-auto">{t(lang, 'menu.title')}</span>
+                        <div className="absolute left-0 flex items-center gap-0.5">
+                            <button
+                                onClick={() => setCollapsed(v => !v)}
+                                title={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
+                                className="void-tap-target hidden md:flex p-2 -ml-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                            >
+                                <Icons.PanelRight className="w-5 h-5" />
+                            </button>
+                            {/* Лупа сдвинута правее (задача 4) за счёт того, что
+                                теперь делит верхний левый угол с «Свернуть»,
+                                а не стоит там одна. На мобильном -ml-2
+                                компенсирует отсутствие кнопки слева от неё. */}
+                            <button onClick={() => setSearchOpen(true)} className="void-tap-target p-2 md:-ml-0 -ml-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors" title={t(lang, 'menu.search')}>
+                                <Icons.Search className="w-6 h-6" />
+                            </button>
+                        </div>
+                        {!collapsed && <span className="font-extrabold text-xl dark:text-white mx-auto">{t(lang, 'menu.title')}</span>}
                         <button
                             onClick={() => updateState({ isRightMenuOpen: false })}
                             title="Закрыть меню"
@@ -223,13 +258,34 @@ export function RightMenu({ state, updateState }) {
                             // теперь появляется только в момент нажатия
                             // (active:ring-2), в покое (focus:outline-none) —
                             // невидима.
-                            className="void-tap-target absolute right-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors focus:outline-none active:ring-2 active:ring-gray-300 dark:active:ring-gray-600"
+                            // Задача 4: на ПК крестик больше не показывается —
+                            // его роль (спрятать панель) теперь у «Свернуть»,
+                            // а полное закрытие доступно кликом по фону.
+                            className="void-tap-target md:hidden absolute right-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors focus:outline-none active:ring-2 active:ring-gray-300 dark:active:ring-gray-600"
                         >
                             <Icons.X />
                         </button>
                     </div>
 
-                    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-24 -mx-1 px-1">
+                    {collapsed && (
+                        // Свёрнутое состояние на ПК: узкая полоска с одной
+                        // самой частой командой (новый чат) — панель не
+                        // исчезла целиком, но и не занимает полную ширину.
+                        <div className="hidden md:flex flex-col items-center gap-2 pt-1">
+                            <button
+                                onClick={() => {
+                                    const nid = Date.now();
+                                    updateState({ chatSessions: [{ id: nid, title: t(lang, 'menu.newChat'), messages: [] }, ...state.chatSessions], activeChatId: nid, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false });
+                                }}
+                                title={t(lang, 'menu.createChat')}
+                                className="void-tap-target w-10 h-10 rounded-full bg-[#5b32d4] hover:bg-[#4a26b0] text-white flex items-center justify-center shadow-md transition-colors"
+                            >
+                                <Icons.Plus className="w-5 h-5" />
+                            </button>
+                        </div>
+                    )}
+
+                    <div className={`flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-24 -mx-1 px-1 ${collapsed ? 'md:hidden' : ''}`}>
                         <div className="space-y-1 mb-4">
                             <NavButton primary icon={Icons.Plus} label={t(lang, 'menu.createChat')} onClick={() => {
                                 const nid = Date.now();
@@ -239,23 +295,35 @@ export function RightMenu({ state, updateState }) {
                             <NavButton icon={Icons.Skills} label={t(lang, 'menu.skills')} onClick={() => updateState({ currentView: 'skills', isRightMenuOpen: false })} />
                             <NavButton icon={Icons.Plug} label={t(lang, 'menu.plugins')} onClick={() => updateState({ currentView: 'plugins', isRightMenuOpen: false })} />
                             <NavButton icon={Icons.Library} label={t(lang, 'menu.library')} onClick={() => updateState({ currentView: 'library', isRightMenuOpen: false })} />
-                            {/* Агенты (Cockpit) — раньше была отдельной плиткой на
-                                Хабе, теперь живёт здесь, под «Библиотекой». Та же
-                                иконка-робот, та же логика перехода: currentView
-                                становится 'agent-store' — попадаем ровно туда же,
-                                куда вела плитка в хабе. */}
-                            <NavButton icon={Icons.Robot} label="Агенты" onClick={() => updateState({ currentView: 'agent-store', isRightMenuOpen: false })} />
-                            {/* Почта вынесена сюда из шапки чата: там она
-                                занимала постоянное место ради нечастого
-                                действия. Показываем счётчик непрочитанного,
-                                чтобы вынос в меню не «спрятал» новые письма. */}
-                            <NavButton icon={Icons.MailLogo} label="Почта" onClick={() => updateState({ showNotifications: true, isRightMenuOpen: false })} right={
-                                (Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
-                                  || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
-                                  || (state.inbox?.personal || []).some(m => !(state.readPersonalIds || []).includes(m.id)))
-                                    ? <span className="w-2 h-2 rounded-full bg-red-500" />
-                                    : null
-                            } />
+                            {/* Задача 3: на месте прежней постоянной кнопки
+                                «Агенты» теперь «Больше» (…) — реже нужные
+                                пункты (Агенты, Почта) спрятаны за одним
+                                кликом, а не занимают место в основном списке
+                                всегда. По нажатию «Больше» исчезает, и на её
+                                месте — с лёгким проявлением — появляются обе
+                                кнопки. */}
+                            {!showMore ? (
+                                <NavButton
+                                    icon={Icons.Dots}
+                                    label="Больше"
+                                    onClick={() => setShowMore(true)}
+                                />
+                            ) : (
+                                <div ref={moreRevealRef} className="space-y-1">
+                                    <NavButton icon={Icons.Robot} label="Агенты" onClick={() => updateState({ currentView: 'agent-store', isRightMenuOpen: false })} />
+                                    {/* Почта вынесена сюда из шапки чата: там она
+                                        занимала постоянное место ради нечастого
+                                        действия. Показываем счётчик непрочитанного,
+                                        чтобы вынос в меню не «спрятал» новые письма. */}
+                                    <NavButton icon={Icons.Mail} label="Почта" onClick={() => updateState({ showNotifications: true, isRightMenuOpen: false })} right={
+                                        (Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
+                                          || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
+                                          || (state.inbox?.personal || []).some(m => !(state.readPersonalIds || []).includes(m.id)))
+                                            ? <span className="w-2 h-2 rounded-full bg-red-500" />
+                                            : null
+                                    } />
+                                </div>
+                            )}
                         </div>
 
                         {/* Серый разделитель «Недавние» между кнопками меню и чатами */}
