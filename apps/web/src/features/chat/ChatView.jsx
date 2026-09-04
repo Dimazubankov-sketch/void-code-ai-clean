@@ -740,7 +740,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             )}
                             <textarea 
                                 ref={editableTextareaRef}
-                                className={`w-full px-5 pt-5 pb-2 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[56px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
+                                className={`w-full px-5 pt-3.5 pb-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[40px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
                                 placeholder={voice.busy ? '' : (state.imageGenMode ? t(lang, 'chat.imagePlaceholder') : t(lang, 'home.inputPlaceholder'))}
                                 readOnly={voice.busy}
                                 value={state.inputValue}
@@ -764,7 +764,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                             // инлайновую высоту, чтобы снова работал
                                             // min-h из классов.
                                             gsap.to(target, {
-                                                height: 56, duration: 0.18, ease: 'power2.out', overwrite: true,
+                                                height: 40, duration: 0.18, ease: 'power2.out', overwrite: true,
                                                 onComplete: () => { target.style.height = ''; },
                                             });
                                             return;
@@ -813,7 +813,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             вся строка теперь обычный flex-ряд (как в референсе),
                             а не абсолютно спозиционированные поверх текста
                             кнопки. ── */}
-                        <div ref={composerBtnsRef} className="flex items-center gap-2 px-3 pb-3 pt-1">
+                        <div ref={composerBtnsRef} className="flex items-center gap-2 px-3 pb-2.5">
                             {/* «+» слева: при записи переворачивается в «×» (отмена записи),
                                 иначе открывает меню действий (проект/изображение/агенты/…) */}
                             <button

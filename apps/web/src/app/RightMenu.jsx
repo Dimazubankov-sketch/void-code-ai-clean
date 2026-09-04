@@ -77,7 +77,30 @@ export function RightMenu({ state, updateState }) {
     // полоской-рельсом (по умолчанию, collapsed=true), либо развёрнутой
     // на полную ширину. Нет больше состояния «полностью скрыта»: значение
     // isRightMenuOpen ниже управляет только мобильной выезжающей панелью.
+    // Задача 3: сворачивание/разворачивание раньше меняло collapsed
+    // МГНОВЕННО — контент (шапка+список ↔ шапка+рельс) подменялся одним
+    // кадром прямо посреди CSS-анимации ширины панели, из-за чего вкладки
+    // «багали»: текст пропадал/иконки появлялись рывком без всякого
+    // перехода. Теперь смена состояния обёрнута в GSAP-кроссфейд: контент
+    // сначала гаснет, ТОЛЬКО ПОСЛЕ этого меняется collapsed (React
+    // перерисовывает нужный вариант), и уже новый контент проявляется —
+    // визуально это одна плавная смена, а не два случайных кадра подряд.
     const [collapsed, setCollapsed] = useState(true);
+    const panelInnerRef = useRef(null);
+    const isFirstCollapseRenderRef = useRef(true);
+    const setCollapsedAnimated = (next) => {
+        if (next === collapsed) return;
+        if (prefersReducedMotion() || !panelInnerRef.current) { setCollapsed(next); return; }
+        gsap.to(panelInnerRef.current, {
+            opacity: 0, duration: 0.14, ease: EASE.out,
+            onComplete: () => setCollapsed(next),
+        });
+    };
+    useEffect(() => {
+        if (isFirstCollapseRenderRef.current) { isFirstCollapseRenderRef.current = false; return; }
+        if (!panelInnerRef.current || prefersReducedMotion()) return;
+        gsap.fromTo(panelInnerRef.current, { opacity: 0 }, { opacity: 1, duration: DUR.panel, ease: EASE.out });
+    }, [collapsed]);
     if (!state.user) return null;
 
     const searchResults = searchChatHistory(state.chatSessions, searchQuery);
@@ -233,7 +256,7 @@ export function RightMenu({ state, updateState }) {
                 выезжающей панелью (state.isRightMenuOpen). */}
             <div
                 className={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-300 ${state.isRightMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} ${!collapsed ? 'md:opacity-100 md:pointer-events-auto' : 'md:opacity-0 md:pointer-events-none'}`}
-                onClick={() => { updateState({ isRightMenuOpen: false }); setCollapsed(true); }}
+                onClick={() => { updateState({ isRightMenuOpen: false }); setCollapsedAnimated(true); }}
             />
             {/* Задача 1: на ПК панель больше не открывается/закрывается —
                 она ПОСТОЯННО на экране (md:translate-x-0 без условий), в
@@ -242,7 +265,7 @@ export function RightMenu({ state, updateState }) {
                 «Свернуть»/«Развернуть». На мобильном ничего не изменилось:
                 обычная выезжающая по isRightMenuOpen панель. */}
             <div className={`fixed top-0 right-0 h-full ${collapsed ? 'w-[85vw] md:w-16' : 'w-[85vw] md:w-96'} bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : 'translate-x-full'} md:translate-x-0`}>
-                <div className={`p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden ${collapsed ? 'md:px-3' : ''}`}>
+                <div ref={panelInnerRef} className={`p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden ${collapsed ? 'md:px-3' : ''}`}>
                     {/* Шапка: на мобильном — всегда обычный вид (лупа слева,
                         «Меню» по центру, крестик справа), collapsed её не
                         касается. На ПК шапка меняется целиком: либо обычный
@@ -271,7 +294,7 @@ export function RightMenu({ state, updateState }) {
                         <div className="hidden md:flex items-center mb-6 mt-2 shrink-0 relative h-8">
                             <div className="absolute left-0 flex items-center gap-0.5">
                                 <button
-                                    onClick={() => setCollapsed(true)}
+                                    onClick={() => setCollapsedAnimated(true)}
                                     title="Свернуть панель"
                                     className="void-tap-target p-2 -ml-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
                                 >
@@ -292,7 +315,7 @@ export function RightMenu({ state, updateState }) {
                     {collapsed && (
                         <div className="hidden md:flex flex-col items-center gap-1 pt-1 pb-2 shrink-0">
                             <button
-                                onClick={() => setCollapsed(false)}
+                                onClick={() => setCollapsedAnimated(false)}
                                 title="Развернуть панель"
                                 className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
                             >
@@ -308,7 +331,16 @@ export function RightMenu({ state, updateState }) {
                                     updateState({ chatSessions: [{ id: nid, title: t(lang, 'menu.newChat'), messages: [] }, ...state.chatSessions], activeChatId: nid, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false });
                                 }}
                                 title={t(lang, 'menu.createChat')}
-                                className="void-tap-target w-10 h-10 rounded-full bg-[#5b32d4] hover:bg-[#4a26b0] text-white flex items-center justify-center shadow-md transition-colors"
+                                // Задача 2: раньше эта кнопка была залита сплошным
+                                // фиолетовым с тенью (bg-[#5b32d4] + shadow-md) —
+                                // на фоне плоских серых соседей она читалась как
+                                // отдельная плавающая кнопка, а не как часть той
+                                // же колонки (это же вызывало путаницу из задачи 1:
+                                // казалось, что это отдельный «плавающий» элемент
+                                // меню). Теперь тот же плоский стиль, что и у
+                                // остальных иконок рельса — тот же размер, тот же
+                                // hover, разница только в цвете иконки.
+                                className="void-tap-target w-10 h-10 flex items-center justify-center text-[#5b32d4] dark:text-purple-400 hover:bg-[#efecf9] dark:hover:bg-purple-900/20 rounded-full transition-colors"
                             >
                                 <Icons.Plus className="w-5 h-5" />
                             </button>

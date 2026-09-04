@@ -319,7 +319,15 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                             <PressIconButton
                                 onClick={() => setShowMediaMenu((v) => !v)}
                                 title="Камера или экран"
-                                className={`void-tap-target w-8 h-8 rounded-full flex items-center justify-center transition-colors ${videoSource ? 'bg-[#5b32d4] text-white' : 'text-[#5b32d4] hover:bg-[#5b32d4]/10'}`}
+                                // Задача 4: цвет покоя приведён к тому же
+                                // нейтральному серому, что и «+» в поле ввода
+                                // чата (там его сделали серым в прошлой
+                                // правке под референс) — раньше здесь
+                                // оставался старый фиолетовый, и два поля
+                                // ввода визуально расходились. Активное
+                                // состояние (выбран источник видео) по-прежнему
+                                // выделяется закрашенным фиолетовым кругом.
+                                className={`void-tap-target w-8 h-8 rounded-full flex items-center justify-center transition-colors ${videoSource ? 'bg-[#5b32d4] text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                             >
                                 {/* Иконка кнопки теперь отражает активный источник
                                     (раньше всегда оставался «+», из-за чего казалось,
