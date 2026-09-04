@@ -5,6 +5,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { ImageModule } from './modules/image/image.module';
+import { VideoModule } from './modules/video/video.module';
 import { TtsModule } from './modules/tts/tts.module';
 import { VoiceModule } from './modules/voice/voice.module';
 import { TasksModule } from './modules/tasks/tasks.module';
@@ -22,6 +23,7 @@ import { MailModule } from './modules/mail/mail.module';
     UsersModule,
     ChatModule,
     ImageModule,
+    VideoModule,
     TtsModule,
     VoiceModule,
     TasksModule,

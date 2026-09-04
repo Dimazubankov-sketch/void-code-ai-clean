@@ -180,6 +180,7 @@ model UsageCounter {
   dailyUsed     Int    @default(0) // сообщений чата за день
   weeklyUsed    Int    @default(0) // сообщений чата за неделю
   imagesUsed    Int    @default(0) // сгенерированных картинок за день (DALL-E)
+  videosUsed    Int    @default(0) // сгенерированных видео за день (Grok Imagine Video, OpenRouter)
   ttsCharsUsed  Int    @default(0) // символов озвучки за день (OpenAI TTS)
   voicesCreated Int    @default(0) // созданных голосов за день (клон/дизайн)
   // Реальные токены LLM за сутки (документ 10: маршрутизация моделей).
