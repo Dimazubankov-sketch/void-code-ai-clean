@@ -58,6 +58,16 @@ export function ImagesView({ state, updateState }) {
     const [voices, setVoices] = useState([]);
     const [voicesLoading, setVoicesLoading] = useState(false);
     const [showVoicePicker, setShowVoicePicker] = useState(false);
+    // Пункт 3: выбор голоса теперь отдельная кнопка в шапке (не в поле
+    // ввода) — открывает панель с сегментированным переключателем и
+    // настройками голоса.
+    const [showVoicePanel, setShowVoicePanel] = useState(false);
+    // Пункт 4/6/7: только что запущенная генерация видео показывается
+    // ОТДЕЛЬНОЙ крупной карточкой НАД полем ввода (а не только в общей
+    // сетке результатов снизу) — с прогрессом в процентах, пока не готово,
+    // и кнопками «Скачать»/«Редактировать» после готовности.
+    const [activeVideoId, setActiveVideoId] = useState(null);
+    const [videoProgress, setVideoProgress] = useState(0);
     // Задача 1: референсные фото — как в чате, до 4 штук, используются
     // и для image-to-image (обычная генерация картинок уже поддерживает
     // это на бэкенде), и для image-to-video (первое фото уходит как
@@ -155,9 +165,49 @@ export function ImagesView({ state, updateState }) {
         setTimeout(tick, 4000);
     };
 
+    // Пункт 6: OpenRouter не отдаёт реальный процент готовности видео —
+    // только pending/completed/failed. Показываем ОЦЕНОЧНЫЙ прогресс:
+    // время генерации у Seedance примерно линейно зависит от длительности
+    // ролика и разрешения, поэтому берём грубую эвристику (секунд
+    // обработки на секунду видео) и считаем процент от неё. Специально
+    // ограничиваем потолком 95% ДО фактического completed — так честнее,
+    // чем показать 100% и зависнуть, если реальная генерация чуть дольше
+    // оценки.
+    useEffect(() => {
+        if (!activeVideoId) return undefined;
+        const item = (state.generatedVideos || []).find(v => v.id === activeVideoId);
+        if (!item || item.status !== 'pending') { setVideoProgress(item?.status === 'completed' ? 100 : 0); return undefined; }
+        const secondsPerVideoSecond = item.resolution === '720p' ? 14 : 8;
+        const estimatedMs = Math.max(20000, (item.duration || 6) * secondsPerVideoSecond * 1000) + 15000;
+        const tick = () => {
+            const elapsed = Date.now() - (item.startedAt || item.timestamp);
+            setVideoProgress(Math.min(95, Math.round((elapsed / estimatedMs) * 100)));
+        };
+        tick();
+        const interval = setInterval(tick, 1000);
+        return () => clearInterval(interval);
+    }, [activeVideoId, state.generatedVideos]);
+
+    const activeVideo = activeVideoId ? (state.generatedVideos || []).find(v => v.id === activeVideoId) : null;
+
+    // Пункт 7: «Редактировать» на готовой карточке — возвращает параметры
+    // генерации обратно в форму, чтобы пользователь мог поправить промпт
+    // или настройки и сгенерировать заново (полноценного видеоредактора
+    // здесь нет, это переиспользование настроек, а не покадровый монтаж).
+    const editVideo = (item) => {
+        setMode('video');
+        setPrompt(item.prompt || '');
+        if (item.aspectRatio) setAspectRatio(item.aspectRatio);
+        if (item.model) setVideoModel(item.model);
+        if (item.resolution) setResolution(item.resolution);
+        if (item.duration) setDuration(item.duration);
+        if (item.imageUrl) setReferenceImages([item.imageUrl]);
+        setActiveVideoId(null);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     const generateVideo = async () => {
         if (!gate() || !prompt.trim() || busy) return;
-        if (voiceMode === 'existing' && !voiceId) { setError('Выберите голос Void'); return; }
         if (voiceMode === 'design' && !voiceDescription.trim()) { setError('Опишите новый голос словами'); return; }
         if (voiceMode !== 'none' && !script.trim()) { setError('Добавьте текст реплики для голоса'); return; }
         setBusy(true);
@@ -170,11 +220,18 @@ export function ImagesView({ state, updateState }) {
                 voiceMode, voiceId: voiceId || undefined, voiceDescription: voiceDescription.trim() || undefined, script: script.trim() || undefined,
             });
             updateState({
-                generatedVideos: [{ id: localId, prompt: prompt.trim(), timestamp: Date.now(), status: 'pending', jobId, model: videoModel }, ...(stateRef.current.generatedVideos || [])],
+                generatedVideos: [{
+                    id: localId, prompt: prompt.trim(), timestamp: Date.now(), startedAt: Date.now(), status: 'pending', jobId, model: videoModel,
+                    // Сохраняем параметры генерации — нужны кнопке
+                    // «Редактировать» на готовой карточке (пункт 7),
+                    // чтобы вернуть их обратно в форму для правки/повтора.
+                    aspectRatio, duration, resolution, imageUrl: referenceImages[0] || null,
+                }, ...(stateRef.current.generatedVideos || [])],
             });
             setPrompt('');
             setReferenceImages([]);
             setScript('');
+            setActiveVideoId(localId);
             pollVideo(localId, jobId);
         } catch (e) {
             setError(e?.message || 'Не удалось отправить задачу на генерацию видео');
@@ -223,12 +280,196 @@ export function ImagesView({ state, updateState }) {
                     <Icons.MessageSquare className="w-4 h-4" /> Чат
                 </PressButton>
             </div>
+
+            {/* Пункт 3: кнопка озвучки — отдельная, в шапке (не в поле ввода).
+                Видна только в режиме видео. Открывает панель с выбором
+                режима озвучки/голоса ниже заголовка. */}
+            {mode === 'video' && (
+                <PressButton
+                    onClick={() => setShowVoicePanel(v => !v)}
+                    title="Озвучка"
+                    className={`fixed top-4 left-4 z-30 w-11 h-11 rounded-full backdrop-blur-xl border shadow-sm flex items-center justify-center transition-colors ${voiceMode !== 'none' ? 'bg-[#5b32d4] border-[#5b32d4] text-white' : 'bg-white/80 dark:bg-white/10 border-black/[0.06] dark:border-white/10 text-gray-700 dark:text-gray-200'}`}
+                >
+                    <Icons.Sliders className="w-4 h-4" />
+                </PressButton>
+            )}
+
             <div className="max-w-4xl mx-auto px-4 md:px-8 py-8 md:py-12">
                 <h1 className="text-2xl md:text-3xl font-extrabold text-center mb-8 dark:text-white">
                     Что мы будем создавать?
                 </h1>
 
-                {/* Composer: текст + режим + настройки + отправка */}
+                {/* Пункт 5: настройки живут ОТДЕЛЬНО, над полем ввода —
+                    само поле ввода теперь содержит только вложение,
+                    переключатель Изображение/Видео и отправку. */}
+                <div className="flex items-center justify-center flex-wrap gap-2 mb-3">
+                    <div ref={aspectAnchorRef} className="shrink-0">
+                        <PressButton onClick={() => setShowAspect(v => !v)} className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                            {aspectRatio}
+                        </PressButton>
+                    </div>
+                    <AnchoredMenu open={showAspect} onClose={() => setShowAspect(false)} anchorRef={aspectAnchorRef} width={160}>
+                        {ASPECT_RATIOS.map(r => (
+                            <PressButton key={r} onClick={() => { setAspectRatio(r); setShowAspect(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${r === aspectRatio ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                                {r}
+                            </PressButton>
+                        ))}
+                    </AnchoredMenu>
+
+                    {mode === 'video' && (
+                        <>
+                            <div ref={videoModelAnchorRef} className="shrink-0">
+                                <PressButton onClick={() => setShowVideoModel(v => !v)} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                                    {currentVideoModel.name} <Icons.ChevronDown className="w-3.5 h-3.5" />
+                                </PressButton>
+                            </div>
+                            <AnchoredMenu open={showVideoModel} onClose={() => setShowVideoModel(false)} anchorRef={videoModelAnchorRef} width={224}>
+                                {VIDEO_MODELS.map(m => (
+                                    <PressButton key={m.id} onClick={() => { handleVideoModelChange(m.id); setShowVideoModel(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${m.id === videoModel ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                                        <span className="block">{m.name}</span>
+                                        <span className="block text-xs font-normal text-gray-400 dark:text-gray-500 mt-0.5">до {m.maxDuration}с</span>
+                                    </PressButton>
+                                ))}
+                            </AnchoredMenu>
+                            <SegmentedSlider
+                                className="shrink-0"
+                                value={resolution}
+                                onChange={setResolution}
+                                options={[{ value: '480p', label: '480p' }, { value: '720p', label: '720p' }]}
+                            />
+                            <SegmentedSlider
+                                className="shrink-0"
+                                value={duration}
+                                onChange={setDuration}
+                                options={currentVideoModel.durations.map(d => ({ value: d, label: `${d}s` }))}
+                            />
+                        </>
+                    )}
+                </div>
+
+                {/* Панель голоса — открывается кнопкой в шапке (пункт 3),
+                    а не встроена в тулбар композера. */}
+                {mode === 'video' && showVoicePanel && (
+                    <div className="mb-3 p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 space-y-2">
+                        <SegmentedSlider
+                            value={voiceMode}
+                            onChange={setVoiceMode}
+                            options={[
+                                { value: 'none', label: 'Без озвучки' },
+                                { value: 'existing', label: 'Голос Void' },
+                                { value: 'design', label: 'Новый голос' },
+                            ]}
+                        />
+                        {voiceMode === 'existing' && (
+                            <div ref={voicePickerAnchorRef} className="shrink-0">
+                                <PressButton onClick={openVoicePicker} className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    <span>{voices.find(v => v.id === voiceId)?.title || (voicesLoading ? 'Загрузка голосов…' : 'Случайный голос Void')}</span>
+                                    <Icons.ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                                </PressButton>
+                            </div>
+                        )}
+                        <AnchoredMenu open={showVoicePicker} onClose={() => setShowVoicePicker(false)} anchorRef={voicePickerAnchorRef} width={240}>
+                            {voicesLoading && <p className="px-3 py-2 text-sm text-gray-400">Загрузка…</p>}
+                            {!voicesLoading && voices.length === 0 && <p className="px-3 py-2 text-sm text-gray-400">Голоса недоступны</p>}
+                            {voices.map(v => (
+                                <PressButton key={v.id} onClick={() => { setVoiceId(v.id); setShowVoicePicker(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${v.id === voiceId ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                                    <span className="block">{v.title}</span>
+                                    <span className="block text-xs font-normal text-gray-400 dark:text-gray-500 mt-0.5">{v.description}</span>
+                                </PressButton>
+                            ))}
+                        </AnchoredMenu>
+
+                        {voiceMode === 'design' && (
+                            <input
+                                type="text"
+                                value={voiceDescription}
+                                onChange={(e) => setVoiceDescription(e.target.value)}
+                                placeholder="Опишите голос словами: тёплый мужской голос диктора…"
+                                maxLength={300}
+                                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+                            />
+                        )}
+
+                        {voiceMode !== 'none' && (
+                            <textarea
+                                value={script}
+                                onChange={(e) => setScript(e.target.value.slice(0, 300))}
+                                placeholder="Текст реплики, которую скажет голос (до 300 символов)"
+                                rows={2}
+                                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none"
+                            />
+                        )}
+                        {voiceMode !== 'none' && (
+                            <p className="text-[11px] text-gray-400 leading-relaxed">
+                                Свой голос доступен на тарифах Pro и Ultra. Для этого видео используется Seedance 2.0
+                                {voiceMode === 'design' ? ' — голос и реплика генерируются вместе через Fish Voice Design.' : '.'}
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                {/* Пункт 4/6/7: активная/последняя генерация видео — крупная
+                    карточка НАД полем ввода. Поле ввода естественным
+                    образом уезжает вниз экрана, т.к. эта карточка занимает
+                    место в потоке документа перед ним (без position:fixed
+                    и подобных трюков). */}
+                {activeVideo && (
+                    <div className="relative rounded-2xl overflow-hidden bg-gray-900 mb-4 aspect-video">
+                        <PressButton
+                            onClick={() => setActiveVideoId(null)}
+                            className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center"
+                            title="Скрыть"
+                        >
+                            <Icons.X className="w-3.5 h-3.5" />
+                        </PressButton>
+                        {activeVideo.status === 'completed' ? (
+                            <>
+                                <video src={activeVideo.url} controls autoPlay className="w-full h-full object-contain bg-black" />
+                                {activeVideo.dubbed && (
+                                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">
+                                        Озвучка наложена после генерации
+                                    </div>
+                                )}
+                                {/* Пункт 7: скачать — справа снизу, редактировать — слева снизу. */}
+                                <a
+                                    href={activeVideo.url}
+                                    download={`void-video-${activeVideo.id}.mp4`}
+                                    className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-900 flex items-center justify-center shadow-lg transition-colors"
+                                    title="Скачать"
+                                >
+                                    <Icons.Download className="w-4 h-4" />
+                                </a>
+                                <PressButton
+                                    onClick={() => editVideo(activeVideo)}
+                                    className="absolute bottom-3 left-3 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-900 flex items-center justify-center shadow-lg transition-colors"
+                                    title="Редактировать"
+                                >
+                                    <Icons.Pencil className="w-4 h-4" />
+                                </PressButton>
+                            </>
+                        ) : activeVideo.status === 'failed' ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                                <Icons.Alert className="w-6 h-6 text-red-400 mb-2" />
+                                <p className="text-sm text-red-300 font-semibold">{activeVideo.error || 'Ошибка генерации'}</p>
+                            </div>
+                        ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+                                {/* Пункт 6: прогресс в процентах вместо простого спиннера. */}
+                                <div className="relative w-16 h-16">
+                                    <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                        <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="5" />
+                                        <circle cx="32" cy="32" r="28" fill="none" stroke="#8b5cf6" strokeWidth="5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - videoProgress / 100)} style={{ transition: 'stroke-dashoffset 0.6s linear' }} />
+                                    </svg>
+                                    <span className="absolute inset-0 flex items-center justify-center text-white text-sm font-bold">{videoProgress}%</span>
+                                </div>
+                                <p className="text-xs text-gray-300 font-semibold">Генерируется видео…</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Composer: текст + вложение + режим + отправка (только
+                    самое необходимое — остальные настройки вынесены выше). */}
                 <div className="bg-white dark:bg-darkCard rounded-[26px] border border-gray-200 dark:border-darkBorder shadow-sm p-4">
                     <input
                         type="file"
@@ -268,15 +509,11 @@ export function ImagesView({ state, updateState }) {
                         rows={2}
                         className="w-full bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none text-[16px] mb-3"
                     />
-                    {/* Внешний ряд: слева — обёртка настроек, которая сама
-                        переносится на новую строку по мере надобности
-                        (flex-wrap только внутри неё), справа — кнопка
-                        отправки. items-end держит стрелку у нижнего края
-                        независимо от того, на сколько строк развернулись
-                        настройки слева — так она никогда не «убегает»
-                        в начало новой строки вместе с остальными кнопками. */}
-                    <div className="flex items-end gap-2">
-                        <div className="flex-1 min-w-0 flex items-center flex-wrap gap-2">
+                    {/* Пункт 5: нижний ряд теперь только +, переключатель
+                        режима и отправка — остальные настройки живут в
+                        отдельном ряду над composer'ом (см. выше). */}
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
                             {/* Задача 1: «+» — прикрепить референсные фото. Для
                                 изображений это image-to-image (уже поддержано
                                 бэкендом), для видео — первый кадр (image-to-video). */}
@@ -301,74 +538,6 @@ export function ImagesView({ state, updateState }) {
                                     { value: 'video', label: <><Icons.Camera className="w-4 h-4" /> Видео</> },
                                 ]}
                             />
-
-                            {/* Соотношение сторон — общее для обоих режимов.
-                                Позиция меню считается в JS от реальных
-                                координат кнопки (AnchoredMenu) и всегда
-                                клэмпится в границы экрана — раскрывается
-                                над кнопкой и никогда не вылезает за край. */}
-                            <div ref={aspectAnchorRef} className="shrink-0">
-                                <PressButton onClick={() => setShowAspect(v => !v)} className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                                    {aspectRatio}
-                                </PressButton>
-                            </div>
-                            <AnchoredMenu open={showAspect} onClose={() => setShowAspect(false)} anchorRef={aspectAnchorRef} width={160}>
-                                {ASPECT_RATIOS.map(r => (
-                                    <PressButton key={r} onClick={() => { setAspectRatio(r); setShowAspect(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${r === aspectRatio ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
-                                        {r}
-                                    </PressButton>
-                                ))}
-                            </AnchoredMenu>
-
-                            {/* Настройки, специфичные для видео: модель, разрешение, длительность */}
-                            {mode === 'video' && (
-                                <>
-                                <div ref={videoModelAnchorRef} className="shrink-0">
-                                    <PressButton onClick={() => setShowVideoModel(v => !v)} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                                        {currentVideoModel.name} <Icons.ChevronDown className="w-3.5 h-3.5" />
-                                    </PressButton>
-                                </div>
-                                <AnchoredMenu open={showVideoModel} onClose={() => setShowVideoModel(false)} anchorRef={videoModelAnchorRef} width={224}>
-                                    {VIDEO_MODELS.map(m => (
-                                        <PressButton key={m.id} onClick={() => { handleVideoModelChange(m.id); setShowVideoModel(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${m.id === videoModel ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
-                                            <span className="block">{m.name}</span>
-                                            <span className="block text-xs font-normal text-gray-400 dark:text-gray-500 mt-0.5">до {m.maxDuration}с</span>
-                                        </PressButton>
-                                    ))}
-                                </AnchoredMenu>
-                                    {/* Разрешение и длительность — перетаскиваемые
-                                        «ползунки» (задача 4): можно тапнуть по
-                                        варианту или провести пальцем через весь ряд. */}
-                                    <SegmentedSlider
-                                        className="shrink-0"
-                                        value={resolution}
-                                        onChange={setResolution}
-                                        options={[{ value: '480p', label: '480p' }, { value: '720p', label: '720p' }]}
-                                    />
-                                    <SegmentedSlider
-                                        className="shrink-0"
-                                        value={duration}
-                                        onChange={setDuration}
-                                        options={currentVideoModel.durations.map(d => ({ value: d, label: `${d}s` }))}
-                                    />
-                                    {/* Свой голос: без озвучки (как раньше) /
-                                        один из курируемых голосов Void / новый
-                                        голос по описанию (Fish Voice Design).
-                                        При выборе голоса модель на бэкенде
-                                        принудительно понижается до Seedance 2.0
-                                        — см. комментарий в video.service.ts. */}
-                                    <SegmentedSlider
-                                        className="shrink-0"
-                                        value={voiceMode}
-                                        onChange={setVoiceMode}
-                                        options={[
-                                            { value: 'none', label: 'Без озвучки' },
-                                            { value: 'existing', label: 'Голос Void' },
-                                            { value: 'design', label: 'Новый голос' },
-                                        ]}
-                                    />
-                                </>
-                            )}
                         </div>
 
                         <PressButton
@@ -380,58 +549,6 @@ export function ImagesView({ state, updateState }) {
                         </PressButton>
                     </div>
                 </div>
-
-                {/* Панель голоса — появляется только когда выбран режим
-                    озвучки. 'existing': пикер из курируемых голосов Void.
-                    'design': описание нового голоса словами. В обоих
-                    случаях нужен script — реплика, которую озвучит голос
-                    (Fish озвучивает буквально, поэтому это отдельное поле
-                    от общего prompt, где ещё описание сцены/камеры). */}
-                {mode === 'video' && voiceMode !== 'none' && (
-                    <div className="mt-3 p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 space-y-2">
-                        {voiceMode === 'existing' && (
-                            <div ref={voicePickerAnchorRef} className="shrink-0">
-                                <PressButton onClick={openVoicePicker} className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    <span>{voices.find(v => v.id === voiceId)?.title || (voicesLoading ? 'Загрузка голосов…' : 'Выбрать голос Void')}</span>
-                                    <Icons.ChevronDown className="w-3.5 h-3.5 shrink-0" />
-                                </PressButton>
-                            </div>
-                        )}
-                        <AnchoredMenu open={showVoicePicker} onClose={() => setShowVoicePicker(false)} anchorRef={voicePickerAnchorRef} width={240}>
-                            {voicesLoading && <p className="px-3 py-2 text-sm text-gray-400">Загрузка…</p>}
-                            {!voicesLoading && voices.length === 0 && <p className="px-3 py-2 text-sm text-gray-400">Голоса недоступны</p>}
-                            {voices.map(v => (
-                                <PressButton key={v.id} onClick={() => { setVoiceId(v.id); setShowVoicePicker(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${v.id === voiceId ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
-                                    <span className="block">{v.title}</span>
-                                    <span className="block text-xs font-normal text-gray-400 dark:text-gray-500 mt-0.5">{v.description}</span>
-                                </PressButton>
-                            ))}
-                        </AnchoredMenu>
-
-                        {voiceMode === 'design' && (
-                            <input
-                                type="text"
-                                value={voiceDescription}
-                                onChange={(e) => setVoiceDescription(e.target.value)}
-                                placeholder="Опишите голос словами: тёплый мужской голос диктора…"
-                                maxLength={300}
-                                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
-                            />
-                        )}
-
-                        <textarea
-                            value={script}
-                            onChange={(e) => setScript(e.target.value.slice(0, 300))}
-                            placeholder="Текст реплики, которую скажет голос (до 300 символов)"
-                            rows={2}
-                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none"
-                        />
-                        <p className="text-[11px] text-gray-400 leading-relaxed">
-                            Свой голос доступен на тарифах Pro и Ultra. Для этого видео используется Seedance 2.0
-                            {voiceMode === 'design' ? ' — голос и реплика генерируются вместе через Fish Voice Design.' : '.'}
-                        </p>
-                    </div>
-                )}
 
                 {/* Подсказка для варианта «без озвучки» — модель придумывает
                     реплики сама из текста промпта, отдельного параметра

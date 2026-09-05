@@ -132,8 +132,16 @@ export class VideoService {
     let audio: Buffer;
     let mime: string;
     if (params.voiceMode === 'existing') {
-      if (!params.voiceId) throw new BadRequestException('Не выбран голос Void');
-      audio = await this.fishTts.synthesize(script, params.voiceId, 1.0);
+      let id = params.voiceId;
+      if (!id) {
+        // Пункт 9 ТЗ: если пользователь включил «Голос Void», но не выбрал
+        // конкретный голос — берём случайный из списка вместо отказа.
+        // Явный выбор при этом всегда в приоритете (id уже задан выше).
+        const list = await this.fishTts.listVoices();
+        if (!list.length) throw new BadRequestException('Список голосов Void сейчас недоступен');
+        id = list[Math.floor(Math.random() * list.length)].id;
+      }
+      audio = await this.fishTts.synthesize(script, id, 1.0);
       mime = 'audio/mpeg';
     } else {
       if (!params.voiceDescription?.trim()) throw new BadRequestException('Опишите новый голос словами');

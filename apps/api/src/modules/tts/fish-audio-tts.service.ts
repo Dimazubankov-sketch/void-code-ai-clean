@@ -97,6 +97,44 @@ export class FishAudioTtsService {
   private readonly audioCacheMaxEntries = 200;
 
   // ------------------------------------------------------------------------
+  // Собственные голоса (клонированные пользователем через дашборд Fish на
+  // том же аккаунте, что и FISH_AUDIO_API_KEY) — раньше listVoices()
+  // отдавал ТОЛЬКО курируемый список из публичной библиотеки, поэтому
+  // клонированные/созданные голоса не появлялись в UI, хотя физически уже
+  // существуют на аккаунте. `self=true` — официальный параметр Fish API
+  // именно для «только мои модели» (см. /features/manage-voices).
+  // Короткий TTL (в отличие от 6 часов у курируемого списка) — только что
+  // склонированный голос должен появиться в UI быстро, а не через часы.
+  private myVoicesCache: { at: number; items: FishVoice[] } | null = null;
+  private readonly myVoicesCacheTtlMs = 2 * 60 * 1000;
+
+  private async listMyVoices(apiKey: string): Promise<FishVoice[]> {
+    if (this.myVoicesCache && Date.now() - this.myVoicesCache.at < this.myVoicesCacheTtlMs) {
+      return this.myVoicesCache.items;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.voiceSearchTimeoutMs);
+    try {
+      const response = await fetch(`${VOICES_URL}?self=true&page_size=50`, {
+        signal: controller.signal,
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!response.ok) return this.myVoicesCache?.items ?? [];
+      const data: any = await response.json().catch(() => null);
+      const rawItems = Array.isArray(data?.items) ? data.items : [];
+      const items: FishVoice[] = rawItems
+        .map((it: any) => ({ id: it._id || it.id, title: it.title || 'Без названия', description: 'Свой голос' }))
+        .filter((v: FishVoice) => !!v.id);
+      this.myVoicesCache = { at: Date.now(), items };
+      return items;
+    } catch {
+      return this.myVoicesCache?.items ?? [];
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // ------------------------------------------------------------------------
   // Voice Design — для видео-пайплайна (Seedance + свой голос): пользователь
   // описывает голос словами («тёплый мужской голос диктора»), а reference_text
   // — это уже сами РЕПЛИКИ, которые должны прозвучать в видео. Fish в ОДНОМ
@@ -396,14 +434,21 @@ export class FishAudioTtsService {
   // отдаём последний успешный кэш, если он есть — интерфейс не должен
   // падать из-за временной недоступности Fish API.
   async listVoices(): Promise<FishVoice[]> {
-    if (this.voicesCache && Date.now() - this.voicesCache.at < this.voicesCacheTtlMs) {
-      return this.voicesCache.items;
-    }
     let apiKey: string;
     try {
       apiKey = this.apiKey();
     } catch {
       return this.voicesCache?.items ?? [];
+    }
+
+    // Свои голоса резолвятся заново при каждом вызове (за вычетом
+    // короткого кэша, см. myVoicesCacheTtlMs) — они должны появляться в
+    // UI сразу после клонирования, курируемые же почти никогда не
+    // меняются и кэшируются на 6 часов (см. ниже).
+    const mine = await this.listMyVoices(apiKey);
+
+    if (this.voicesCache && Date.now() - this.voicesCache.at < this.voicesCacheTtlMs) {
+      return [...mine, ...this.voicesCache.items];
     }
 
     // Резолвим все 9 голосов параллельно — иначе открытие настроек
@@ -418,13 +463,14 @@ export class FishAudioTtsService {
     if (!items.length) {
       // Ни один курируемый голос не нашёлся (ключ/сеть/каталог недоступен
       // целиком) — не оставляем UI совсем без голосов, отдаём последний
-      // рабочий кэш, если есть.
+      // рабочий кэш, если есть. Свои голоса всё равно отдаём — они
+      // резолвились отдельным запросом и не зависят от каталога.
       console.warn('[FishAudioTtsService/listVoices] курируемые голоса не резолвнулись, отдаю последний кэш');
-      return this.voicesCache?.items ?? [];
+      return [...mine, ...(this.voicesCache?.items ?? [])];
     }
 
     this.voicesCache = { at: Date.now(), items };
-    console.log(`[FishAudioTtsService/listVoices] резолвнуто курируемых голосов: ${items.length}/${CURATED_VOICES.length}`);
-    return items;
+    console.log(`[FishAudioTtsService/listVoices] резолвнуто курируемых голосов: ${items.length}/${CURATED_VOICES.length}, своих: ${mine.length}`);
+    return [...mine, ...items];
   }
 }
