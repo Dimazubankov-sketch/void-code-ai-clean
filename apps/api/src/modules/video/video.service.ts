@@ -64,10 +64,15 @@ export class VideoService {
     if (params.aspectRatio) body.aspect_ratio = params.aspectRatio;
     if (params.duration) body.duration = params.duration;
     if (params.resolution) body.resolution = params.resolution;
-    // image-to-video: первый кадр передаём как frame_images (формат,
-    // задокументированный OpenRouter для этого режима).
+    // image-to-video: первый кадр передаём как frame_images. Схема
+    // OpenRouter — дискриминированный union по полю `type`, и image_url
+    // сам по себе объект { url }, а не голая строка (баг: раньше сюда
+    // уходила строка и отсутствовал type, из-за чего OpenRouter отвечал
+    // "invalid_value: expected \"image_url\"" на path frame_images[0].type).
     if (params.imageUrl) {
-      body.frame_images = [{ frame_type: 'first_frame', image_url: params.imageUrl }];
+      body.frame_images = [
+        { type: 'image_url', image_url: { url: params.imageUrl }, frame_type: 'first_frame' },
+      ];
     }
 
     const controller = new AbortController();

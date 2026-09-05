@@ -3,6 +3,7 @@ import { gsap } from 'gsap';
 import { Icons } from '@/shared/ui/Icons';
 import { PressButton } from '@/shared/ui/PressButton';
 import { SegmentedSlider } from '@/shared/ui/SegmentedSlider';
+import { AnchoredMenu } from '@/shared/ui/AnchoredMenu';
 import { generateBackendImage, submitBackendVideo, pollBackendVideo } from '@/shared/api/chat';
 import { compressImageFiles } from '@/shared/lib/imageCompress';
 import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
@@ -51,6 +52,8 @@ export function ImagesView({ state, updateState }) {
     const [referenceImages, setReferenceImages] = useState([]);
     const refFileInputRef = useRef(null);
     const gridRef = useRef(null);
+    const aspectAnchorRef = useRef(null);
+    const videoModelAnchorRef = useRef(null);
 
     const images = state.generatedImages || [];
     const videos = state.generatedVideos || [];
@@ -267,49 +270,39 @@ export function ImagesView({ state, updateState }) {
                             />
 
                             {/* Соотношение сторон — общее для обоих режимов.
-                                Дропдаун теперь всегда раскрывается НАД самой
-                                кнопкой (bottom-full), а не отдельным «bottom
-                                sheet» под полем ввода — так пользователь
-                                видит, к какой именно кнопке он относится. */}
-                            <div className="relative shrink-0">
+                                Позиция меню считается в JS от реальных
+                                координат кнопки (AnchoredMenu) и всегда
+                                клэмпится в границы экрана — раскрывается
+                                над кнопкой и никогда не вылезает за край. */}
+                            <div ref={aspectAnchorRef} className="shrink-0">
                                 <PressButton onClick={() => setShowAspect(v => !v)} className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                                     {aspectRatio}
                                 </PressButton>
-                                {showAspect && (
-                                    <>
-                                        <div className="fixed inset-0 z-40" onClick={() => setShowAspect(false)} />
-                                        <div className="absolute right-0 bottom-full mb-2 w-40 max-w-[80vw] max-h-[60vh] overflow-y-auto bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl shadow-2xl z-50 p-1">
-                                            {ASPECT_RATIOS.map(r => (
-                                                <PressButton key={r} onClick={() => { setAspectRatio(r); setShowAspect(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${r === aspectRatio ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
-                                                    {r}
-                                                </PressButton>
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
                             </div>
+                            <AnchoredMenu open={showAspect} onClose={() => setShowAspect(false)} anchorRef={aspectAnchorRef} width={160}>
+                                {ASPECT_RATIOS.map(r => (
+                                    <PressButton key={r} onClick={() => { setAspectRatio(r); setShowAspect(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${r === aspectRatio ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                                        {r}
+                                    </PressButton>
+                                ))}
+                            </AnchoredMenu>
 
                             {/* Настройки, специфичные для видео: модель, разрешение, длительность */}
                             {mode === 'video' && (
                                 <>
-                                    <div className="relative shrink-0">
-                                        <PressButton onClick={() => setShowVideoModel(v => !v)} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                                            {currentVideoModel.name} <Icons.ChevronDown className="w-3.5 h-3.5" />
+                                <div ref={videoModelAnchorRef} className="shrink-0">
+                                    <PressButton onClick={() => setShowVideoModel(v => !v)} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                                        {currentVideoModel.name} <Icons.ChevronDown className="w-3.5 h-3.5" />
+                                    </PressButton>
+                                </div>
+                                <AnchoredMenu open={showVideoModel} onClose={() => setShowVideoModel(false)} anchorRef={videoModelAnchorRef} width={224}>
+                                    {VIDEO_MODELS.map(m => (
+                                        <PressButton key={m.id} onClick={() => { handleVideoModelChange(m.id); setShowVideoModel(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${m.id === videoModel ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                                            <span className="block">{m.name}</span>
+                                            <span className="block text-xs font-normal text-gray-400 dark:text-gray-500 mt-0.5">до {m.maxDuration}с</span>
                                         </PressButton>
-                                        {showVideoModel && (
-                                            <>
-                                                <div className="fixed inset-0 z-40" onClick={() => setShowVideoModel(false)} />
-                                                <div className="absolute right-0 bottom-full mb-2 w-56 max-w-[80vw] bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl shadow-2xl z-50 overflow-hidden p-1">
-                                                    {VIDEO_MODELS.map(m => (
-                                                        <PressButton key={m.id} onClick={() => { handleVideoModelChange(m.id); setShowVideoModel(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${m.id === videoModel ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
-                                                            <span className="block">{m.name}</span>
-                                                            <span className="block text-xs font-normal text-gray-400 dark:text-gray-500 mt-0.5">до {m.maxDuration}с</span>
-                                                        </PressButton>
-                                                    ))}
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
+                                    ))}
+                                </AnchoredMenu>
                                     {/* Разрешение и длительность — перетаскиваемые
                                         «ползунки» (задача 4): можно тапнуть по
                                         варианту или провести пальцем через весь ряд. */}
