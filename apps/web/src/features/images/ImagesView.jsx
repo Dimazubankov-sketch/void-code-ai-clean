@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { Icons } from '@/shared/ui/Icons';
 import { PressButton } from '@/shared/ui/PressButton';
+import { SegmentedSlider } from '@/shared/ui/SegmentedSlider';
 import { generateBackendImage, submitBackendVideo, pollBackendVideo } from '@/shared/api/chat';
 import { compressImageFiles } from '@/shared/lib/imageCompress';
 import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
@@ -21,9 +22,15 @@ import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
 // заменяется на готовое видео либо на текст ошибки.
 
 const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'];
+// Задача (сентябрь): Seedance вместо Grok Imagine Video — Grok из
+// генерации видео убран полностью. Стандартная = Seedance 2.0 (до 15с),
+// Продвинутая = Seedance 2.5 (до 30с, длинноформатные ролики + больше
+// референсов). Список доступных длительностей зависит от модели —
+// при переключении на «Стандартную» длительность подрезается до её
+// максимума (см. handleVideoModelChange ниже).
 const VIDEO_MODELS = [
-    { id: 'x-ai/grok-imagine-video', name: 'Стандартная' },
-    { id: 'x-ai/grok-imagine-video-1.5', name: 'Продвинутая' },
+    { id: 'bytedance/seedance-2.0', name: 'Стандартная', maxDuration: 15, durations: [6, 10, 15] },
+    { id: 'bytedance/seedance-2.5', name: 'Продвинутая', maxDuration: 30, durations: [6, 10, 15, 20, 30] },
 ];
 
 export function ImagesView({ state, updateState }) {
@@ -153,6 +160,19 @@ export function ImagesView({ state, updateState }) {
 
     const handleGenerate = () => (mode === 'image' ? generateImage() : generateVideo());
 
+    // При смене модели видео доступные длительности меняются (Seedance
+    // 2.0 — до 15с, 2.5 — до 30с). Если текущая длительность не входит
+    // в список новой модели, берём ближайшую допустимую вместо того,
+    // чтобы отправить на бэкенд значение, которое он же и отклонит.
+    const currentVideoModel = VIDEO_MODELS.find(m => m.id === videoModel) || VIDEO_MODELS[0];
+    const handleVideoModelChange = (id) => {
+        setVideoModel(id);
+        const next = VIDEO_MODELS.find(m => m.id === id) || VIDEO_MODELS[0];
+        if (!next.durations.includes(duration)) {
+            setDuration(next.durations.reduce((best, d) => (d <= next.maxDuration && Math.abs(d - duration) < Math.abs(best - duration) ? d : best), next.durations[0]));
+        }
+    };
+
     return (
         <div className="flex-1 overflow-y-auto h-full bg-white dark:bg-darkBg">
             {/* Задача 5: на телефоне — переключатель обратно в Чат (та же
@@ -195,12 +215,12 @@ export function ImagesView({ state, updateState }) {
                             {referenceImages.map((img, i) => (
                                 <div key={i} className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-gray-200 dark:border-darkBorder">
                                     <img src={img} alt="" className="w-full h-full object-cover" />
-                                    <button
+                                    <PressButton
                                         onClick={() => setReferenceImages(prev => prev.filter((_, idx) => idx !== i))}
                                         className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md"
                                     >
                                         <Icons.X className="w-3 h-3" />
-                                    </button>
+                                    </PressButton>
                                 </div>
                             ))}
                         </div>
@@ -212,94 +232,103 @@ export function ImagesView({ state, updateState }) {
                         rows={2}
                         className="w-full bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none text-[16px] mb-3"
                     />
-                    <div className="flex items-center flex-wrap gap-2">
-                        {/* Задача 1: «+» — прикрепить референсные фото. Для
-                            изображений это image-to-image (уже поддержано
-                            бэкендом), для видео — первый кадр (image-to-video). */}
-                        <button
-                            onClick={() => refFileInputRef.current?.click()}
-                            disabled={referenceImages.length >= 4}
-                            title="Прикрепить референс"
-                            className="void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors"
-                        >
-                            <Icons.Plus className="w-5 h-5" />
-                        </button>
-                        {/* Переключатель Изображение/Видео */}
-                        <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-full p-1">
-                            <button
-                                onClick={() => setMode('image')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold transition-colors ${mode === 'image' ? 'bg-white dark:bg-darkCard text-gray-900 dark:text-white shadow-sm' : 'text-gray-500'}`}
+                    {/* Внешний ряд: слева — обёртка настроек, которая сама
+                        переносится на новую строку по мере надобности
+                        (flex-wrap только внутри неё), справа — кнопка
+                        отправки. items-end держит стрелку у нижнего края
+                        независимо от того, на сколько строк развернулись
+                        настройки слева — так она никогда не «убегает»
+                        в начало новой строки вместе с остальными кнопками. */}
+                    <div className="flex items-end gap-2">
+                        <div className="flex-1 min-w-0 flex items-center flex-wrap gap-2">
+                            {/* Задача 1: «+» — прикрепить референсные фото. Для
+                                изображений это image-to-image (уже поддержано
+                                бэкендом), для видео — первый кадр (image-to-video). */}
+                            <PressButton
+                                onClick={() => refFileInputRef.current?.click()}
+                                disabled={referenceImages.length >= 4}
+                                title="Прикрепить референс"
+                                className="void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors"
                             >
-                                <Icons.Image className="w-4 h-4" /> Изображение
-                            </button>
-                            <button
-                                onClick={() => setMode('video')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold transition-colors ${mode === 'video' ? 'bg-white dark:bg-darkCard text-gray-900 dark:text-white shadow-sm' : 'text-gray-500'}`}
-                            >
-                                <Icons.Camera className="w-4 h-4" /> Видео
-                            </button>
-                        </div>
+                                <Icons.Plus className="w-5 h-5" />
+                            </PressButton>
 
-                        {/* Соотношение сторон — общее для обоих режимов.
-                            Задача 4: раньше дропдаун был absolute-позиционирован
-                            ОТ КНОПКИ (left-0), из-за чего на телефоне на узком
-                            экране мог вылезать за правый край — кнопка сидит
-                            в ряду тулбара, который сам может быть смещён. Теперь
-                            на мобильном это фиксированный «bottom sheet» на всю
-                            ширину экрана (не зависит от того, где именно кнопка),
-                            на ПК — обычный поповер у кнопки. */}
-                        <div className="relative">
-                            <button onClick={() => setShowAspect(v => !v)} className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                                {aspectRatio}
-                            </button>
-                            {showAspect && (
+                            {/* Переключатель Изображение/Видео — «ползунок»:
+                                таблетку можно перетащить пальцем между
+                                вариантами, а не только тапнуть по одному из них. */}
+                            <SegmentedSlider
+                                className="shrink-0"
+                                value={mode}
+                                onChange={setMode}
+                                options={[
+                                    { value: 'image', label: <><Icons.Image className="w-4 h-4" /> Изображение</> },
+                                    { value: 'video', label: <><Icons.Camera className="w-4 h-4" /> Видео</> },
+                                ]}
+                            />
+
+                            {/* Соотношение сторон — общее для обоих режимов.
+                                Дропдаун теперь всегда раскрывается НАД самой
+                                кнопкой (bottom-full), а не отдельным «bottom
+                                sheet» под полем ввода — так пользователь
+                                видит, к какой именно кнопке он относится. */}
+                            <div className="relative shrink-0">
+                                <PressButton onClick={() => setShowAspect(v => !v)} className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                                    {aspectRatio}
+                                </PressButton>
+                                {showAspect && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setShowAspect(false)} />
+                                        <div className="absolute right-0 bottom-full mb-2 w-40 max-w-[80vw] max-h-[60vh] overflow-y-auto bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl shadow-2xl z-50 p-1">
+                                            {ASPECT_RATIOS.map(r => (
+                                                <PressButton key={r} onClick={() => { setAspectRatio(r); setShowAspect(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${r === aspectRatio ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                                                    {r}
+                                                </PressButton>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Настройки, специфичные для видео: модель, разрешение, длительность */}
+                            {mode === 'video' && (
                                 <>
-                                    <div className="fixed inset-0 z-40" onClick={() => setShowAspect(false)} />
-                                    <div className="fixed left-3 right-3 bottom-24 md:absolute md:left-auto md:right-0 md:bottom-full md:mb-2 md:w-40 md:inset-x-auto bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl shadow-2xl z-50 overflow-hidden p-1">
-                                        {ASPECT_RATIOS.map(r => (
-                                            <button key={r} onClick={() => { setAspectRatio(r); setShowAspect(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${r === aspectRatio ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
-                                                {r}
-                                            </button>
-                                        ))}
+                                    <div className="relative shrink-0">
+                                        <PressButton onClick={() => setShowVideoModel(v => !v)} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                                            {currentVideoModel.name} <Icons.ChevronDown className="w-3.5 h-3.5" />
+                                        </PressButton>
+                                        {showVideoModel && (
+                                            <>
+                                                <div className="fixed inset-0 z-40" onClick={() => setShowVideoModel(false)} />
+                                                <div className="absolute right-0 bottom-full mb-2 w-56 max-w-[80vw] bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl shadow-2xl z-50 overflow-hidden p-1">
+                                                    {VIDEO_MODELS.map(m => (
+                                                        <PressButton key={m.id} onClick={() => { handleVideoModelChange(m.id); setShowVideoModel(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${m.id === videoModel ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                                                            <span className="block">{m.name}</span>
+                                                            <span className="block text-xs font-normal text-gray-400 dark:text-gray-500 mt-0.5">до {m.maxDuration}с</span>
+                                                        </PressButton>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
+                                    {/* Разрешение и длительность — перетаскиваемые
+                                        «ползунки» (задача 4): можно тапнуть по
+                                        варианту или провести пальцем через весь ряд. */}
+                                    <SegmentedSlider
+                                        className="shrink-0"
+                                        value={resolution}
+                                        onChange={setResolution}
+                                        options={[{ value: '480p', label: '480p' }, { value: '720p', label: '720p' }]}
+                                    />
+                                    <SegmentedSlider
+                                        className="shrink-0"
+                                        value={duration}
+                                        onChange={setDuration}
+                                        options={currentVideoModel.durations.map(d => ({ value: d, label: `${d}s` }))}
+                                    />
                                 </>
                             )}
                         </div>
 
-                        {/* Настройки, специфичные для видео: модель, разрешение, длительность */}
-                        {mode === 'video' && (
-                            <>
-                                <div className="relative">
-                                    <button onClick={() => setShowVideoModel(v => !v)} className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                                        {VIDEO_MODELS.find(m => m.id === videoModel)?.name} <Icons.ChevronDown className="w-3.5 h-3.5" />
-                                    </button>
-                                    {showVideoModel && (
-                                        <>
-                                            <div className="fixed inset-0 z-40" onClick={() => setShowVideoModel(false)} />
-                                            <div className="fixed left-3 right-3 bottom-24 md:absolute md:left-auto md:right-0 md:bottom-full md:mb-2 md:w-56 md:inset-x-auto bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl shadow-2xl z-50 overflow-hidden p-1">
-                                                {VIDEO_MODELS.map(m => (
-                                                    <button key={m.id} onClick={() => { setVideoModel(m.id); setShowVideoModel(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${m.id === videoModel ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
-                                                        {m.name}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                                <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-full p-1">
-                                    {['480p', '720p'].map(r => (
-                                        <button key={r} onClick={() => setResolution(r)} className={`px-3 py-1.5 rounded-full text-sm font-bold transition-colors ${resolution === r ? 'bg-white dark:bg-darkCard text-gray-900 dark:text-white shadow-sm' : 'text-gray-500'}`}>{r}</button>
-                                    ))}
-                                </div>
-                                <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-full p-1">
-                                    {[6, 10, 15].map(d => (
-                                        <button key={d} onClick={() => setDuration(d)} className={`px-3 py-1.5 rounded-full text-sm font-bold transition-colors ${duration === d ? 'bg-white dark:bg-darkCard text-gray-900 dark:text-white shadow-sm' : 'text-gray-500'}`}>{d}s</button>
-                                    ))}
-                                </div>
-                            </>
-                        )}
-
-                        <div className="flex-1" />
                         <PressButton
                             onClick={handleGenerate}
                             disabled={!prompt.trim() || busy}
@@ -310,14 +339,13 @@ export function ImagesView({ state, updateState }) {
                     </div>
                 </div>
 
-                {/* Задача 5: честная подсказка вместо кнопки выбора голоса —
-                    у Grok Imagine Video НЕТ параметра API для выбора голоса
-                    озвучки/диалога: звук и реплики модель генерирует сама
-                    из ТЕКСТА промпта (см. пример ниже). Полноценный выбор
-                    из своих/клонированных голосов потребовал бы отдельного
-                    пайплайна (озвучка через уже работающий Fish Audio +
-                    склейка с видео через ffmpeg на сервере) — это отдельная
-                    по объёму задача, сейчас не подключена. */}
+                {/* Честная подсказка вместо кнопки выбора голоса — сейчас
+                    Seedance получает только ТЕКСТ промпта, без отдельного
+                    параметра голоса/референсной озвучки. Полноценный выбор
+                    из своих/клонированных голосов Void (Fish Audio) — это
+                    отдельный по объёму пайплайн (генерация речи → передача
+                    как audio-референс в Seedance 2.5, либо озвучка+ffmpeg
+                    поверх готового видео как fallback), пока не подключён. */}
                 {mode === 'video' && (
                     <p className="text-xs text-gray-400 mt-3 text-center leading-relaxed">
                         Голос и реплики создаёт сама модель — опишите их в тексте, например:

@@ -1,7 +1,7 @@
 import { Injectable, ServiceUnavailableException, BadRequestException } from '@nestjs/common';
 
 // ==========================================
-// Генерация видео — OpenRouter (Grok Imagine Video / 1.5)
+// Генерация видео — OpenRouter (ByteDance Seedance 2.0 / 2.5)
 // ==========================================
 // В отличие от картинок (синхронный /api/v1/images), видео у OpenRouter
 // генерируется АСИНХРОННО: POST /api/v1/videos сразу отдаёт job (202,
@@ -14,8 +14,19 @@ import { Injectable, ServiceUnavailableException, BadRequestException } from '@n
 // на стриминге). Поэтому здесь ДВА эндпоинта: submit (мгновенно
 // возвращает jobId) и status (клиент опрашивает сам, каждый вызов
 // быстрый). Ни один отдельный запрос не рискует упереться в таймаут.
-export const VIDEO_MODELS = ['x-ai/grok-imagine-video', 'x-ai/grok-imagine-video-1.5'] as const;
+//
+// Grok Imagine Video убран из генерации видео полностью — заменён на
+// Seedance: 2.0 («Стандартная», до 15с) и 2.5 («Продвинутая», до 30с,
+// длинноформатные ролики + больше референсов). Максимум длительности
+// проверяется здесь же (MODEL_MAX_DURATION) — защита на случай, если
+// фронт по какой-то причине пришлёт для 2.0 значение больше 15с.
+export const VIDEO_MODELS = ['bytedance/seedance-2.0', 'bytedance/seedance-2.5'] as const;
 export type VideoModel = typeof VIDEO_MODELS[number];
+
+export const MODEL_MAX_DURATION: Record<VideoModel, number> = {
+  'bytedance/seedance-2.0': 15,
+  'bytedance/seedance-2.5': 30,
+};
 
 interface SubmitParams {
   prompt: string;
@@ -40,6 +51,10 @@ export class VideoService {
   async submit(params: SubmitParams): Promise<{ jobId: string; pollingUrl: string }> {
     if (!VIDEO_MODELS.includes(params.model as VideoModel)) {
       throw new BadRequestException(`Неизвестная модель видео: ${params.model}`);
+    }
+    const maxDuration = MODEL_MAX_DURATION[params.model as VideoModel];
+    if (params.duration && params.duration > maxDuration) {
+      throw new BadRequestException(`Максимальная длительность для этой модели — ${maxDuration} секунд`);
     }
     const key = this.apiKey();
     const body: Record<string, any> = {

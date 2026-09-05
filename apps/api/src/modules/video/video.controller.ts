@@ -29,10 +29,13 @@ class GenerateVideoDto {
   @IsString()
   aspectRatio?: string;
 
+  // Верхняя граница — максимум среди моделей (Seedance 2.5, до 30с).
+  // Точный лимит для конкретной модели (2.0 — 15с) проверяется отдельно
+  // в VideoService.submit (MODEL_MAX_DURATION).
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(15)
+  @Max(30)
   duration?: number;
 
   @IsOptional()
