@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { SkillsPanel } from '@/features/skills/SkillsView';
 import { Icons } from '@/shared/ui/Icons';
+import { Toggle } from '@/shared/ui/Toggle';
 
 // ==========================================
 // Подвкладки проекта: Скиллы / Инструкции / (Чаты рендерятся снаружи)
@@ -30,12 +31,11 @@ export function ProjectMemoryTab({ project, updateProject }) {
                         <p className="text-xs text-[#5b32d4]/70 dark:text-purple-300/70 leading-relaxed">Новая ключевая информация из чатов автоматически пополняет инструкции.</p>
                     </div>
                 </div>
-                <button
-                    onClick={() => updateProject({ unifiedContext: !(project.unifiedContext ?? true) })}
-                    className={`shrink-0 w-12 h-7 rounded-full p-1 transition-colors flex items-center ${(project.unifiedContext ?? true) ? 'bg-[#5b32d4]' : 'bg-gray-300 dark:bg-gray-700'}`}
-                >
-                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${(project.unifiedContext ?? true) ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
+                <Toggle
+                    checked={project.unifiedContext ?? true}
+                    onChange={(next) => updateProject({ unifiedContext: next })}
+                    className="shrink-0"
+                />
             </div>
 
             {/* Поиск по инструкциям */}

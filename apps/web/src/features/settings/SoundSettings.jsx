@@ -1,5 +1,6 @@
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll';
 import { Icons } from '@/shared/ui/Icons';
+import { ToggleIndicator } from '@/shared/ui/Toggle';
 import { playNotificationSound } from '@/shared/lib/sound';
 import { playVoiceModeOpenChime } from '@/shared/lib/voiceModeChime';
 
@@ -30,9 +31,7 @@ function ToggleRow({ icon: Icon, label, hint, checked, onToggle, last }) {
                     {hint && <p className="text-[11px] text-gray-400 leading-snug">{hint}</p>}
                 </div>
             </div>
-            <div className={`w-12 h-7 rounded-full p-1 transition-colors flex items-center shrink-0 ml-3 ${checked ? 'bg-[#5b32d4]' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                <div className={`w-5 h-5 bg-white rounded-full transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`}></div>
-            </div>
+            <ToggleIndicator checked={checked} className="ml-3" />
         </div>
     );
 }

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Icons } from '@/shared/ui/Icons';
+import { Toggle } from '@/shared/ui/Toggle';
 import {
     EMOTION_MODES, EMOTION_PRESETS, getEmotionSettings,
 } from '@/shared/config/voiceEmotions';
@@ -97,12 +98,11 @@ export function EmotionSettings({ state, updateState, onClose }) {
                                 <Icons.ChevronRight className={`w-4 h-4 transition-transform ${infoOpen ? 'rotate-90' : ''}`} />
                             </button>
                             <span className="flex-1 font-bold text-[15px] text-gray-900 dark:text-white">Автоматически</span>
-                            <button
-                                onClick={() => patch({ mode: isAuto ? EMOTION_MODES.MANUAL : EMOTION_MODES.AUTO })}
-                                className={`w-12 h-7 rounded-full p-1 transition-colors flex items-center shrink-0 ${isAuto ? 'bg-[#5b32d4]' : 'bg-gray-300 dark:bg-gray-700'}`}
-                            >
-                                <span className={`w-5 h-5 bg-white rounded-full transition-transform ${isAuto ? 'translate-x-5' : 'translate-x-0'}`} />
-                            </button>
+                            <Toggle
+                                checked={isAuto}
+                                onChange={() => patch({ mode: isAuto ? EMOTION_MODES.MANUAL : EMOTION_MODES.AUTO })}
+                                className="shrink-0"
+                            />
                         </div>
                         <div ref={infoRef} className="overflow-hidden" style={{ height: 0, opacity: 0 }}>
                             <p className="px-4 pb-4 text-xs text-gray-500 dark:text-white/60 leading-relaxed">

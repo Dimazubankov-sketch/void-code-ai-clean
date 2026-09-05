@@ -4,6 +4,7 @@ import { useGSAP } from '@gsap/react';
 import { goBack } from '@/shared/lib/navigation';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
+import { Toggle } from '@/shared/ui/Toggle';
 import { SkillCard } from '@/features/skills/SkillCard';
 
 // ==========================================
@@ -304,7 +305,7 @@ export function SkillsPanel({ state, updateState, projectId = null }) {
                                 <p className="font-bold text-sm dark:text-white truncate">{skill.name}</p>
                                 <p className="text-xs text-gray-400 truncate">{skill.desc || skill.instruction}</p>
                             </div>
-                            <button onClick={() => toggleCustom(skill.id)} className={`shrink-0 w-10 h-6 rounded-full p-0.5 transition-colors flex items-center ${skill.active ? 'bg-[#5b32d4]' : 'bg-gray-200 dark:bg-gray-700'}`}><div className={`w-5 h-5 bg-white rounded-full transition-transform ${skill.active ? 'translate-x-4' : 'translate-x-0'}`} /></button>
+                            <Toggle checked={skill.active} onChange={() => toggleCustom(skill.id)} size="sm" className="shrink-0" />
                             <button onClick={() => removeCustom(skill.id)} className="shrink-0 p-1.5 text-gray-400 hover:text-red-500 rounded-lg"><Icons.Trash className="w-4 h-4" /></button>
                         </div>
                     ))}

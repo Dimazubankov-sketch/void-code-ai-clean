@@ -3,7 +3,7 @@ import { AudioPlayer } from '@/features/chat/AudioPlayer';
 import { AgentComposer } from '@/features/cockpit/AgentComposer';
 import { AgentPlusMenu } from '@/features/cockpit/AgentPlusMenu';
 import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
-import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
+import { StreamingMessage } from '@/features/chat/StreamingMessage';
 import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { createBackendChat, sendBackendMessage } from '@/shared/api/chat';
 import { buildAgentSystemPrompt } from '@/shared/lib/agentPrompt';
@@ -179,7 +179,7 @@ export function AgentChatView({ state, updateState }) {
                             <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm ${m.role === 'user' ? 'bg-[#5b32d4] text-white rounded-tr-sm' : 'bg-gray-100 dark:bg-gray-800 dark:text-gray-100 rounded-tl-sm'}`}>
                                 {m.image && <img src={m.image} alt="" className="max-w-full rounded-xl mb-2" />}
                                 {m.role === 'agent' && m.isAnimated
-                                    ? <TypewriterMessage content={m.text} onProgress={() => endRef.current?.scrollIntoView({ behavior: 'auto' })} />
+                                    ? <StreamingMessage content={m.text} onProgress={() => endRef.current?.scrollIntoView({ behavior: 'auto' })} />
                                     : m.text}
                             </div>
                             {m.role === 'agent' && (

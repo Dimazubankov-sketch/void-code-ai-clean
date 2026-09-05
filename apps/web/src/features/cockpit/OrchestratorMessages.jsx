@@ -1,6 +1,6 @@
 import { Icons } from '@/shared/ui/Icons';
 import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
-import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
+import { StreamingMessage } from '@/features/chat/StreamingMessage';
 
 // ==========================================
 // OrchestratorMessages — общая лента сообщений оркестратора
@@ -39,7 +39,7 @@ export function OrchestratorMessages({ thread, reports, onRespond, emptyHint, th
                     <div key={m.id} className="flex justify-start">
                         <div className="max-w-[85%] bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder rounded-2xl rounded-bl-md px-4 py-3 text-sm dark:text-gray-200">
                             {m.isAnimated
-                                ? <div className="leading-relaxed"><TypewriterMessage content={m.text} /></div>
+                                ? <div className="leading-relaxed"><StreamingMessage content={m.text} /></div>
                                 : <p className="whitespace-pre-wrap leading-relaxed">{m.text}</p>}
                             {status === 'pending' && (
                                 <div className="flex gap-2 mt-3">

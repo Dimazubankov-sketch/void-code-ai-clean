@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException, BadRequestException } from '@n
 import { FishAudioTtsService } from '../tts/fish-audio-tts.service';
 import { MediaCacheService } from './media-cache.service';
 import { AudioMuxService } from './audio-mux.service';
+import { VideoStorageService } from './video-storage.service';
 
 // ==========================================
 // Генерация видео — OpenRouter (ByteDance Seedance 2.0 / 2.5)
@@ -92,10 +93,18 @@ export class VideoService {
   // ролик и так живёт минуты, а не дни.
   private readonly pendingDubs = new Map<string, PendingDub>();
 
+  // Задача (баг «видео не открывается / не сохраняется»): скачивание +
+  // сохранение на диск теперь происходит ВНУТРИ pollOnce при первом же
+  // ответе completed. Если клиент почему-то опросит тот же jobId ещё раз
+  // (например, страница обновилась ровно в момент завершения) — не
+  // скачиваем и не сохраняем повторно, а отдаём уже готовый результат.
+  private readonly completed = new Map<string, { url: string; cost: number | null; dubbed: boolean }>();
+
   constructor(
     private readonly fishTts: FishAudioTtsService,
     private readonly mediaCache: MediaCacheService,
     private readonly audioMux: AudioMuxService,
+    private readonly videoStorage: VideoStorageService,
   ) {}
 
   private apiKey(): string {
@@ -107,6 +116,14 @@ export class VideoService {
   private publicUrlFor(mediaId: string): string {
     const base = (process.env.APP_URL || 'https://void-code.ru').replace(/\/$/, '');
     return `${base}/api/v1/media/${mediaId}`;
+  }
+
+  // Постоянная ссылка на готовое видео, сохранённое на диске через
+  // VideoStorageService (в отличие от publicUrlFor выше — тот отдаёт
+  // временный in-memory MediaCache, живущий 30 минут, для аудио-референсов).
+  private publicVideoUrlFor(id: string): string {
+    const base = (process.env.APP_URL || 'https://void-code.ru').replace(/\/$/, '');
+    return `${base}/api/v1/media/video/${id}`;
   }
 
   // Голос требует принудительного понижения модели до Seedance 2.0 (см.
@@ -251,7 +268,29 @@ export class VideoService {
     return { jobId: data.id, pollingUrl: data.polling_url, dubbed: false };
   }
 
+
+  // Задача (баг): раньше отдавали клиенту напрямую data.unsigned_urls[0]
+  // от OpenRouter. Несмотря на название, эта ссылка НЕ полноценно
+  // публичная — по документации OpenRouter её нужно скачивать с тем же
+  // заголовком Authorization: Bearer <ключ>, что и при опросе статуса.
+  // Браузер не может приложить такой заголовок к <video src=...>, поэтому
+  // просмотр всегда падал (401) — ролик выглядел «битым», хотя формально
+  // сгенерировался. Плюс такая ссылка у провайдера не гарантированно живёт
+  // долго — для «Библиотеки», где ролик должен открываться спустя часы,
+  // это не подходит в принципе.
+  //
+  // Теперь: как только статус становится completed, СЕРВЕР САМ скачивает
+  // видео с авторизацией и сохраняет на диск (VideoStorageService —
+  // постоянное хранилище, без TTL, переживает рестарт/деплой, в отличие
+  // от MediaCacheService). Клиенту отдаётся собственная стабильная
+  // ссылка вида /api/v1/media/video/:id, которая открывается в браузере
+  // без каких-либо заголовков и работает сколько угодно долго.
   async pollOnce(jobId: string): Promise<{ status: string; url: string | null; error: string | null; cost: number | null; dubbed: boolean }> {
+    // Idempotent: если этот jobId уже был обработан (скачан и сохранён на
+    // диск) на предыдущем опросе — не скачиваем повторно, отдаём готовое.
+    const already = this.completed.get(jobId);
+    if (already) return { status: 'completed', url: already.url, error: null, cost: already.cost, dubbed: already.dubbed };
+
     const key = this.apiKey();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -277,18 +316,33 @@ export class VideoService {
     }
     const data: any = await response.json();
     const status = String(data?.status || 'pending');
-    let url = Array.isArray(data?.unsigned_urls) && data.unsigned_urls.length > 0 ? data.unsigned_urls[0] : null;
-    let dubbed = false;
+    const remoteUrl = Array.isArray(data?.unsigned_urls) && data.unsigned_urls.length > 0 ? data.unsigned_urls[0] : null;
+    const cost = typeof data?.usage?.cost === 'number' ? data.usage.cost : null;
 
+    if (status !== 'completed' || !remoteUrl) {
+      return { status, url: null, error: data?.error || null, cost, dubbed: false };
+    }
+
+    // Статус completed — скачиваем реальные байты с авторизацией.
+    let videoBuf: Buffer;
+    try {
+      videoBuf = await this.downloadWithAuth(remoteUrl, key);
+    } catch (e: any) {
+      console.error(`[VideoService/poll] не удалось скачать готовое видео ${jobId}:`, e?.message || e);
+      // Честно сообщаем об ошибке вместо того, чтобы отдать нерабочую
+      // ссылку, которая выглядела бы как «успех», но не открывалась бы.
+      return { status: 'failed', url: null, error: 'Видео сгенерировано, но сервер не смог скачать готовый файл у провайдера. Попробуйте ещё раз.', cost, dubbed: false };
+    }
+
+    // Дозвучка (fallback B): накладываем голос из кэша поверх уже
+    // скачанных байт. Если что-то пойдёт не так — отдаём ИСХОДНОЕ видео
+    // без озвучки, а не ломаем всю генерацию: пользователь всё равно
+    // получает готовый ролик.
+    let dubbed = false;
     const pendingDub = this.pendingDubs.get(jobId);
-    if (status === 'completed' && url && pendingDub) {
-      // Дозвучка (fallback B): скачиваем готовое видео, накладываем голос
-      // из кэша, отдаём собственный публичный URL вместо оригинального.
-      // Если что-то пойдёт не так — отдаём ИСХОДНОЕ видео без озвучки, а
-      // не ломаем всю генерацию: пользователь всё равно получает ролик.
+    if (pendingDub) {
       try {
-        const dubbedUrl = await this.dubVideo(url, pendingDub);
-        url = dubbedUrl;
+        videoBuf = await this.applyDub(videoBuf, pendingDub);
         dubbed = true;
       } catch (e: any) {
         console.error(`[VideoService/poll] дозвучка ${jobId} не удалась, отдаю видео без голоса:`, e?.message || e);
@@ -297,33 +351,34 @@ export class VideoService {
       }
     }
 
-    if (status === 'completed') console.log(`[VideoService/poll] ${jobId} готово, cost=${data?.usage?.cost ?? '?'}${dubbed ? ', дозвучено' : ''}`);
-    return {
-      status,
-      url,
-      error: data?.error || null,
-      cost: typeof data?.usage?.cost === 'number' ? data.usage.cost : null,
-      dubbed,
-    };
+    const id = await this.videoStorage.save(videoBuf);
+    const url = this.publicVideoUrlFor(id);
+    this.completed.set(jobId, { url, cost, dubbed });
+    console.log(`[VideoService/poll] ${jobId} готово и сохранено на диск (${id}), cost=${cost ?? '?'}${dubbed ? ', дозвучено' : ''}`);
+    return { status: 'completed', url, error: null, cost, dubbed };
   }
 
-  private async dubVideo(videoUrl: string, pending: PendingDub): Promise<string> {
-    const audio = this.mediaCache.get(pending.audioId);
-    if (!audio) throw new Error('Аудио голоса истекло в кэше до готовности видео');
-
+  // Скачивает файл с авторизацией OpenRouter (см. комментарий у pollOnce
+  // про то, почему unsigned_urls на самом деле требует заголовок).
+  private async downloadWithAuth(url: string, key: string): Promise<Buffer> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.downloadTimeoutMs);
-    let videoBuf: Buffer;
     try {
-      const res = await fetch(videoUrl, { signal: controller.signal });
+      const res = await fetch(url, { signal: controller.signal, headers: { Authorization: `Bearer ${key}` } });
       if (!res.ok) throw new Error(`Не удалось скачать готовое видео (HTTP ${res.status})`);
-      videoBuf = Buffer.from(await res.arrayBuffer());
+      return Buffer.from(await res.arrayBuffer());
     } finally {
       clearTimeout(timer);
     }
+  }
 
-    const muxed = await this.audioMux.replaceAudio(videoBuf, audio.buf, audio.mime);
-    const id = this.mediaCache.put(muxed, 'video/mp4');
-    return this.publicUrlFor(id);
+  // Накладывает голос (Fish Audio) поверх уже скачанного видео. Раньше
+  // эта функция САМА скачивала видео по URL БЕЗ авторизации — что было
+  // ещё одним проявлением того же бага (тихо падало на 401, отдавая
+  // назад необработанное видео). Теперь принимает уже готовый буфер.
+  private async applyDub(videoBuf: Buffer, pending: PendingDub): Promise<Buffer> {
+    const audio = this.mediaCache.get(pending.audioId);
+    if (!audio) throw new Error('Аудио голоса истекло в кэше до готовности видео');
+    return this.audioMux.replaceAudio(videoBuf, audio.buf, audio.mime);
   }
 }

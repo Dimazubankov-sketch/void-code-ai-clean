@@ -26,19 +26,27 @@ import { prefersReducedMotion } from '@/shared/lib/motion';
 // 4. Высота анимируется через gsap.quickTo по scaleY — один
 //    переиспользуемый твин на бар вместо создания новых на каждый кадр.
 //    React в анимацию не вовлечён вовсе: ни одного useState в цикле.
+//
+// 5. compact (задача 6): для нового RecordingPill — компактной
+//    «стеклянной» капсулы с волной + таймером (см. shared/ui/RecordingPill)
+//    полноразмерные 28 баров на всю ширину поля ввода не помещаются в
+//    узкую пилюлю. compact=true даёт вдвое меньше баров и тоньше зазор —
+//    та же логика волны, просто масштаб под маленький контейнер.
 
-const BARS = 28;
+function buildWeights(bars) {
+    // Окно Ханна: 0 по краям, 1 в центре. Даёт волне форму веретена.
+    return Array.from({ length: bars }, (_, i) =>
+        0.35 + 0.65 * Math.sin((Math.PI * i) / (bars - 1)) ** 1.5
+    );
+}
 
-// Окно Ханна: 0 по краям, 1 в центре. Даёт волне форму веретена.
-const WEIGHTS = Array.from({ length: BARS }, (_, i) =>
-    0.35 + 0.65 * Math.sin((Math.PI * i) / (BARS - 1)) ** 1.5
-);
-
-export function VoiceWaveMic({ analyserRef, className = '' }) {
+export function VoiceWaveMic({ analyserRef, className = '', compact = false }) {
+    const BARS = compact ? 14 : 28;
     const containerRef = useRef(null);
     const rafRef = useRef(0);
     const settersRef = useRef([]);
     const smoothedRef = useRef(new Array(BARS).fill(0));
+    const weightsRef = useRef(buildWeights(BARS));
     const phaseRef = useRef(0);
 
     useEffect(() => {
@@ -47,6 +55,7 @@ export function VoiceWaveMic({ analyserRef, className = '' }) {
 
         const bars = container.querySelectorAll('.void-wave-bar');
         const reduce = prefersReducedMotion();
+        const weights = weightsRef.current;
 
         // При reduced-motion волна не пляшет: ставим ровный спокойный ряд.
         // Факт «идёт запись» и так передан цветом кнопки и таймером —
@@ -94,7 +103,7 @@ export function VoiceWaveMic({ analyserRef, className = '' }) {
                 // Покой — очень тихая волна, идущая слева направо: ряд не
                 // мёртвый, но и не претендует на внимание.
                 const idle = 0.16 + Math.sin(phaseRef.current + i * 0.38) * 0.05;
-                const active = Math.min(smoothed[i] * 2.4, 1) * WEIGHTS[i];
+                const active = Math.min(smoothed[i] * 2.4, 1) * weights[i];
                 const scale = Math.max(idle, active);
                 settersRef.current[i]?.(scale);
             }
@@ -103,14 +112,18 @@ export function VoiceWaveMic({ analyserRef, className = '' }) {
         };
         rafRef.current = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(rafRef.current);
-    }, [analyserRef]);
+    }, [analyserRef, BARS]);
+
+    const barWidth = compact ? 'w-[2px]' : 'w-[3px]';
+    const gapCls = compact ? 'gap-[2px]' : 'gap-[3px]';
+    const heightCls = compact ? 'h-4' : 'h-7';
 
     return (
-        <div ref={containerRef} className={`w-full flex items-center justify-center gap-[3px] h-7 ${className}`}>
+        <div ref={containerRef} className={`${compact ? '' : 'w-full'} flex items-center justify-center ${gapCls} ${heightCls} ${className}`}>
             {Array.from({ length: BARS }).map((_, i) => (
                 <span
                     key={i}
-                    className="void-wave-bar block w-[3px] h-full rounded-full bg-current"
+                    className={`void-wave-bar block ${barWidth} h-full rounded-full bg-current`}
                     style={{ transform: 'scaleY(0.16)', transformOrigin: 'center', willChange: 'transform' }}
                 />
             ))}

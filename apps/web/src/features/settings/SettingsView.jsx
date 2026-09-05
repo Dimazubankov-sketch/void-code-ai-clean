@@ -9,6 +9,7 @@ import { goBack } from '@/shared/lib/navigation';
 import { SoundSettings } from '@/features/settings/SoundSettings';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
+import { ToggleIndicator } from '@/shared/ui/Toggle';
 import { ListItem } from '@/shared/ui/ListItem';
 
 
@@ -60,7 +61,7 @@ export function SettingsView({ state, updateState }) {
                         <ListItem icon={Icons.Bell} label="Звук" onClick={() => setShowSound(true)} />
                         <div className="flex items-center justify-between p-4 border-b border-gray-50 dark:border-gray-800/50 cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-800/50 rounded-2xl transition-colors" onClick={() => updateState({isDarkMode: !state.isDarkMode})}>
                             <div className="flex items-center gap-4"><div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-xl"><Icons.Moon /></div><span className="font-bold text-[15px] dark:text-white">{t(lang, 'settings.darkTheme')}</span></div>
-                            <div className={`w-12 h-7 rounded-full p-1 transition-colors flex items-center ${state.isDarkMode ? 'bg-[#5b32d4]' : 'bg-gray-200 dark:bg-gray-700'}`}><div className={`w-5 h-5 bg-white rounded-full transition-transform ${state.isDarkMode ? 'translate-x-5' : 'translate-x-0'}`}></div></div>
+                            <ToggleIndicator checked={state.isDarkMode} />
                         </div>
                         <ListItem icon={Icons.Globe} label={t(lang, 'settings.language')} extra={<span className="text-sm font-bold text-gray-400">{langLabel}</span>} onClick={() => setShowLang(true)} />
                         <ListItem icon={Icons.Compass} label="Сведения" onClick={() => updateState({ currentView: 'info' })} />

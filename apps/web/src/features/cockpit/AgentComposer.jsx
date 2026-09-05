@@ -2,7 +2,8 @@ import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
 import { Icons } from '@/shared/ui/Icons';
-import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
+import { LiquidMicButton } from '@/shared/ui/LiquidMicButton';
+import { RecordingPill } from '@/shared/ui/RecordingPill';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
 import { useExpandableComposer } from '@/shared/lib/useExpandableComposer';
 
@@ -53,8 +54,8 @@ export function AgentComposer({
                 </button>
 
                 {voice.recording && (
-                    <div className="absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center pl-16 pr-32 pointer-events-none fade-in">
-                        <VoiceWaveMic analyserRef={voice.analyserRef} className="text-[#5b32d4] dark:text-purple-300" />
+                    <div className="absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center justify-center pl-16 pr-32 pointer-events-none fade-in">
+                        <RecordingPill voice={voice} />
                     </div>
                 )}
                 {voice.transcribing && !value && (
@@ -105,14 +106,14 @@ export function AgentComposer({
                 )}
 
                 {voice.supported && (
-                    <button
-                        onClick={() => (voice.recording ? voice.stop() : (!voice.transcribing && voice.start()))}
-                        title={voice.recording ? 'Остановить запись' : 'Голосовой ввод'}
-                        disabled={voice.transcribing}
-                        className={`void-tap-target absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 flex items-center justify-center transition-all z-20 active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
-                    >
-                        {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
-                    </button>
+                    <LiquidMicButton
+                        voice={voice}
+                        size="lg"
+                        bordered
+                        title="Голосовой ввод"
+                        stopTitle="Остановить запись"
+                        className="absolute right-[4.25rem] sm:right-[4.5rem] bottom-2.5 sm:bottom-3 z-20"
+                    />
                 )}
 
                 {/* Без Voice Mode: кнопка всегда обычная стрелка отправки. */}
@@ -168,14 +169,13 @@ export function AgentComposer({
                         />
                         <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-100 dark:border-darkBorder shrink-0">
                             {voice.supported && (
-                                <button
-                                    onClick={() => (voice.recording ? voice.stop() : (!voice.transcribing && voice.start()))}
-                                    title={voice.recording ? 'Остановить запись' : 'Голосовой ввод'}
-                                    disabled={voice.transcribing}
-                                    className={`void-tap-target w-11 h-11 rounded-full border-2 flex items-center justify-center transition-all active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
-                                >
-                                    {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
-                                </button>
+                                <LiquidMicButton
+                                    voice={voice}
+                                    size="lg"
+                                    bordered
+                                    title="Голосовой ввод"
+                                    stopTitle="Остановить запись"
+                                />
                             )}
                             <button
                                 onClick={() => { canSend && onSend(); exitFullscreen(); }}

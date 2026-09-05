@@ -4,7 +4,6 @@ import { Icons } from '@/shared/ui/Icons';
 import { PressButton } from '@/shared/ui/PressButton';
 import { SegmentedSlider } from '@/shared/ui/SegmentedSlider';
 import { AnchoredMenu } from '@/shared/ui/AnchoredMenu';
-import { AiSelfStudio, MAX_AI_SELF } from '@/features/images/AiSelfStudio';
 import { generateBackendImage, submitBackendVideo, pollBackendVideo, listFishVoices } from '@/shared/api/chat';
 import { compressImageFiles } from '@/shared/lib/imageCompress';
 import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
@@ -79,14 +78,6 @@ export function ImagesView({ state, updateState }) {
     const aspectAnchorRef = useRef(null);
     const videoModelAnchorRef = useRef(null);
     const voicePickerAnchorRef = useRef(null);
-    // Задача 3: меню-троеточие в шапке Image Studio, панель AI Self и
-    // выбор персонажа («@») в видео-композере.
-    const [showHeaderMenu, setShowHeaderMenu] = useState(false);
-    const [showAiSelf, setShowAiSelf] = useState(false);
-    const [showCharPicker, setShowCharPicker] = useState(false);
-    const headerMenuAnchorRef = useRef(null);
-    const charPickerAnchorRef = useRef(null);
-    const aiSelfCharacters = state.aiSelfCharacters || [];
 
     // Задача 4: при переключении режима закрываем все всплывающие меню и
     // видео-панель. Иначе, например, открытая панель озвучки «прилипала» к
@@ -111,7 +102,17 @@ export function ImagesView({ state, updateState }) {
     const stateRef = useRef(state);
     useEffect(() => { stateRef.current = state; }, [state]);
     // Сетка результатов: картинки и видео вперемешку по времени, новые сверху.
+    // Задача 2 (баг): активное видео (то, что уже показано крупной карточкой
+    // НАД полем ввода — см. activeVideo ниже) раньше дополнительно попадало
+    // и в эту сетку, из-за чего одна и та же генерация была видна дважды
+    // (крупно сверху и ещё раз маленькой карточкой в сетке, часто с
+    // отдельным «зависшим» спиннером, т.к. опрос статуса общий, но
+    // отрисовка велась в двух местах). Показываем в сетке только то, что
+    // НЕ является текущим activeVideoId — как только пользователь скрывает
+    // крупную карточку (крестик) или переключается на другую генерацию,
+    // видео естественным образом появляется в сетке как обычный элемент.
     const items = [...images.map(i => ({ ...i, kind: 'image' })), ...videos.map(v => ({ ...v, kind: 'video' }))]
+        .filter(it => !(it.kind === 'video' && it.id === activeVideoId))
         .sort((a, b) => b.timestamp - a.timestamp);
 
     useEffect(() => {
@@ -229,26 +230,6 @@ export function ImagesView({ state, updateState }) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Задача 3: добавить персонажа AI Self в видео. Вставляем «@имя» в
-    // промпт (модель понимает, о ком речь), подмешиваем описание внешности
-    // и кладём аватар первым референсом (image-to-video задаёт лицо/образ
-    // первого кадра). Дублей аватара в референсах не плодим.
-    const insertCharacter = (c) => {
-        setMode('video');
-        setPrompt(prev => {
-            const tag = `@${c.name}`;
-            const base = prev.trim();
-            const withTag = base ? `${base} ${tag}` : tag;
-            // Описание внешности добавляем один раз, компактно в скобках.
-            const appears = c.appearance ? ` (${c.appearance})` : '';
-            return c.appearance && !withTag.includes(c.appearance) ? `${withTag}${appears}` : withTag;
-        });
-        if (c.avatar) {
-            setReferenceImages(prev => (prev.includes(c.avatar) ? prev : [c.avatar, ...prev].slice(0, 4)));
-        }
-        setShowCharPicker(false);
-    };
-
     const generateVideo = async () => {
         if (!gate() || !prompt.trim() || busy) return;
         if (voiceMode === 'design' && !voiceDescription.trim()) { setError('Опишите новый голос словами'); return; }
@@ -311,13 +292,13 @@ export function ImagesView({ state, updateState }) {
 
     return (
         <div className="flex-1 overflow-y-auto h-full bg-white dark:bg-darkBg">
-            {/* Шапка Image Studio — единая на всех размерах (задача 1/3):
+            {/* Шапка Image Studio — единая на всех размерах (задача 1):
                 • слева — кнопка озвучки (только в режиме видео);
                 • по центру — переход обратно в «Чат» (ровно то же место, где
                   в шапке чата стоит кнопка «Image Studio», чтобы возврат был
                   симметричным — раньше эта кнопка была md:hidden и на ПК
                   вернуться в чат из Image Studio было нечем);
-                • справа — троеточие с меню (AI Self). */}
+                • справа — пустая колонка для симметрии сетки. */}
             <div className="sticky top-0 z-30 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 sm:px-4 md:px-8 bg-white/80 dark:bg-darkBg/80 backdrop-blur-xl">
                 <div className="justify-self-start">
                     {mode === 'video' && (
@@ -339,27 +320,9 @@ export function ImagesView({ state, updateState }) {
                     </PressButton>
                 </div>
                 <div className="justify-self-end">
-                    <div ref={headerMenuAnchorRef}>
-                        <PressButton
-                            onClick={() => setShowHeaderMenu(v => !v)}
-                            title="Ещё"
-                            className="void-tap-target w-11 h-11 rounded-full bg-white/70 dark:bg-white/10 backdrop-blur-xl border border-black/[0.06] dark:border-white/10 shadow-sm hover:bg-white/90 dark:hover:bg-white/[0.16] flex items-center justify-center text-gray-700 dark:text-gray-200 transition-colors"
-                        >
-                            <Icons.Dots className="w-5 h-5" />
-                        </PressButton>
-                    </div>
-                    <AnchoredMenu open={showHeaderMenu} onClose={() => setShowHeaderMenu(false)} anchorRef={headerMenuAnchorRef} width={220}>
-                        <PressButton
-                            onClick={() => { setShowHeaderMenu(false); setShowAiSelf(true); }}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                        >
-                            <span className="w-8 h-8 rounded-full bg-[#efecf9] dark:bg-purple-900/30 flex items-center justify-center shrink-0"><Icons.User className="w-4 h-4 text-[#5b32d4] dark:text-purple-300" /></span>
-                            <span className="text-left">
-                                <span className="block">AI Self</span>
-                                <span className="block text-xs font-normal text-gray-400">ИИ-персонажи{aiSelfCharacters.length ? ` · ${aiSelfCharacters.length}` : ''}</span>
-                            </span>
-                        </PressButton>
-                    </AnchoredMenu>
+                    {/* Пустая правая колонка — держит кнопку «Чат» по центру
+                        сетки (симметрично с левой колонкой озвучки). */}
+                    <span className="w-11 h-11 block" />
                 </div>
             </div>
 
@@ -595,44 +558,6 @@ export function ImagesView({ state, updateState }) {
                                 <Icons.Plus className="w-5 h-5" />
                             </PressButton>
 
-                            {/* Задача 3: «@» — добавить персонажа AI Self в видео.
-                                Только в режиме видео. Открывает список персонажей;
-                                выбор вставляет «@имя» в промпт и кладёт аватар
-                                референсом. */}
-                            {mode === 'video' && (
-                                <>
-                                    <div ref={charPickerAnchorRef} className="shrink-0">
-                                        <PressButton
-                                            onClick={() => {
-                                                if (aiSelfCharacters.length === 0) { setShowAiSelf(true); return; }
-                                                setShowCharPicker(v => !v);
-                                            }}
-                                            title="Добавить персонажа"
-                                            className="void-tap-target w-9 h-9 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors font-extrabold text-lg leading-none"
-                                        >
-                                            @
-                                        </PressButton>
-                                    </div>
-                                    <AnchoredMenu open={showCharPicker} onClose={() => setShowCharPicker(false)} anchorRef={charPickerAnchorRef} width={260}>
-                                        {aiSelfCharacters.map(c => (
-                                            <PressButton key={c.id} onClick={() => insertCharacter(c)} className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
-                                                {c.avatar
-                                                    ? <img src={c.avatar} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 border border-gray-200 dark:border-darkBorder" />
-                                                    : <span className="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0"><Icons.User className="w-4 h-4 text-gray-400" /></span>}
-                                                <span className="min-w-0">
-                                                    <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{c.name}</span>
-                                                    {c.appearance && <span className="block text-xs text-gray-400 truncate">{c.appearance}</span>}
-                                                </span>
-                                            </PressButton>
-                                        ))}
-                                        <PressButton onClick={() => { setShowCharPicker(false); setShowAiSelf(true); }} className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left text-[#5b32d4] dark:text-purple-300">
-                                            <span className="w-9 h-9 rounded-full bg-[#efecf9] dark:bg-purple-900/30 flex items-center justify-center shrink-0"><Icons.Plus className="w-4 h-4" /></span>
-                                            <span className="text-sm font-semibold">Управление AI Self</span>
-                                        </PressButton>
-                                    </AnchoredMenu>
-                                </>
-                            )}
-
                             {/* Переключатель Изображение/Видео — «ползунок»:
                                 таблетку можно перетащить пальцем между
                                 вариантами, а не только тапнуть по одному из них. */}
@@ -717,12 +642,6 @@ export function ImagesView({ state, updateState }) {
                     </div>
                 )}
             </div>
-
-            {/* Задача 3: панель AI Self — поверх Image Studio, со своим
-                возвратом (кнопка «Назад» внутри). */}
-            {showAiSelf && (
-                <AiSelfStudio state={state} updateState={updateState} onClose={() => setShowAiSelf(false)} />
-            )}
         </div>
     );
 }

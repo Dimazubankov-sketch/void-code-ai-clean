@@ -4,7 +4,8 @@ import { useGSAP } from '@gsap/react';
 import { useVoiceRecorder } from '@/shared/lib/useVoiceRecorder';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
-import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
+import { LiquidMicButton } from '@/shared/ui/LiquidMicButton';
+import { RecordingPill } from '@/shared/ui/RecordingPill';
 
 // Задача 11: после скольких строк текста показывать кнопку полноэкранного
 // режима. leading-6 у textarea = 24px на строку.
@@ -168,8 +169,8 @@ export function ChatInputBar({
                 )}
                 {/* Анимация записи — на всё поле (GSAP-эквалайзер, см. VoiceWaveMic) */}
                 {voice.recording && (
-                    <div className={`absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center ${canAttach ? 'pl-12' : 'pl-5'} pr-24 pointer-events-none fade-in`}>
-                        <VoiceWaveMic analyserRef={voice.analyserRef} className="text-[#5b32d4] dark:text-purple-300" />
+                    <div className={`absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center justify-center ${canAttach ? 'pl-12' : 'pl-5'} pr-24 pointer-events-none fade-in`}>
+                        <RecordingPill voice={voice} />
                     </div>
                 )}
                 {/* Задача 11: кнопка полноэкранного режима — без обводки,
@@ -212,29 +213,14 @@ export function ChatInputBar({
                     className={`flex-1 min-w-0 ${canAttach && !expanded ? 'pl-2' : 'pl-4'} pr-24 py-3 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none text-sm leading-6 ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && value ? 'opacity-40' : ''} ${expanded ? 'w-full !max-h-none flex-1 pt-10' : 'max-h-32'}`}
                 />
                 {voice.supported && (
-                    <button
-                        onClick={() => {
-                            // Задача 7: короткая аккуратная вибрация при нажатии на
-                            // микрофон (только при СТАРТЕ записи, не при остановке —
-                            // иначе будет двойная вибрация на каждый тап).
-                            if (!voice.recording && !voice.transcribing && navigator.vibrate) {
-                                try { navigator.vibrate(12); } catch { /* noop */ }
-                            }
-                            voice.recording ? voice.stop() : (!voice.transcribing && voice.start());
-                        }}
-                        title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
-                        disabled={voice.transcribing}
-                        // Задача 1: кнопки микрофона и отправки — одного размера
-                        // (10×10, было 8×8 у отправки и не совпадало визуально),
-                        // микрофон увеличен и стал круглым (rounded-full вместо
-                        // rounded-xl). Обводка микрофона invisible в покое
-                        // (border-transparent) и проявляется только в момент
-                        // нажатия/активной записи — border-[#5b32d4] на active:
-                        // и когда voice.recording истинно.
-                        className={`void-tap-target absolute right-12 bottom-1.5 w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all z-20 active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
-                    >
-                        {voice.recording ? <Icons.Square className="w-4 h-4" /> : voice.transcribing ? <Icons.Spinner className="w-4 h-4" /> : <Icons.Mic className="w-5 h-5" />}
-                    </button>
+                    <LiquidMicButton
+                        voice={voice}
+                        size="md"
+                        bordered
+                        title={t(lang, 'home.voiceInput')}
+                        stopTitle={t(lang, 'chat.stopRecording')}
+                        className="absolute right-12 bottom-1.5 z-20"
+                    />
                 )}
                 <button
                     onClick={() => (showVoiceModeButton ? onVoiceMode() : (canSend && onSend()))}

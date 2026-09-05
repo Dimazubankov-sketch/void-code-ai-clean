@@ -7,12 +7,13 @@ import { ChatToolbar } from '@/features/chat/ChatToolbar';
 import { CodeViewerModal } from '@/features/chat/CodeViewerModal';
 import { FeedbackModal } from '@/features/chat/FeedbackModal';
 import { MessageRenderer } from '@/features/chat/MessageRenderer';
-import { TypewriterMessage } from '@/features/chat/TypewriterMessage';
+import { StreamingMessage } from '@/features/chat/StreamingMessage';
 import { ThinkingIndicator } from '@/features/chat/ThinkingIndicator';
 import { ImageGenLoader } from '@/features/chat/ImageGenLoader';
 import { GeneratedImage } from '@/features/chat/GeneratedImage';
 import { ScrollDownButton } from '@/features/chat/ScrollDownButton';
-import { VoiceWaveMic } from '@/features/chat/VoiceWaveMic';
+import { LiquidMicButton } from '@/shared/ui/LiquidMicButton';
+import { RecordingPill } from '@/shared/ui/RecordingPill';
 import { pressProps, prefersReducedMotion, EASE, DUR } from '@/shared/lib/motion';
 import { ModelSelector } from '@/features/chat/ModelSelector';
 import { Toast } from '@/shared/ui/Toast';
@@ -532,7 +533,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                                 )}
                                             </div>
                                         )}
-                                        {msg.isAnimated ? <TypewriterMessage content={msg.content} onProgress={followScroll} onDone={() => markAnimationDone(idx)} /> : <MessageRenderer content={msg.content} />}
+                                        {msg.isAnimated ? <StreamingMessage content={msg.content} onProgress={followScroll} onDone={() => markAnimationDone(idx)} /> : <MessageRenderer content={msg.content} />}
                                         {msg.codeBlocks && msg.codeBlocks.length > 0 && (
                                             <div className="mt-3 space-y-2">
                                                 {msg.codeBlocks.map((block, bIdx) => (
@@ -725,11 +726,8 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         <div className="relative">
                             {/* Анимация записи — на всё текстовое поле */}
                             {voice.recording && (
-                                <div className="absolute inset-0 z-10 rounded-t-[26px] bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center px-5 pointer-events-none fade-in">
-                                    <VoiceWaveMic
-                                        analyserRef={voice.analyserRef}
-                                        className="text-[#5b32d4] dark:text-purple-300"
-                                    />
+                                <div className="absolute inset-0 z-10 rounded-t-[26px] bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center justify-center px-5 pointer-events-none fade-in">
+                                    <RecordingPill voice={voice} />
                                 </div>
                             )}
                             {/* Плейсхолдер фазы «Преобразование в текст» */}
@@ -833,15 +831,13 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             <div className="flex-1" />
 
                             {voice.supported && (
-                                <button
-                                    onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && startVoiceGuarded())}
-                                    {...pressProps(gsap)}
-                                    title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
-                                    disabled={voice.transcribing}
-                                    className={`void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center transition-colors ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
-                                >
-                                    {voice.recording ? <Icons.Square className="w-4 h-4" /> : voice.transcribing ? <Icons.Spinner className="w-4 h-4" /> : <Icons.Mic className="w-4 h-4" />}
-                                </button>
+                                <LiquidMicButton
+                                    voice={voice}
+                                    size="sm"
+                                    onStart={startVoiceGuarded}
+                                    title={t(lang, 'home.voiceInput')}
+                                    stopTitle={t(lang, 'chat.stopRecording')}
+                                />
                             )}
                             {/* Кнопка отправки/Voice Mode: пока поле ввода пустое (и нет
                                 вложений) — показываем вход в разговорный Voice Mode
@@ -956,15 +952,14 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         />
                         <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-100 dark:border-darkBorder shrink-0">
                             {voice.supported && (
-                                <button
-                                    onClick={() => voice.recording ? voice.stop() : (!voice.transcribing && startVoiceGuarded())}
-                                {...pressProps(gsap)}
-                                    title={voice.recording ? t(lang, 'chat.stopRecording') : t(lang, 'home.voiceInput')}
-                                    disabled={voice.transcribing}
-                                    className={`void-tap-target w-11 h-11 rounded-full border-2 flex items-center justify-center transition-colors active:border-[#5b32d4] dark:active:border-purple-400 ${voice.recording ? 'bg-[#5b32d4] text-white voice-pulse-purple border-[#5b32d4]' : voice.transcribing ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 border-transparent' : 'text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'}`}
-                                >
-                                    {voice.recording ? <Icons.Square className="w-5 h-5" /> : voice.transcribing ? <Icons.Spinner className="w-5 h-5" /> : <Icons.Mic className="w-5 h-5" />}
-                                </button>
+                                <LiquidMicButton
+                                    voice={voice}
+                                    size="lg"
+                                    bordered
+                                    onStart={startVoiceGuarded}
+                                    title={t(lang, 'home.voiceInput')}
+                                    stopTitle={t(lang, 'chat.stopRecording')}
+                                />
                             )}
                             <button
                                 onClick={() => { (state.imageGenMode ? handleGenerateImage() : handleSendMessage()); composerExitFullscreen(); }}

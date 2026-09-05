@@ -15,6 +15,7 @@ import {
 } from '@/shared/api/mail';
 import { ApiError } from '@/shared/api/client';
 import { Icons } from '@/shared/ui/Icons';
+import { Toggle } from '@/shared/ui/Toggle';
 
 // ==========================================
 // linkifyText — превращает URL-ы в тексте письма в настоящие ссылки
@@ -630,9 +631,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                 <>
                     <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-darkBorder bg-gray-50/50 dark:bg-gray-900/20">
                         <div className="flex items-center gap-2">
-                            <button onClick={() => toggleNotify('notifyPersonal')} className={`relative w-11 h-6 rounded-full transition-colors ${state.notifyPersonal !== false ? 'bg-[#5b32d4]' : 'bg-gray-300 dark:bg-gray-700'}`}>
-                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${state.notifyPersonal !== false ? 'translate-x-5' : ''}`} />
-                            </button>
+                            <Toggle checked={state.notifyPersonal !== false} onChange={() => toggleNotify('notifyPersonal')} size="md" />
                             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Уведомления</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -883,9 +882,7 @@ function ToggleBar({ label, value, onToggle }) {
     return (
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-darkBorder bg-gray-50/50 dark:bg-gray-900/20">
             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">{label}</span>
-            <button onClick={onToggle} className={`relative w-11 h-6 rounded-full transition-colors ${value ? 'bg-[#5b32d4]' : 'bg-gray-300 dark:bg-gray-700'}`}>
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${value ? 'translate-x-5' : ''}`} />
-            </button>
+            <Toggle checked={value} onChange={onToggle} size="md" />
         </div>
     );
 }
@@ -894,9 +891,7 @@ function SettingsToggleRow({ label, value, onToggle }) {
     return (
         <div className="flex items-center justify-between py-2">
             <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</span>
-            <button onClick={onToggle} className={`relative w-11 h-6 rounded-full transition-colors ${value ? 'bg-[#5b32d4]' : 'bg-gray-300 dark:bg-gray-700'}`}>
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${value ? 'translate-x-5' : ''}`} />
-            </button>
+            <Toggle checked={value} onChange={onToggle} size="md" />
         </div>
     );
 }

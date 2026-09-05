@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Icons } from '@/shared/ui/Icons';
+import { ToggleIndicator } from '@/shared/ui/Toggle';
 
 // ==========================================
 // SkillCard — карточка базового скилла с раскрытием деталей
@@ -59,9 +60,7 @@ export function SkillCard({ skill, on, onToggle }) {
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${on ? 'bg-[#5b32d4] text-white' : 'bg-gray-100 dark:bg-gray-800 text-[#5b32d4] dark:text-purple-400'}`}>
                         <Icon className="w-5 h-5" />
                     </div>
-                    <div className={`w-11 h-6 rounded-full p-0.5 transition-colors flex items-center ${on ? 'bg-[#5b32d4]' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                        <div className={`w-5 h-5 bg-white rounded-full transition-transform ${on ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </div>
+                    <ToggleIndicator checked={on} size="md" />
                 </div>
                 <p className="font-bold text-[15px] dark:text-white">{skill.name}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{skill.desc}</p>
