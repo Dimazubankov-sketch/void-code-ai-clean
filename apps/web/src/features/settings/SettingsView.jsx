@@ -64,6 +64,10 @@ export function SettingsView({ state, updateState }) {
                             <ToggleIndicator checked={state.isDarkMode} />
                         </div>
                         <ListItem icon={Icons.Globe} label={t(lang, 'settings.language')} extra={<span className="text-sm font-bold text-gray-400">{langLabel}</span>} onClick={() => setShowLang(true)} />
+                        {/* Задача 3: гид по возможностям вернулся сюда как «Помощь»
+                            (после удаления Хаба он стал недоступен). Экран guide
+                            уже существует и отрисовывается в App.jsx. */}
+                        <ListItem icon={Icons.Help} label="Помощь" onClick={() => updateState({ currentView: 'guide' })} />
                         <ListItem icon={Icons.Compass} label="Сведения" onClick={() => updateState({ currentView: 'info' })} />
                         <ListItem icon={Icons.Info} label={t(lang, 'settings.version')} extra={<span className="text-sm font-bold text-gray-400">v1.2.0</span>} />
                     </div>

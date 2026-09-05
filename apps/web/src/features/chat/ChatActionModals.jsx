@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Icons } from '@/shared/ui/Icons';
+import { ProjectFormFields } from '@/shared/ui/ProjectFormFields';
 
 // ==========================================
 // ChatActionModals — переименование, удаление, добавление в проект
@@ -93,6 +94,7 @@ export function DeleteChatModal({ chat, onConfirm, onClose }) {
 export function AddToProjectModal({ chat, projects, onPick, onCreate, onClose }) {
     const [creating, setCreating] = useState(!projects || projects.length === 0);
     const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
     const listRef = useRef(null);
 
     useGSAP(() => {
@@ -102,7 +104,7 @@ export function AddToProjectModal({ chat, projects, onPick, onCreate, onClose })
 
     const create = () => {
         if (!name.trim()) return;
-        onCreate(name.trim());
+        onCreate(name.trim(), description.trim());
         onClose();
     };
 
@@ -114,15 +116,15 @@ export function AddToProjectModal({ chat, projects, onPick, onCreate, onClose })
 
             {creating ? (
                 <>
-                    <input
-                        value={name}
-                        onChange={(e) => setName(e.target.value.slice(0, 60))}
-                        onKeyDown={(e) => { if (e.key === 'Enter') create(); }}
-                        placeholder="Название проекта"
-                        autoFocus
-                        className="w-full px-4 py-3 rounded-2xl bg-gray-50 dark:bg-gray-800/60 text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#5b32d4] mb-4"
+                    {/* Задача 5: те же поля (название + описание) и та же
+                        вёрстка, что и при создании из вкладки «Проекты» —
+                        см. ProjectFormFields. */}
+                    <ProjectFormFields
+                        name={name} setName={setName}
+                        description={description} setDescription={setDescription}
+                        onSubmit={create}
                     />
-                    <div className="flex gap-2.5">
+                    <div className="flex gap-2.5 mt-3">
                         {projects?.length > 0 && (
                             <button onClick={() => setCreating(false)} className="void-tap-target flex-1 py-3 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-white font-bold text-sm">К списку</button>
                         )}

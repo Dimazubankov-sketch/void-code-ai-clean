@@ -18,6 +18,21 @@
 .fade-in { animation: fadeIn 0.3s ease-in-out forwards; }
 .slide-in-right { animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
 .slide-in-up { animation: slideInUp 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+/* Задача 4: вход центрированной модалки. Раньше панель аккаунтов
+   использовала slide-in-right (transform: translateX(100%) → 0) — но она
+   центрирована (items-center justify-center), поэтому горизонтальный
+   «влёт» с края экрана смотрелся криво и оставлял ощущение искажения.
+   По review-animations центрированная модалка должна появляться из своего
+   центра: лёгкий scale(0.96)+fade, transform-origin по центру, <300мс,
+   ease-out. */
+.modal-in-center { animation: modalInCenter 0.24s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: center; }
+@keyframes modalInCenter {
+    from { transform: scale(0.96); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .modal-in-center { animation: none !important; }
+}
 @keyframes slideInUp {
     from { transform: translateY(24px); opacity: 0; }
     to   { transform: translateY(0); opacity: 1; }
@@ -250,6 +265,20 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
     overscroll-behavior-x: none;
 }
 
+/* Задача 1: убираем видимую полосу прокрутки во всех прокручиваемых
+   контейнерах приложения. Она появлялась почти везде (настройки, чат,
+   диалоги) и не несла пользы — листаем колесом мыши / тачпадом / свайпом.
+   Прокрутка полностью сохраняется, скрыт только сам «рельс» полосы.
+   Точечные контейнеры, где полоса ОСМЫСЛЕННА (горизонтальный скролл кода
+   .void-cli-scroll, галерея вложений и т.п.), имеют свои классы со своей
+   тонкой полосой и правилами ниже — их это не трогает. */
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar { width: 0; height: 0; }
+.overflow-y-auto,
+.overflow-x-auto,
+.overflow-auto { scrollbar-width: none; -ms-overflow-style: none; }
+
 .void-selectable, .void-selectable * {
     -webkit-user-select: text;
     user-select: text;
@@ -443,32 +472,120 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
 }
 
 /* ==========================================
-   Streaming text — слово-за-словом появление ответа ИИ (задача 5)
+   Появление ответа ИИ (задача 6) — единое мягкое проявление блока
    ==========================================
-   По спеке transitions.dev «Streaming text»: JS оборачивает каждое слово
-   в .t-stream-w (см. StreamingMessage.jsx), CSS отвечает только за САМ
-   переход — opacity 0→1 и лёгкое размытие, рассасывающееся за
-   --stream-fade. Слова остаются видимыми (не исчезают обратно) — .is-in
-   добавляется один раз и больше не снимается для данного слова. */
+   Переработано: вместо пословной печати с последующей подменой стиля
+   (давало «прыжок» стиля и резкий переход) — одно короткое проявление
+   всего уже отформатированного ответа: opacity + micro-blur, <300мс,
+   ease-out. Стиль текста при этом неизменен от первого кадра (рендерится
+   финальный markdown сразу). Подробнее — в StreamingMessage.jsx. */
 :root {
-    --stream-gap: 60ms;
-    --stream-fade: 350ms;
-    --stream-blur: 1px;
+    --stream-fade: 260ms;
+    --stream-blur: 3px;
     --stream-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.t-stream-w {
+.t-stream-in {
     opacity: 0;
     filter: blur(var(--stream-blur));
     transition:
         opacity var(--stream-fade) var(--stream-ease),
         filter var(--stream-fade) var(--stream-ease);
 }
-.t-stream-w.is-in {
+.t-stream-in.is-in {
     opacity: 1;
     filter: blur(0);
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .t-stream-w { transition: none !important; filter: none !important; opacity: 1 !important; }
+    .t-stream-in { transition: none !important; filter: none !important; opacity: 1 !important; }
+}
+
+/* ==========================================
+   Notification badge — счётчик непрочитанного (задача 7)
+   ==========================================
+   Один в один по присланной спеке transitions.dev. Кнопка-триггер (почта
+   в RightMenu.jsx) — position: relative, .t-badge к ней приколот
+   абсолютным позиционированием и слайдится/лопается только сам, кнопка
+   не шевелится. Числа внутри .t-badge-dot — см. NotificationBadge.jsx. */
+:root {
+    --badge-slide-dur: 260ms;
+    --badge-pop-dur: 500ms;
+    --badge-pop-close-dur: 180ms;
+    --badge-fade-dur: 400ms;
+    --badge-fade-close-dur: 180ms;
+    --badge-blur: 2px;
+    --badge-offset-x: -8.2px;
+    --badge-offset-y: 12.4px;
+    --badge-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --badge-pop-ease: cubic-bezier(0.34, 1.36, 0.64, 1);
+    --badge-close-ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes t-badge-slide-in {
+    from { transform: translate(var(--badge-offset-x), var(--badge-offset-y)); }
+    to { transform: translate(0, 0); }
+}
+
+.t-badge {
+    position: absolute;
+    top: -6px;
+    right: -8px;
+    pointer-events: none;
+    will-change: transform;
+}
+.t-badge[data-open="true"] {
+    animation: t-badge-slide-in var(--badge-slide-dur) var(--badge-slide-ease);
+}
+
+.t-badge-dot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    transform-origin: center;
+    transform: scale(1);
+    opacity: 1;
+    filter: blur(0);
+    transition:
+        transform var(--badge-pop-dur) var(--badge-pop-ease),
+        opacity var(--badge-fade-dur) var(--badge-pop-ease),
+        filter var(--badge-pop-dur) var(--badge-pop-ease);
+    will-change: transform, opacity, filter;
+}
+.t-badge[data-open="false"] .t-badge-dot {
+    transform: scale(0);
+    opacity: 0;
+    filter: blur(var(--badge-blur));
+    transition:
+        transform var(--badge-pop-close-dur) var(--badge-close-ease),
+        opacity var(--badge-fade-close-dur) var(--badge-close-ease),
+        filter var(--badge-pop-close-dur) var(--badge-close-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .t-badge, .t-badge-dot { animation: none !important; transition: none !important; }
+}
+
+/* Вариант для строчного контекста (пункт списка меню, не значок в углу
+   иконки) — та же пружина появления/угасания у .t-badge-dot, но БЕЗ
+   абсолютного позиционирования и слайда: тут нет «угла иконки», к
+   которому слайдить, бейдж просто стоит в потоке справа от текста. */
+.t-badge-static { position: relative; display: inline-flex; }
+.t-badge-static[data-open="false"] .t-badge-dot {
+    transform: scale(0);
+    opacity: 0;
+    filter: blur(var(--badge-blur));
+    transition:
+        transform var(--badge-pop-close-dur) var(--badge-close-ease),
+        opacity var(--badge-fade-close-dur) var(--badge-close-ease),
+        filter var(--badge-pop-close-dur) var(--badge-close-ease);
 }

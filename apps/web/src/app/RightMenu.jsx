@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
+import { NotificationBadge, InlineNotificationBadge } from '@/shared/ui/NotificationBadge';
 import { useLongPressMenu } from '@/shared/lib/useLongPressMenu';
 import { RenameChatModal, DeleteChatModal, AddToProjectModal } from '@/features/chat/ChatActionModals';
 import { ChatActionsMenu } from '@/features/chat/ChatActionsMenu';
@@ -63,6 +64,15 @@ export function RightMenu({ state, updateState, showRail = true }) {
     // это заново на каждое открытие панели).
     const [showMore, setShowMore] = useState(false);
     const moreRevealRef = useRef(null);
+    // Задача 7: единый счётчик непрочитанного для обеих кнопок почты
+    // (свёрнутый рельс + разворот «Больше») — реальная почта (опрашивается
+    // глобально в App.jsx, см. mailUnreadCount) + локальные уведомления
+    // (обновления, личные, ожидающие отчёты агентов).
+    const unreadMailCount =
+        (state.mailUnreadCount || 0)
+        + (state.inbox?.updates || []).filter(u => !(state.readUpdateIds || []).includes(u.id)).length
+        + (state.inbox?.personal || []).filter(m => !(state.readPersonalIds || []).includes(m.id)).length
+        + Object.values(state.orchestratorReports || {}).reduce((sum, list) => sum + list.filter(r => r.status === 'pending').length, 0);
     useEffect(() => {
         if (!showMore || !moreRevealRef.current || prefersReducedMotion()) return;
         gsap.fromTo(moreRevealRef.current.children,
@@ -365,11 +375,7 @@ export function RightMenu({ state, updateState, showRail = true }) {
                             </button>
                             <button onClick={() => updateState({ showNotifications: true, isRightMenuOpen: false })} title="Почта" className="void-tap-target relative w-10 h-10 flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
                                 <Icons.Mail className="w-5 h-5" />
-                                {(Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
-                                  || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
-                                  || (state.inbox?.personal || []).some(m => !(state.readPersonalIds || []).includes(m.id))) && (
-                                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />
-                                )}
+                                <NotificationBadge count={unreadMailCount} />
                             </button>
                         </div>
                     )}
@@ -411,11 +417,7 @@ export function RightMenu({ state, updateState, showRail = true }) {
                                         действия. Показываем счётчик непрочитанного,
                                         чтобы вынос в меню не «спрятал» новые письма. */}
                                     <NavButton icon={Icons.Mail} label="Почта" onClick={() => { updateState({ showNotifications: true, isRightMenuOpen: false }); setCollapsed(true); }} right={
-                                        (Object.values(state.orchestratorReports || {}).some(list => list.some(r => r.status === 'pending'))
-                                          || (state.inbox?.updates || []).some(u => !(state.readUpdateIds || []).includes(u.id))
-                                          || (state.inbox?.personal || []).some(m => !(state.readPersonalIds || []).includes(m.id)))
-                                            ? <span className="w-2 h-2 rounded-full bg-red-500" />
-                                            : null
+                                        <InlineNotificationBadge count={unreadMailCount} />
                                     } />
                                 </div>
                             )}
@@ -484,10 +486,10 @@ export function RightMenu({ state, updateState, showRail = true }) {
                     onPick={(projectId) => updateState({
                         chatSessions: state.chatSessions.map(c => c.id === chatAction.chat.id ? { ...c, projectId } : c),
                     })}
-                    onCreate={(name) => {
+                    onCreate={(name, description) => {
                         const id = 'proj' + Date.now();
                         updateState({
-                            projects: [{ id, name, createdAt: Date.now() }, ...(state.projects || [])],
+                            projects: [{ id, name, description: description || '', createdAt: Date.now() }, ...(state.projects || [])],
                             chatSessions: state.chatSessions.map(c => c.id === chatAction.chat.id ? { ...c, projectId: id } : c),
                         });
                     }}

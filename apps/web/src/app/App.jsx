@@ -14,6 +14,7 @@ import { VoiceModeOverlay } from '@/features/chat/VoiceModeOverlay';
 import { useVoiceMode } from '@/shared/lib/useVoiceMode';
 import { getVoiceOpts } from '@/shared/lib/voiceOpts';
 import { GuideView } from '@/features/guide/GuideView';
+import { fetchFolder } from '@/shared/api/mail';
 import { LibraryView } from '@/features/library/LibraryView';
 import { ImagesView } from '@/features/images/ImagesView';
 import { LimitsView } from '@/features/settings/LimitsView';
@@ -290,6 +291,45 @@ export function App() {
         const interval = setInterval(checkReset, 60 * 1000);
         return () => clearInterval(interval);
     }, []);
+
+    // ==========================================
+    // Живой счётчик непрочитанной почты (задача 7)
+    // ==========================================
+    // Раньше почта (реальный inbox @voidops.ru) опрашивалась ТОЛЬКО пока
+    // была открыта сама панель уведомлений (NotificationCenter) — если её
+    // не открывать, счётчик на кнопке в боковом меню не имел ни малейшего
+    // понятия о новых письмах. Теперь опрос идёт здесь, на верхнем уровне
+    // приложения, независимо от того, открыта ли панель — бейдж в
+    // RightMenu.jsx обновляется в реальном времени, пока вкладка открыта.
+    // Пауза, когда вкладка свёрнута/в фоне (document.hidden) — не дёргаем
+    // сервер зря, когда всё равно никто не смотрит на бейдж.
+    useEffect(() => {
+        if (!state.user) return undefined;
+        let cancelled = false;
+        const poll = async () => {
+            if (document.hidden) return;
+            try {
+                const { messages } = await fetchFolder('inbox');
+                if (cancelled) return;
+                const unread = (messages || []).filter(m => !m.isRead).length;
+                setState(prev => (prev.mailUnreadCount === unread ? prev : { ...prev, mailUnreadCount: unread }));
+            } catch {
+                // Нет реального почтового ящика / сеть недоступна — тихо
+                // молчим, бейдж просто не покажет непрочитанное из почты.
+            }
+        };
+        poll();
+        const interval = setInterval(poll, 20_000);
+        // Возврат на вкладку — сразу освежаем счётчик, не ждём до 20с.
+        const onVisible = () => { if (!document.hidden) poll(); };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.user?.email]);
 
     // Автосохранение сессии: при любом изменении входа, чатов, темы,
     // тарифа и т.п. состояние сразу пишется в localStorage.

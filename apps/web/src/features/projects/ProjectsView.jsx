@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ProjectMemoryTab, ProjectSkillsTab } from '@/features/projects/ProjectMemoryTab';
+import { ProjectFormFields, ProjectFormHeader } from '@/shared/ui/ProjectFormFields';
 import { goBack } from '@/shared/lib/navigation';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
@@ -17,6 +18,7 @@ export function ProjectsView({ state, updateState }) {
     const [query, setQuery] = useState('');
     const [creating, setCreating] = useState(false);
     const [newName, setNewName] = useState('');
+    const [newDescription, setNewDescription] = useState('');
     const [openProjectId, setOpenProjectId] = useState(() => state.projectsOpenId || null);
     useEffect(() => {
         if (state.projectsOpenId) updateState({ projectsOpenId: null });
@@ -32,9 +34,10 @@ export function ProjectsView({ state, updateState }) {
     const createProject = () => {
         const name = newName.trim();
         if (!name) return;
-        const project = { id: 'proj_' + Date.now(), name, chatIds: [], createdAt: Date.now() };
+        const project = { id: 'proj_' + Date.now(), name, description: newDescription.trim(), chatIds: [], createdAt: Date.now() };
         updateState({ projects: [project, ...projects] });
         setNewName('');
+        setNewDescription('');
         setCreating(false);
         setOpenProjectId(project.id);
     };
@@ -194,25 +197,19 @@ export function ProjectsView({ state, updateState }) {
                 <Icons.Plus className="w-8 h-8" />
             </button>
 
-            {/* Модалка создания проекта с вводом названия */}
+            {/* Задача 5: единая форма создания проекта — те же поля/подписи,
+                что и в AddToProjectModal (открывается из «+» в чате). */}
             {creating && (
                 <div className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in" onClick={() => setCreating(false)}>
-                    <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl slide-in-right" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center gap-3 mb-1">
-                            <div className="w-10 h-10 rounded-2xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center"><Icons.Folder className="w-5 h-5" /></div>
-                            <h4 className="font-extrabold text-lg dark:text-white">{t(lang, 'projects.newProject')}</h4>
-                            <button onClick={() => setCreating(false)} className="ml-auto p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.X /></button>
-                        </div>
+                    <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl modal-in-center" onClick={e => e.stopPropagation()}>
+                        <ProjectFormHeader onClose={() => setCreating(false)} />
                         <p className="text-sm text-gray-400 mb-4">{t(lang, 'projects.newProjectHint')}</p>
-                        <input
-                            autoFocus
-                            value={newName}
-                            onChange={e => setNewName(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') createProject(); if (e.key === 'Escape') setCreating(false); }}
-                            placeholder={t(lang, 'projects.namePlaceholder')}
-                            className="w-full px-4 py-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-darkBorder text-[15px] dark:text-white outline-none focus:border-[#5b32d4] transition-colors mb-4"
+                        <ProjectFormFields
+                            name={newName} setName={setNewName}
+                            description={newDescription} setDescription={setNewDescription}
+                            onSubmit={createProject}
                         />
-                        <button onClick={createProject} disabled={!newName.trim()} className="w-full py-3.5 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white font-bold transition-colors">
+                        <button onClick={createProject} disabled={!newName.trim()} className="w-full mt-4 py-3.5 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white font-bold transition-colors">
                             {t(lang, 'projects.create')}
                         </button>
                     </div>

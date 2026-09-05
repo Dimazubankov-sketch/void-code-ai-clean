@@ -163,13 +163,13 @@ export function ChatInputBar({
                 )}
                 {/* Плейсхолдер фазы «Преобразование в текст» */}
                 {voice.transcribing && !value && (
-                    <div className={`void-transcribe-hint absolute ${canAttach ? 'left-12' : 'left-5'} right-24 top-0 py-3.5 pointer-events-none text-[#5b32d4] dark:text-purple-300 text-sm font-semibold truncate z-10`}>
+                    <div className="void-transcribe-hint absolute inset-x-0 top-0 py-3.5 pointer-events-none text-gray-500 dark:text-gray-400 text-sm font-semibold text-center z-10">
                         {t(lang, 'chat.transcribing')}…
                     </div>
                 )}
                 {/* Анимация записи — на всё поле (GSAP-эквалайзер, см. VoiceWaveMic) */}
                 {voice.recording && (
-                    <div className={`absolute inset-0 z-10 rounded-3xl bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center justify-center ${canAttach ? 'pl-12' : 'pl-5'} pr-24 pointer-events-none fade-in`}>
+                    <div className="absolute inset-0 z-10 rounded-3xl bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm flex items-center justify-end pr-14 pointer-events-none fade-in">
                         <RecordingPill voice={voice} />
                     </div>
                 )}

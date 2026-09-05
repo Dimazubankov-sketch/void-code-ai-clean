@@ -724,15 +724,20 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             поверх него (запись, «преобразование в текст»,
                             кнопка «на весь экран») ── */}
                         <div className="relative">
-                            {/* Анимация записи — на всё текстовое поле */}
+                            {/* Задача 2: запись — БЕЗ фиолетовой заливки (нейтральный
+                                полупрозрачный фон), пилюля с волной+таймером прижата
+                                ВПРАВО, вплотную к кнопке-квадрату (стоп) в ряду ниже
+                                — а не висит по центру во всю ширину. */}
                             {voice.recording && (
-                                <div className="absolute inset-0 z-10 rounded-t-[26px] bg-[#f3effd]/95 dark:bg-purple-900/40 backdrop-blur-sm flex items-center justify-center px-5 pointer-events-none fade-in">
+                                <div className="absolute inset-0 z-10 rounded-t-[26px] bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm flex items-center justify-end pr-4 pointer-events-none fade-in">
                                     <RecordingPill voice={voice} />
                                 </div>
                             )}
-                            {/* Плейсхолдер фазы «Преобразование в текст» */}
+                            {/* Задача 2: «Преобразование в текст…» — по ЦЕНТРУ поля
+                                (между выбором модели и микрофоном), нейтральным
+                                серым, без фиолетового. */}
                             {voice.transcribing && !state.inputValue && (
-                                <div className="void-transcribe-hint absolute left-5 right-5 top-0 py-5 pointer-events-none text-[#5b32d4] dark:text-purple-300 text-[16px] font-semibold truncate z-10">
+                                <div className="void-transcribe-hint absolute inset-x-0 top-0 py-5 pointer-events-none text-gray-500 dark:text-gray-400 text-[16px] font-semibold text-center z-10">
                                     {t(lang, 'chat.transcribing')}…
                                 </div>
                             )}
@@ -1006,10 +1011,10 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                     onPick={(projectId) => updateState({
                         chatSessions: state.chatSessions.map(c => c.id === chatAction.chat.id ? { ...c, projectId } : c),
                     })}
-                    onCreate={(name) => {
+                    onCreate={(name, description) => {
                         const id = 'proj' + Date.now();
                         updateState({
-                            projects: [{ id, name, createdAt: Date.now() }, ...(state.projects || [])],
+                            projects: [{ id, name, description: description || '', createdAt: Date.now() }, ...(state.projects || [])],
                             chatSessions: state.chatSessions.map(c => c.id === chatAction.chat.id ? { ...c, projectId: id } : c),
                         });
                     }}
