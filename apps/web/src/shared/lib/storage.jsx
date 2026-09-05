@@ -13,7 +13,7 @@ export const STORAGE_KEY = 'voidcode_session_v1';
 export const PERSISTED_KEYS = [
     'user', 'userPlan', 'accountPlans', 'usedDailyLimits', 'usedWeeklyLimits', 'dailyLimitExceededAt', 'isDarkMode', 'notificationsEnabled',
     'chatSessions', 'activeChatId', 'selectedModelId', 'reasoningByModel', 'lang', 'voiceLang', 'voiceURI', 'voiceRate', 'voicePitch', 'voicePreset', 'ttsProvider', 'voicePresetFish', 'voiceModeSounds', 'ttsLimitExhaustedAt', 'voicePersonas', 'activePersonaId', 'voiceEmotion',
-    'generatedImages', 'generatedVideos', 'generatedDocuments', 'aiAgents', 'activeAgentId',
+    'generatedImages', 'generatedVideos', 'generatedDocuments', 'aiAgents', 'activeAgentId', 'aiSelfCharacters',
     'walletBalance', 'walletTransactions',
     'projects', 'connectedPlugins', 'activeSkills', 'customSkills',
     'orchestratorThreads', 'orchestratorReports', 'agentThreads', 'inbox', 'notifyUpdates', 'notifyPersonal', 'readUpdateIds', 'readPersonalIds',

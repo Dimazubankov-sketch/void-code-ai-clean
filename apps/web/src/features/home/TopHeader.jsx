@@ -227,7 +227,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                             onClick={() => updateState({ currentView: 'images' })}
                             className="void-tap-target flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/70 dark:bg-white/10 backdrop-blur-xl border border-black/[0.06] dark:border-white/10 shadow-sm hover:bg-white/90 dark:hover:bg-white/[0.16] transition-colors text-sm font-bold text-gray-800 dark:text-gray-100"
                         >
-                            <Icons.Image className="w-4 h-4" /> Изображения
+                            <Icons.Image className="w-4 h-4" /> Image Studio
                         </PressButton>
                     )}
                 </div>
