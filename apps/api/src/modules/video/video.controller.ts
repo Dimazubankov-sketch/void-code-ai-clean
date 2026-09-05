@@ -47,6 +47,28 @@ class GenerateVideoDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  // Свой голос (Fish Audio) — см. VideoService.resolveVoiceAudio.
+  // 'existing' требует voiceId, 'design' требует voiceDescription; в
+  // обоих случаях нужен script (реплика, которую озвучит голос).
+  @IsOptional()
+  @IsIn(['none', 'existing', 'design'])
+  voiceMode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  voiceId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  voiceDescription?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  script?: string;
 }
 
 @Controller('videos')
@@ -60,6 +82,9 @@ export class VideoController {
   @Post('generate')
   async generate(@Req() req: any, @Body() dto: GenerateVideoDto) {
     await this.consumeVideoLimit(req.user.userId);
+    if (dto.voiceMode && dto.voiceMode !== 'none') {
+      await this.requireVoicePlan(req.user.userId);
+    }
     return this.video.submit({
       prompt: dto.prompt,
       model: dto.model,
@@ -67,6 +92,10 @@ export class VideoController {
       duration: dto.duration,
       resolution: dto.resolution,
       imageUrl: dto.imageUrl,
+      voiceMode: dto.voiceMode as any,
+      voiceId: dto.voiceId,
+      voiceDescription: dto.voiceDescription,
+      script: dto.script,
     });
   }
 
@@ -90,6 +119,17 @@ export class VideoController {
     }).catch(() => null);
     const used = (counter as any)?.videosUsed ?? 0;
     return { used, limit, remaining: Math.max(0, limit - used) };
+  }
+
+  // Свой голос — Fish Voice Design/synthesize + доп. Seedance-запрос на
+  // дозвучку заметно дороже обычной генерации видео, поэтому доступен
+  // только Pro/Ultra (как и указано в ТЗ), а не всем, кому в принципе
+  // открыто видео (Plus).
+  private async requireVoicePlan(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.plan !== 'PRO' && user.plan !== 'ULTRA') {
+      throw new ForbiddenException('Свой голос в видео доступен на тарифах Pro и Ultra.');
+    }
   }
 
   private async consumeVideoLimit(userId: string) {

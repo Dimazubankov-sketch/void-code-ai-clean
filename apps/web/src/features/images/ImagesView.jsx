@@ -4,7 +4,7 @@ import { Icons } from '@/shared/ui/Icons';
 import { PressButton } from '@/shared/ui/PressButton';
 import { SegmentedSlider } from '@/shared/ui/SegmentedSlider';
 import { AnchoredMenu } from '@/shared/ui/AnchoredMenu';
-import { generateBackendImage, submitBackendVideo, pollBackendVideo } from '@/shared/api/chat';
+import { generateBackendImage, submitBackendVideo, pollBackendVideo, listFishVoices } from '@/shared/api/chat';
 import { compressImageFiles } from '@/shared/lib/imageCompress';
 import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
 
@@ -45,6 +45,19 @@ export function ImagesView({ state, updateState }) {
     const [showVideoModel, setShowVideoModel] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(null);
+    // Свой голос в видео (Fish Audio): 'none' — как раньше, модель сама
+    // придумывает реплики из текста промпта; 'existing' — один из
+    // курируемых голосов Void; 'design' — новый голос по описанию словами
+    // (Fish Voice Design). В обоих последних случаях нужен отдельный script
+    // — Fish озвучивает буквально то, что ему дали, поэтому нельзя просто
+    // взять весь prompt (там ещё и описание сцены, а не только реплики).
+    const [voiceMode, setVoiceMode] = useState('none');
+    const [voiceId, setVoiceId] = useState(null);
+    const [voiceDescription, setVoiceDescription] = useState('');
+    const [script, setScript] = useState('');
+    const [voices, setVoices] = useState([]);
+    const [voicesLoading, setVoicesLoading] = useState(false);
+    const [showVoicePicker, setShowVoicePicker] = useState(false);
     // Задача 1: референсные фото — как в чате, до 4 штук, используются
     // и для image-to-image (обычная генерация картинок уже поддерживает
     // это на бэкенде), и для image-to-video (первое фото уходит как
@@ -54,6 +67,7 @@ export function ImagesView({ state, updateState }) {
     const gridRef = useRef(null);
     const aspectAnchorRef = useRef(null);
     const videoModelAnchorRef = useRef(null);
+    const voicePickerAnchorRef = useRef(null);
 
     const images = state.generatedImages || [];
     const videos = state.generatedVideos || [];
@@ -121,7 +135,7 @@ export function ImagesView({ state, updateState }) {
                 const res = await pollBackendVideo(jobId);
                 if (res.status === 'completed' && res.url) {
                     updateState({
-                        generatedVideos: (stateRef.current.generatedVideos || []).map(v => v.id === id ? { ...v, status: 'completed', url: res.url } : v),
+                        generatedVideos: (stateRef.current.generatedVideos || []).map(v => v.id === id ? { ...v, status: 'completed', url: res.url, dubbed: !!res.dubbed } : v),
                     });
                     return;
                 }
@@ -143,16 +157,24 @@ export function ImagesView({ state, updateState }) {
 
     const generateVideo = async () => {
         if (!gate() || !prompt.trim() || busy) return;
+        if (voiceMode === 'existing' && !voiceId) { setError('Выберите голос Void'); return; }
+        if (voiceMode === 'design' && !voiceDescription.trim()) { setError('Опишите новый голос словами'); return; }
+        if (voiceMode !== 'none' && !script.trim()) { setError('Добавьте текст реплики для голоса'); return; }
         setBusy(true);
         setError(null);
         const localId = Date.now() + Math.random();
         try {
-            const { jobId } = await submitBackendVideo({ prompt: prompt.trim(), model: videoModel, aspectRatio, duration, resolution, imageUrl: referenceImages[0] || undefined });
+            const { jobId } = await submitBackendVideo({
+                prompt: prompt.trim(), model: videoModel, aspectRatio, duration, resolution,
+                imageUrl: referenceImages[0] || undefined,
+                voiceMode, voiceId: voiceId || undefined, voiceDescription: voiceDescription.trim() || undefined, script: script.trim() || undefined,
+            });
             updateState({
                 generatedVideos: [{ id: localId, prompt: prompt.trim(), timestamp: Date.now(), status: 'pending', jobId, model: videoModel }, ...(stateRef.current.generatedVideos || [])],
             });
             setPrompt('');
             setReferenceImages([]);
+            setScript('');
             pollVideo(localId, jobId);
         } catch (e) {
             setError(e?.message || 'Не удалось отправить задачу на генерацию видео');
@@ -162,6 +184,17 @@ export function ImagesView({ state, updateState }) {
     };
 
     const handleGenerate = () => (mode === 'image' ? generateImage() : generateVideo());
+
+    // Ленивая подгрузка списка голосов Void — только при первом открытии
+    // пикера, а не сразу при переключении в режим видео (тот же принцип
+    // кэширования promise'а, что и в useOpenAiTts.jsx).
+    const openVoicePicker = () => {
+        setShowVoicePicker(v => !v);
+        if (voices.length === 0 && !voicesLoading) {
+            setVoicesLoading(true);
+            listFishVoices().then(setVoices).catch(() => setVoices([])).finally(() => setVoicesLoading(false));
+        }
+    };
 
     // При смене модели видео доступные длительности меняются (Seedance
     // 2.0 — до 15с, 2.5 — до 30с). Если текущая длительность не входит
@@ -318,6 +351,22 @@ export function ImagesView({ state, updateState }) {
                                         onChange={setDuration}
                                         options={currentVideoModel.durations.map(d => ({ value: d, label: `${d}s` }))}
                                     />
+                                    {/* Свой голос: без озвучки (как раньше) /
+                                        один из курируемых голосов Void / новый
+                                        голос по описанию (Fish Voice Design).
+                                        При выборе голоса модель на бэкенде
+                                        принудительно понижается до Seedance 2.0
+                                        — см. комментарий в video.service.ts. */}
+                                    <SegmentedSlider
+                                        className="shrink-0"
+                                        value={voiceMode}
+                                        onChange={setVoiceMode}
+                                        options={[
+                                            { value: 'none', label: 'Без озвучки' },
+                                            { value: 'existing', label: 'Голос Void' },
+                                            { value: 'design', label: 'Новый голос' },
+                                        ]}
+                                    />
                                 </>
                             )}
                         </div>
@@ -332,14 +381,62 @@ export function ImagesView({ state, updateState }) {
                     </div>
                 </div>
 
-                {/* Честная подсказка вместо кнопки выбора голоса — сейчас
-                    Seedance получает только ТЕКСТ промпта, без отдельного
-                    параметра голоса/референсной озвучки. Полноценный выбор
-                    из своих/клонированных голосов Void (Fish Audio) — это
-                    отдельный по объёму пайплайн (генерация речи → передача
-                    как audio-референс в Seedance 2.5, либо озвучка+ffmpeg
-                    поверх готового видео как fallback), пока не подключён. */}
-                {mode === 'video' && (
+                {/* Панель голоса — появляется только когда выбран режим
+                    озвучки. 'existing': пикер из курируемых голосов Void.
+                    'design': описание нового голоса словами. В обоих
+                    случаях нужен script — реплика, которую озвучит голос
+                    (Fish озвучивает буквально, поэтому это отдельное поле
+                    от общего prompt, где ещё описание сцены/камеры). */}
+                {mode === 'video' && voiceMode !== 'none' && (
+                    <div className="mt-3 p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 space-y-2">
+                        {voiceMode === 'existing' && (
+                            <div ref={voicePickerAnchorRef} className="shrink-0">
+                                <PressButton onClick={openVoicePicker} className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    <span>{voices.find(v => v.id === voiceId)?.title || (voicesLoading ? 'Загрузка голосов…' : 'Выбрать голос Void')}</span>
+                                    <Icons.ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                                </PressButton>
+                            </div>
+                        )}
+                        <AnchoredMenu open={showVoicePicker} onClose={() => setShowVoicePicker(false)} anchorRef={voicePickerAnchorRef} width={240}>
+                            {voicesLoading && <p className="px-3 py-2 text-sm text-gray-400">Загрузка…</p>}
+                            {!voicesLoading && voices.length === 0 && <p className="px-3 py-2 text-sm text-gray-400">Голоса недоступны</p>}
+                            {voices.map(v => (
+                                <PressButton key={v.id} onClick={() => { setVoiceId(v.id); setShowVoicePicker(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${v.id === voiceId ? 'bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                                    <span className="block">{v.title}</span>
+                                    <span className="block text-xs font-normal text-gray-400 dark:text-gray-500 mt-0.5">{v.description}</span>
+                                </PressButton>
+                            ))}
+                        </AnchoredMenu>
+
+                        {voiceMode === 'design' && (
+                            <input
+                                type="text"
+                                value={voiceDescription}
+                                onChange={(e) => setVoiceDescription(e.target.value)}
+                                placeholder="Опишите голос словами: тёплый мужской голос диктора…"
+                                maxLength={300}
+                                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+                            />
+                        )}
+
+                        <textarea
+                            value={script}
+                            onChange={(e) => setScript(e.target.value.slice(0, 300))}
+                            placeholder="Текст реплики, которую скажет голос (до 300 символов)"
+                            rows={2}
+                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none"
+                        />
+                        <p className="text-[11px] text-gray-400 leading-relaxed">
+                            Свой голос доступен на тарифах Pro и Ultra. Для этого видео используется Seedance 2.0
+                            {voiceMode === 'design' ? ' — голос и реплика генерируются вместе через Fish Voice Design.' : '.'}
+                        </p>
+                    </div>
+                )}
+
+                {/* Подсказка для варианта «без озвучки» — модель придумывает
+                    реплики сама из текста промпта, отдельного параметра
+                    голоса в этом случае нет. */}
+                {mode === 'video' && voiceMode === 'none' && (
                     <p className="text-xs text-gray-400 mt-3 text-center leading-relaxed">
                         Голос и реплики создаёт сама модель — опишите их в тексте, например:
                         «...тёплый женский голос за кадром говорит: "Привет!"»
@@ -365,7 +462,18 @@ export function ImagesView({ state, updateState }) {
                                 {it.kind === 'image' ? (
                                     <img src={it.url} alt={it.prompt} className="w-full h-full object-cover" />
                                 ) : it.status === 'completed' ? (
-                                    <video src={it.url} controls className="w-full h-full object-cover" />
+                                    <>
+                                        <video src={it.url} controls className="w-full h-full object-cover" />
+                                        {/* Честно: если сработал fallback B (провайдер
+                                            отклонил audio-референс), голос наложен
+                                            поверх готового видео через ffmpeg —
+                                            точная синхронизация губ не гарантирована. */}
+                                        {it.dubbed && (
+                                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">
+                                                Озвучка наложена после генерации
+                                            </div>
+                                        )}
+                                    </>
                                 ) : it.status === 'failed' ? (
                                     <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center">
                                         <Icons.Alert className="w-5 h-5 text-red-400 mb-1" />

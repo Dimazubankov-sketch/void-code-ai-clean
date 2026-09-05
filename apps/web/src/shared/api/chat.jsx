@@ -95,23 +95,40 @@ export async function generateBackendImage(prompt, images = []) {
 }
 
 // ==========================================
-// Генерация видео (OpenRouter Grok Imagine Video / 1.5) — задача 6
+// Генерация видео (OpenRouter Seedance 2.0/2.5) — задача 6 + свой голос
 // ==========================================
 // Асинхронно: submit сразу возвращает jobId (без ожидания результата —
 // сама генерация занимает от ~30с до нескольких минут), дальше клиент
 // сам опрашивает status по интервалу. Ни один отдельный запрос не
 // держится долго, поэтому таймауты прокси/Cloudflare не грозят.
-export async function submitBackendVideo({ prompt, model, aspectRatio, duration, resolution, imageUrl }) {
+export async function submitBackendVideo({ prompt, model, aspectRatio, duration, resolution, imageUrl, voiceMode, voiceId, voiceDescription, script }) {
   const data = await apiFetch('/videos/generate', {
     method: 'POST',
-    body: { prompt, model, aspectRatio, duration, resolution, ...(imageUrl ? { imageUrl } : {}) },
+    body: {
+      prompt, model, aspectRatio, duration, resolution,
+      ...(imageUrl ? { imageUrl } : {}),
+      ...(voiceMode && voiceMode !== 'none' ? { voiceMode, voiceId, voiceDescription, script } : {}),
+    },
   });
-  return data; // { jobId, pollingUrl }
+  return data; // { jobId, pollingUrl, dubbed }
 }
 
 export async function pollBackendVideo(jobId) {
   const data = await apiFetch(`/videos/status/${encodeURIComponent(jobId)}`, { method: 'GET' });
-  return data; // { status, url, error, cost }
+  return data; // { status, url, error, cost, dubbed }
+}
+
+// Курируемый список голосов Void (Fish Audio) — тот же эндпоинт, что и
+// у настроек озвучки в чате (VoiceSettings). Переиспользуем его же для
+// выбора голоса в видео вместо второго источника правды.
+let fishVoicesPromise = null;
+export async function listFishVoices() {
+  if (!fishVoicesPromise) {
+    fishVoicesPromise = apiFetch('/tts/fish/voices', { method: 'POST' })
+      .then((data) => data.items || [])
+      .catch((e) => { fishVoicesPromise = null; throw e; });
+  }
+  return fishVoicesPromise;
 }
 
 // Извлекает основной текст с указанной страницы через бэкенд, чтобы

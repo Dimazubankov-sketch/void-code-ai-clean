@@ -18,6 +18,11 @@ import type { Response as ExpressResponse } from 'express';
 // Тарификация: $15 за 1M символов — тот же порядок, что и OpenAI TTS-1.
 const TTS_URL = 'https://api.fish.audio/v1/tts';
 const VOICES_URL = 'https://api.fish.audio/model';
+// Voice Design — генерация голоса ПО ТЕКСТОВОМУ ОПИСАНИЮ, без референсного
+// аудио (в отличие от клонирования). Обязательный заголовок model:
+// voice-design-1, лишние поля в теле запроса отклоняются API.
+// https://docs.fish.audio/features/voice-design
+const VOICE_DESIGN_URL = 'https://api.fish.audio/v1/voice-design';
 // Модель передаётся заголовком `model`, а не полем в теле запроса.
 // s2.1-pro — «production»-модель Fish (лучшее качество/задержка).
 const MODEL_HEADER = 's2.1-pro';
@@ -90,6 +95,68 @@ export class FishAudioTtsService {
   private readonly audioCache = new Map<string, { at: number; buf: Buffer }>();
   private readonly audioCacheTtlMs = 15 * 60 * 1000;
   private readonly audioCacheMaxEntries = 200;
+
+  // ------------------------------------------------------------------------
+  // Voice Design — для видео-пайплайна (Seedance + свой голос): пользователь
+  // описывает голос словами («тёплый мужской голос диктора»), а reference_text
+  // — это уже сами РЕПЛИКИ, которые должны прозвучать в видео. Fish в ОДНОМ
+  // запросе одновременно придумывает голос И озвучивает им эту фразу — то
+  // есть возвращённое аудио сразу готово как audio-референс для Seedance,
+  // отдельный TTS-вызов не нужен. n=1: это не инструмент подбора голоса
+  // (там пользователь бы слушал несколько вариантов и выбирал), а прямая
+  // генерация «голос + реплика» под конкретное видео.
+  //
+  // reference_text у Fish ограничен 300 символами — обрезаем, а не
+  // отклоняем запрос целиком: длинные реплики для видео и так редкость
+  // (ролики короткие), лучше отдать усечённый результат, чем ошибку.
+  async designVoice(instruction: string, script: string, language: string = 'ru'): Promise<{ audio: Buffer; mime: string }> {
+    const apiKey = this.apiKey();
+    if (!instruction || !instruction.trim()) throw new BadRequestException('Опишите голос словами (например: тёплый мужской голос диктора)');
+    if (!script || !script.trim()) throw new BadRequestException('Нужен текст реплики, которую скажет голос');
+    const trimmedInstruction = instruction.trim().slice(0, 2000);
+    const trimmedScript = script.trim().slice(0, 300);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let response: Response;
+    try {
+      response = await fetch(VOICE_DESIGN_URL, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          model: 'voice-design-1',
+        },
+        body: JSON.stringify({
+          instruction: trimmedInstruction,
+          reference_text: trimmedScript,
+          language,
+          n: 1,
+        }),
+      });
+    } catch (e: any) {
+      clearTimeout(timer);
+      if (e?.name === 'AbortError') throw new ServiceUnavailableException('Fish Voice Design не ответил вовремя');
+      throw new ServiceUnavailableException(`Сетевая ошибка Fish Voice Design: ${e?.message || e}`);
+    }
+    clearTimeout(timer);
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      console.error('[FishAudioTtsService/designVoice] HTTP', response.status, errorBody.slice(0, 500));
+      if (response.status === 401) throw new ServiceUnavailableException('Ключ Fish Audio недействителен');
+      if (response.status === 402) throw new ServiceUnavailableException('На балансе Fish Audio закончились кредиты');
+      if (response.status === 429) throw new ServiceUnavailableException('Слишком много запросов к Fish Voice Design. Попробуй через минуту.');
+      throw new ServiceUnavailableException(`Ошибка Fish Voice Design: HTTP ${response.status}`);
+    }
+    const data: any = await response.json().catch(() => null);
+    const candidate = Array.isArray(data?.candidates) ? data.candidates[0] : null;
+    const base64: string | undefined = candidate?.audio_base64;
+    if (!base64) throw new ServiceUnavailableException('Fish Voice Design не вернул аудио');
+    // Документация: «current candidate audio payload is WAV bytes».
+    return { audio: Buffer.from(base64, 'base64'), mime: 'audio/wav' };
+  }
 
   private apiKey(): string {
     const key = process.env.FISH_AUDIO_API_KEY;
