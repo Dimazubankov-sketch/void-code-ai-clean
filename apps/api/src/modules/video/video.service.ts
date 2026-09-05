@@ -171,10 +171,22 @@ export class VideoService {
     return { id, url: this.publicUrlFor(id), mime };
   }
 
+  // Задача 3: модель (Seedance) склонна дорисовывать в кадр субтитры —
+  // особенно когда в промпте есть реплики или передан audio-референс с
+  // озвучкой: она «подписывает» произносимое прямо на видео. Никакого
+  // отдельного флага «выключить субтитры» у API нет, поэтому явный запрет
+  // дописываем в САМ промпт — это единственный работающий рычаг.
+  // Добавляем в конец (после пользовательского текста), чтобы инструкция
+  // не терялась при обрезке длинного промпта по лимиту в 1500 символов.
+  private static readonly NO_SUBTITLES =
+    ' No subtitles, no captions, no on-screen text, no burned-in text, no watermarks, no letters or words visible anywhere in the frame.';
+
   private buildBody(params: SubmitParams, model: VideoModel, audioRef: { url: string } | null): Record<string, any> {
+    const maxPrompt = 1500 - VideoService.NO_SUBTITLES.length;
+    const userPrompt = params.prompt.length > maxPrompt ? params.prompt.slice(0, maxPrompt) : params.prompt;
     const body: Record<string, any> = {
       model,
-      prompt: params.prompt.length > 1500 ? params.prompt.slice(0, 1500) : params.prompt,
+      prompt: userPrompt + VideoService.NO_SUBTITLES,
     };
     if (params.aspectRatio) body.aspect_ratio = params.aspectRatio;
     if (params.duration) body.duration = params.duration;

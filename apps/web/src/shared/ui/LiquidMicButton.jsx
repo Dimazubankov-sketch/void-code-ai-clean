@@ -26,7 +26,13 @@ export function LiquidMicButton({ voice, size = 'md', bordered = false, onStart,
     const reduce = prefersReducedMotion();
 
     const dims = { sm: 'w-9 h-9', md: 'w-10 h-10', lg: 'w-11 h-11' }[size] || 'w-10 h-10';
+    // Задача 2: иконка стоп-квадрата заметно КРУПНЕЕ микрофона. В покое
+    // микрофон остаётся прежнего размера (он тонкий, крупная иконка
+    // смотрелась бы грубо), а квадрат «стоп» — самый заметный элемент во
+    // время записи, его увеличиваем: так по нему проще попасть и сразу
+    // видно, что запись идёт.
     const iconSize = { sm: 'w-4 h-4', md: 'w-4 h-4', lg: 'w-5 h-5' }[size] || 'w-4 h-4';
+    const stopIconSize = { sm: 'w-[18px] h-[18px]', md: 'w-5 h-5', lg: 'w-6 h-6' }[size] || 'w-5 h-5';
 
     // Форма кнопки — плавный переход круг ↔ мягкий сквир. Цвет фона НЕ
     // анимируем инлайном вообще (в отличие от прежней версии) — теперь
@@ -76,7 +82,7 @@ export function LiquidMicButton({ voice, size = 'md', bordered = false, onStart,
     const bgCls = idle ? 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800' : 'bg-gray-100 dark:bg-gray-700';
     const textCls = idle ? 'text-gray-600 dark:text-gray-300' : 'text-gray-900 dark:text-white';
     const borderCls = bordered
-        ? `border-2 ${idle ? 'border-transparent active:border-gray-300 dark:active:border-gray-600' : 'border-transparent'}`
+        ? `border ${idle ? 'border-transparent active:border-gray-300 dark:active:border-gray-600' : 'border-transparent'}`
         : '';
 
     return (
@@ -89,7 +95,7 @@ export function LiquidMicButton({ voice, size = 'md', bordered = false, onStart,
                 className={`void-tap-target relative ${dims} flex items-center justify-center transition-colors ${bgCls} ${textCls} ${borderCls}`}
             >
                 <span ref={iconWrapRef} className="flex items-center justify-center">
-                    {iconKind === 'square' && <Icons.Square className={iconSize} />}
+                    {iconKind === 'square' && <Icons.Square className={stopIconSize} />}
                     {iconKind === 'spinner' && <Icons.Spinner className={`${iconSize} animate-spin`} />}
                     {iconKind === 'mic' && <Icons.Mic className={iconSize} />}
                 </span>

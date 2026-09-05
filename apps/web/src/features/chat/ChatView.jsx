@@ -724,14 +724,15 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             поверх него (запись, «преобразование в текст»,
                             кнопка «на весь экран») ── */}
                         <div className="relative">
-                            {/* Задача 2: запись — БЕЗ фиолетовой заливки (нейтральный
-                                полупрозрачный фон), пилюля с волной+таймером прижата
-                                ВПРАВО, вплотную к кнопке-квадрату (стоп) в ряду ниже
-                                — а не висит по центру во всю ширину. */}
+                            {/* Задача 2: во время записи текстовое поле просто
+                                гасится (void-text-hide на самом textarea ниже) —
+                                отдельного оверлея с пилюлей здесь БОЛЬШЕ НЕТ.
+                                Пилюля с волной и таймером переехала в ряд 2,
+                                вплотную к кнопке-квадрату «стоп» (как в
+                                референсе), потому что раньше они жили в разных
+                                рядах и выглядели оторванными друг от друга. */}
                             {voice.recording && (
-                                <div className="absolute inset-0 z-10 rounded-t-[26px] bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm flex items-center justify-end pr-4 pointer-events-none fade-in">
-                                    <RecordingPill voice={voice} />
-                                </div>
+                                <div className="absolute inset-0 z-10 rounded-t-[26px] bg-white/70 dark:bg-darkCard/70 backdrop-blur-sm pointer-events-none fade-in" />
                             )}
                             {/* Задача 2: «Преобразование в текст…» — по ЦЕНТРУ поля
                                 (между выбором модели и микрофоном), нейтральным
@@ -831,9 +832,17 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             {/* Задача 7: выбор модели — прямо в поле ввода,
                                 компактной pill-кнопкой (как «⚡ Быстрый» в
                                 референсе), а не в шапке. */}
-                            <ModelSelector state={state} updateState={updateState} compact />
+                            {/* При записи скрываем селектор модели и распорку —
+                                ряд отдаём под пилюлю записи (менять модель прямо
+                                во время диктовки всё равно некуда и незачем). */}
+                            {!voice.recording && <ModelSelector state={state} updateState={updateState} compact />}
+                            {!voice.recording && <div className="flex-1" />}
 
-                            <div className="flex-1" />
+                            {/* Задача 2: пилюля записи стоит В ОДНОМ РЯДУ с кнопкой
+                                «стоп» и вплотную к ней (gap-1.5), а не в другом
+                                ряду. flex-1 позволяет ей занять освободившееся
+                                место (модель/«+» при записи не нужны). */}
+                            {voice.recording && <RecordingPill voice={voice} className="flex-1 min-w-0 mr-1.5" />}
 
                             {voice.supported && (
                                 <LiquidMicButton

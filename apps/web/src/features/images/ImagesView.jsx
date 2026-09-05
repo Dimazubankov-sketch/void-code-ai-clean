@@ -94,25 +94,22 @@ export function ImagesView({ state, updateState }) {
     };
 
     const images = state.generatedImages || [];
-    const videos = state.generatedVideos || [];
     // stateRef держит АКТУАЛЬНЫЙ state для отложенного опроса статуса
     // видео (pollVideo ниже) — сам tick() живёт в setTimeout и может
     // сработать через много секунд, к тому моменту state как параметр
     // компонента давно устарел бы (тот же паттерн, что и в useVoiceMode.jsx).
     const stateRef = useRef(state);
     useEffect(() => { stateRef.current = state; }, [state]);
-    // Сетка результатов: картинки и видео вперемешку по времени, новые сверху.
-    // Задача 2 (баг): активное видео (то, что уже показано крупной карточкой
-    // НАД полем ввода — см. activeVideo ниже) раньше дополнительно попадало
-    // и в эту сетку, из-за чего одна и та же генерация была видна дважды
-    // (крупно сверху и ещё раз маленькой карточкой в сетке, часто с
-    // отдельным «зависшим» спиннером, т.к. опрос статуса общий, но
-    // отрисовка велась в двух местах). Показываем в сетке только то, что
-    // НЕ является текущим activeVideoId — как только пользователь скрывает
-    // крупную карточку (крестик) или переключается на другую генерацию,
-    // видео естественным образом появляется в сетке как обычный элемент.
-    const items = [...images.map(i => ({ ...i, kind: 'image' })), ...videos.map(v => ({ ...v, kind: 'video' }))]
-        .filter(it => !(it.kind === 'video' && it.id === activeVideoId))
+    // Сетка результатов ПОД полем ввода — только изображения.
+    // Задача 4: готовое видео не должно появляться под полем ввода. Раньше
+    // видео попадало и сюда, из-за чего один и тот же ролик был виден то
+    // крупной карточкой над композером, то маленькой карточкой снизу (а
+    // после закрытия крупной — вообще только снизу, см. скриншот). Теперь
+    // единственное место для видео в студии — карточка НАД полем ввода
+    // (activeVideo), а весь архив роликов живёт в Библиотеке (задача 5),
+    // куда они и так сохраняются через state.generatedVideos.
+    const items = images
+        .map(i => ({ ...i, kind: 'image' }))
         .sort((a, b) => b.timestamp - a.timestamp);
 
     useEffect(() => {
@@ -603,37 +600,13 @@ export function ImagesView({ state, updateState }) {
                     </p>
                 )}
 
-                {/* Сетка результатов */}
+                {/* Сетка результатов — только изображения (см. items выше:
+                    видео сюда сознательно не попадают, задача 4). */}
                 {items.length > 0 && (
                     <div ref={gridRef} className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-10">
                         {items.map((it) => (
                             <div key={it.id} className="void-img-card relative rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 aspect-square group">
-                                {it.kind === 'image' ? (
-                                    <img src={it.url} alt={it.prompt} className="w-full h-full object-cover" />
-                                ) : it.status === 'completed' ? (
-                                    <>
-                                        <video src={it.url} controls className="w-full h-full object-cover" />
-                                        {/* Честно: если сработал fallback B (провайдер
-                                            отклонил audio-референс), голос наложен
-                                            поверх готового видео через ffmpeg —
-                                            точная синхронизация губ не гарантирована. */}
-                                        {it.dubbed && (
-                                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">
-                                                Озвучка наложена после генерации
-                                            </div>
-                                        )}
-                                    </>
-                                ) : it.status === 'failed' ? (
-                                    <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center">
-                                        <Icons.Alert className="w-5 h-5 text-red-400 mb-1" />
-                                        <p className="text-[11px] text-red-500 font-semibold">{it.error || 'Ошибка генерации'}</p>
-                                    </div>
-                                ) : (
-                                    <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                                        <Icons.Spinner className="w-5 h-5 text-[#5b32d4] animate-spin" />
-                                        <p className="text-[11px] text-gray-400 font-semibold">Генерируется…</p>
-                                    </div>
-                                )}
+                                <img src={it.url} alt={it.prompt} className="w-full h-full object-cover" />
                                 <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                                     <p className="text-[11px] text-white font-semibold truncate">{it.prompt}</p>
                                 </div>

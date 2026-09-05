@@ -92,7 +92,18 @@ export function LibraryView({ state, updateState }) {
                                             <img src={item.url} alt={item.prompt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                         ) : (
                                             <>
-                                                <video src={item.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" muted />
+                                                {/* Задача 6: превью видео в квадратной карточке. preload="metadata"
+                                                    обязателен — без него Safari/iOS не рисует первый кадр
+                                                    и карточка остаётся чёрной; #t=0.1 во фрагменте заставляет
+                                                    браузер отрисовать именно кадр, а не пустой холст.
+                                                    object-cover обрезает любое соотношение (16:9, 9:16) в 1:1. */}
+                                                <video
+                                                    src={`${item.url}#t=0.1`}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                    muted
+                                                    playsInline
+                                                    preload="metadata"
+                                                />
                                                 <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                                                     <div className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center">
                                                         <Icons.Play className="w-4 h-4 text-white" />
@@ -167,7 +178,16 @@ export function LibraryView({ state, updateState }) {
                         {viewerItem.kind === 'image' ? (
                             <img src={viewerItem.url} alt={viewerItem.prompt} className="max-w-full max-h-[70vh] rounded-xl object-contain" />
                         ) : (
-                            <video src={viewerItem.url} controls autoPlay className="max-w-full max-h-[70vh] rounded-xl object-contain" />
+                            // Задача 6: во весь экран ролик идёт в СВОЁМ соотношении
+                            // (object-contain, без принудительного 1:1) с обычными
+                            // controls — play/pause/перемотка.
+                            <video
+                                src={viewerItem.url}
+                                controls
+                                autoPlay
+                                playsInline
+                                className="max-w-full max-h-[78vh] w-auto h-auto rounded-xl object-contain bg-black"
+                            />
                         )}
                         <div className="flex items-center gap-3">
                             <a

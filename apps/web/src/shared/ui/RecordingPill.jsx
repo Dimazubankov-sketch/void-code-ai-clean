@@ -26,7 +26,7 @@ export function RecordingPill({ voice, className = '' }) {
 
     return (
         <div className={`flex items-center gap-2.5 px-3.5 py-2 rounded-full bg-gray-100/90 dark:bg-gray-700/80 backdrop-blur-md ${className}`}>
-            <VoiceWaveMic analyserRef={voice.analyserRef} compact className="text-gray-700 dark:text-gray-200" />
+            <VoiceWaveMic analyserRef={voice.analyserRef} compact className="flex-1 min-w-0 text-gray-700 dark:text-gray-200" />
             <span className="text-xs font-bold text-gray-700 dark:text-gray-200 tabular-nums shrink-0">
                 {formatElapsed(elapsedMs)}
             </span>

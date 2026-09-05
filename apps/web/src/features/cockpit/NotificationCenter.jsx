@@ -631,7 +631,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                 <>
                     <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-darkBorder bg-gray-50/50 dark:bg-gray-900/20">
                         <div className="flex items-center gap-2">
-                            <Toggle checked={state.notifyPersonal !== false} onChange={() => toggleNotify('notifyPersonal')} size="md" />
+                            <Toggle checked={state.notifyPersonal !== false} onChange={() => toggleNotify('notifyPersonal')} />
                             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Уведомления</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -882,7 +882,7 @@ function ToggleBar({ label, value, onToggle }) {
     return (
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-darkBorder bg-gray-50/50 dark:bg-gray-900/20">
             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">{label}</span>
-            <Toggle checked={value} onChange={onToggle} size="md" />
+            <Toggle checked={value} onChange={onToggle} />
         </div>
     );
 }
@@ -891,7 +891,7 @@ function SettingsToggleRow({ label, value, onToggle }) {
     return (
         <div className="flex items-center justify-between py-2">
             <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</span>
-            <Toggle checked={value} onChange={onToggle} size="md" />
+            <Toggle checked={value} onChange={onToggle} />
         </div>
     );
 }

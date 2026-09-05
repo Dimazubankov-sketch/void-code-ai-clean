@@ -6,6 +6,7 @@ import { formatMoney, formatPrice } from '@/shared/lib/format';
 import { goBack } from '@/shared/lib/navigation';
 import { subscribeBackend } from '@/shared/api/billing';
 import { Icons } from '@/shared/ui/Icons';
+import { ShaderCard } from '@/shared/ui/ShaderCard';
 
 
 export function PricingView({ state, updateState }) {
@@ -465,36 +466,51 @@ export function PricingView({ state, updateState }) {
             <div className="flex-1 overflow-y-auto px-4 max-w-2xl w-full mx-auto">
                 {/* key завязан на viewedId+billingCycle → пересборка = GSAP crossfade */}
                 <div key={`${viewedId}-${state.billingCycle}`} className="void-pv-body pb-4">
-                    {/* Бейдж множителя + цена */}
-                    <div className="flex items-center gap-3 flex-wrap mt-1">
-                        <span className="text-4xl font-extrabold dark:text-white">{money(price)}</span>
-                        {state.billingCycle === 'month' && viewed.oldPriceMonth && (
-                            <span className="text-xl font-bold text-gray-400 line-through">{money(viewed.oldPriceMonth)}</span>
-                        )}
-                        {price > 0 && (
-                            <span className="text-sm text-gray-500 self-end mb-1.5">/ {state.billingCycle === 'month' ? 'мес' : 'год'}</span>
-                        )}
-                    </div>
-                    {viewed.multiplier > 1 && (
-                        <div className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 text-xs font-extrabold">
-                            ×{viewed.multiplier} лимитов
+                    {/* Задача 7: карточка тарифа в стиле ShaderCard — живой
+                        WebGL-фон (плазма) в фирменной фиолетово-синей палитре
+                        Void. Содержимое (цена, множитель, список фич) и вся
+                        логика тарифов НЕ менялись — только визуальная оболочка. */}
+                    <ShaderCard className="mt-1 p-5 sm:p-6">
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/20 bg-white/10 text-white text-[11px] font-extrabold tracking-wide uppercase">
+                                <Icons.Sparkles className="w-3.5 h-3.5" /> Void Code AI
+                            </span>
+                            <span className="text-white/50 text-xs font-bold tracking-widest">{viewed.title}</span>
                         </div>
-                    )}
+                        <h3 className="text-2xl font-extrabold text-white">{viewed.title}</h3>
+                        <p className="text-sm text-white/60 leading-snug mt-1">{viewed.subtitle}</p>
+                        <div className="h-px bg-white/15 my-5" />
+                    {/* Бейдж множителя + цена */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                            <span className="text-4xl font-extrabold text-white">{money(price)}</span>
+                            {state.billingCycle === 'month' && viewed.oldPriceMonth && (
+                                <span className="text-xl font-bold text-white/40 line-through">{money(viewed.oldPriceMonth)}</span>
+                            )}
+                            {price > 0 && (
+                                <span className="text-sm text-white/50 self-end mb-1.5">/ {state.billingCycle === 'month' ? 'мес' : 'год'}</span>
+                            )}
+                        </div>
+                        {viewed.multiplier > 1 && (
+                            <div className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-white/12 border border-white/20 text-white text-xs font-extrabold">
+                                ×{viewed.multiplier} лимитов
+                            </div>
+                        )}
 
-                    <h4 className="text-sm font-bold mt-6 mb-4 dark:text-white">Что входит:</h4>
-                    <div className="space-y-3.5">
-                        {viewed.features.map((f, i) => {
-                            const IconComp = featureIcon(f);
-                            return (
-                                <div key={i} className="void-pv-feat flex items-start gap-3">
-                                    <div className="mt-0.5 w-7 h-7 rounded-xl bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 flex items-center justify-center flex-shrink-0">
-                                        <IconComp className="w-4 h-4" />
+                        <h4 className="text-sm font-bold mt-6 mb-4 text-white">Что входит:</h4>
+                        <div className="space-y-3.5">
+                            {viewed.features.map((f, i) => {
+                                const IconComp = featureIcon(f);
+                                return (
+                                    <div key={i} className="void-pv-feat flex items-start gap-3">
+                                        <div className="mt-0.5 w-7 h-7 rounded-xl bg-white/12 border border-white/20 text-white flex items-center justify-center flex-shrink-0">
+                                            <IconComp className="w-4 h-4" />
+                                        </div>
+                                        <div className="text-sm font-medium text-white/85 leading-snug pt-1">{f}</div>
                                     </div>
-                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 leading-snug pt-1">{f}</div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                );
+                            })}
+                        </div>
+                    </ShaderCard>
                 </div>
             </div>
 
