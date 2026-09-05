@@ -49,6 +49,21 @@ const makeChatTitle = (text) => {
     return clean.slice(0, 30).trim() + '…';
 };
 
+// Задача 3: постоянный рельс RightMenu на ПК уместен только на «корневых»
+// экранах — там, куда с самого рельса и переходят (чат, изображения,
+// проекты, навыки, плагины, библиотека, агенты, диалоги агентов). На
+// вложенных экранах (Настройки, Тарифы, Кошелёк, Лимиты, Инфо и т.д.) у
+// каждого есть своя кнопка «Назад», и постоянный рельс рядом с ней —
+// визуальный шум и дублирование навигации (см. баг на скрине Настроек).
+// Поэтому на вложенных экранах рельс скрываем и не резервируем под него
+// место (md:mr-16). Это ЕДИНЫЙ список-источник правды и для App (место
+// под рельс), и для RightMenu (показывать ли сам рельс).
+export const RAIL_VIEWS = new Set([
+    'chat', 'images', 'projects', 'skills', 'plugins', 'library',
+    'agent-store', 'cockpit', 'orchestrator-chat', 'agent-chat',
+]);
+export const isRailView = (view) => RAIL_VIEWS.has(view);
+
 export function App() {
     // Заставка при загрузке/обновлении страницы (проигрывается каждый раз).
     const [showSplash, setShowSplash] = useState(true);
@@ -838,8 +853,11 @@ export function App() {
                 layout, чтобы правый край чата не оказывался под панелью.
                 Когда пользователь разворачивает панель на полную ширину —
                 это уже временный оверлей (как и на мобильном), с тем же
-                затемнением фона. */}
-            <main className={`flex-1 flex flex-col h-full w-full relative z-10 transition-transform ${state.user ? 'md:mr-16' : ''}`}>
+                затемнением фона.
+                Задача 3: место под рельс резервируем только на корневых
+                экранах (isRailView) — на вложенных (Настройки и т.д.)
+                рельса нет, поэтому и отступ не нужен. */}
+            <main className={`flex-1 flex flex-col h-full w-full relative z-10 transition-transform ${state.user && isRailView(state.currentView) ? 'md:mr-16' : ''}`}>
                 {state.currentView === 'chat' && <ChatView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} messagesEndRef={messagesEndRef} chatFileInputRef={chatFileInputRef} voiceMode={voiceMode} />}
                 {state.currentView === 'settings' && <SettingsView state={state} updateState={updateState} />}
                 {state.currentView === 'pricing' && <PricingView state={state} updateState={updateState} />}
@@ -863,7 +881,10 @@ export function App() {
                 {state.currentView === 'agent-chat' && <AgentChatView state={state} updateState={updateState} />}
             </main>
             
-            <RightMenu state={state} updateState={updateState} />
+            {/* Задача 3: showRail=false на вложенных экранах — на ПК рельс
+                тогда не отрисовывается совсем (мобильное выезжающее меню
+                продолжает работать из любого экрана). */}
+            <RightMenu state={state} updateState={updateState} showRail={state.user && isRailView(state.currentView)} />
 
             {/* Центр уведомлений (почта): открывается колокольчиком */}
             {state.showNotifications && (

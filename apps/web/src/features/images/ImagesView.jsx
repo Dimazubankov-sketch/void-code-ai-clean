@@ -79,6 +79,20 @@ export function ImagesView({ state, updateState }) {
     const videoModelAnchorRef = useRef(null);
     const voicePickerAnchorRef = useRef(null);
 
+    // Задача 4: при переключении режима закрываем все всплывающие меню и
+    // видео-панель. Иначе, например, открытая панель озвучки «прилипала» к
+    // состоянию: уходишь в «Изображение» — панель прячется (рендерится
+    // только в video), но showVoicePanel остаётся true, и при возврате в
+    // «Видео» она неожиданно снова открыта. Плюс любой открытый дропдаун
+    // (пропорции/модель/голос) должен закрываться при смене режима.
+    const handleModeChange = (next) => {
+        setMode(next);
+        setShowAspect(false);
+        setShowVideoModel(false);
+        setShowVoicePicker(false);
+        if (next !== 'video') setShowVoicePanel(false);
+    };
+
     const images = state.generatedImages || [];
     const videos = state.generatedVideos || [];
     // stateRef держит АКТУАЛЬНЫЙ state для отложенного опроса статуса
@@ -532,7 +546,7 @@ export function ImagesView({ state, updateState }) {
                             <SegmentedSlider
                                 className="shrink-0"
                                 value={mode}
-                                onChange={setMode}
+                                onChange={handleModeChange}
                                 options={[
                                     { value: 'image', label: <><Icons.Image className="w-4 h-4" /> Изображение</> },
                                     { value: 'video', label: <><Icons.Camera className="w-4 h-4" /> Видео</> },
@@ -567,7 +581,7 @@ export function ImagesView({ state, updateState }) {
                     интерфейсе, а не только после отказа сервера. */}
                 {mode === 'video' && (state.userPlan || 'FREE').toUpperCase() === 'FREE' && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-3 text-center">
-                        Генерация видео недоступна на тарифе Free — перейдите на Plus и выше.
+                        Генерация видео недоступна на тарифе Free — перейдите на Pro или Ultra.
                     </p>
                 )}
 

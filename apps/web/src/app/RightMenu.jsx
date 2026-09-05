@@ -52,7 +52,7 @@ const sortChats = (chats) => {
 // ==========================================
 // БОКОВОЕ МЕНЮ (ШТОРКА)
 // ==========================================
-export function RightMenu({ state, updateState }) {
+export function RightMenu({ state, updateState, showRail = true }) {
     const lang = state.lang || 'ru';
     const [chatAction, setChatAction] = useState(null); // {type, chat}
     const [searchOpen, setSearchOpen] = useState(false);
@@ -265,7 +265,7 @@ export function RightMenu({ state, updateState }) {
                 референсе), а разворачивается в полный список тем же
                 «Свернуть»/«Развернуть». На мобильном ничего не изменилось:
                 обычная выезжающая по isRightMenuOpen панель. */}
-            <div className={`fixed top-0 right-0 h-full ${collapsed ? 'w-[85vw] md:w-16' : 'w-[85vw] md:w-96'} bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : 'translate-x-full'} md:translate-x-0`}>
+            <div className={`fixed top-0 right-0 h-full ${collapsed ? 'w-[85vw] md:w-16' : 'w-[85vw] md:w-96'} bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : 'translate-x-full'} ${showRail ? 'md:translate-x-0' : 'md:translate-x-full'}`}>
                 <div ref={panelInnerRef} className={`p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden ${collapsed ? 'md:px-3' : ''}`}>
                     {/* Шапка: на мобильном — всегда обычный вид (лупа слева,
                         «Меню» по центру, крестик справа), collapsed её не

@@ -232,7 +232,7 @@ export function CockpitView({ state, updateState, embedded = false, searchQuery 
                                             <span className="text-[10px] font-bold text-white bg-gradient-to-r from-[#5b32d4] to-[#a52fe0] px-2 py-0.5 rounded-full shrink-0">Оркестратор</span>
                                         )}
                                     </div>
-                                    <p className="text-xs text-gray-400 truncate">{blocked ? 'Возобновит работу после оплаты тарифа Plus и выше' : (linked > 0 ? `Управляет агентами: ${linked}` : 'Агенты не закреплены')}</p>
+                                    <p className="text-xs text-gray-400 truncate">{blocked ? 'Возобновит работу после оплаты тарифа Pro или Ultra' : (linked > 0 ? `Управляет агентами: ${linked}` : 'Агенты не закреплены')}</p>
                                 </div>
                                 {blocked ? (
                                     <button onClick={() => updateState({ currentView: 'pricing' })} className="px-3 py-2 rounded-xl bg-[#5b32d4] text-white text-xs font-bold shrink-0">Оплатить</button>
