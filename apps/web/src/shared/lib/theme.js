@@ -26,7 +26,7 @@ const syncChrome = (isDark) => {
     // элементов (скроллбары, инпуты) следуют за темой приложения.
     document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', isDark ? '#0f0f13' : '#f8f9fc');
+    if (meta) meta.setAttribute('content', isDark ? '#1c1c1f' : '#f8f9fc');
 };
 
 export const applyTheme = (isDark) => {

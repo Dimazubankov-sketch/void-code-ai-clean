@@ -72,6 +72,13 @@ export function useVoiceRecorder(onText, lang = 'ru-RU', opts = {}) {
             const AC = window.AudioContext || window.webkitAudioContext;
             const ctx = new AC();
             audioCtxRef.current = ctx;
+            // Задача 1 (баг «волна не реагирует на речь»): AudioContext в
+            // Chrome/Safari стартует в состоянии 'suspended'. Пока он не
+            // возобновлён, analyser.getByteFrequencyData() отдаёт сплошные
+            // нули — волна стоит ровной прямой, как бы громко ни говорили.
+            // start() вызывается по тапу на микрофон (пользовательский
+            // жест), поэтому resume() здесь разрешён и сработает.
+            if (ctx.state === 'suspended') { try { await ctx.resume(); } catch { /* noop */ } }
             const source = ctx.createMediaStreamSource(stream);
             const analyser = ctx.createAnalyser();
             analyser.fftSize = 512;

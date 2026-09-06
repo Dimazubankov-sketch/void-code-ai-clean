@@ -819,46 +819,41 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             кнопки. ── */}
                         <div ref={composerBtnsRef} className="flex items-center gap-2 px-3 pb-2.5">
                             {/* «+» слева: при записи переворачивается в «×» (отмена записи),
-                                иначе открывает меню действий (проект/изображение/агенты/…) */}
+                                иначе открывает меню действий (проект/изображение/агенты/…).
+                                Задача: единый размер (h-9 w-9) и серая обводка — как у
+                                выбора модели, микрофона и кнопки отправки, чтобы весь ряд
+                                был из одинаковых по высоте и рамке кнопок на одном уровне. */}
                             <button
                                 onClick={() => voice.recording ? voice.cancel() : setShowPlusMenu(true)}
                                 {...pressProps(gsap)}
                                 title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
-                                className="void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                className="void-tap-target w-9 h-9 shrink-0 rounded-full border border-gray-200 dark:border-darkBorder flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                             >
                                 <Icons.Plus className={`w-5 h-5 void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
                             </button>
 
-                            {/* Задача 7: выбор модели — прямо в поле ввода,
-                                компактной pill-кнопкой (как «⚡ Быстрый» в
-                                референсе), а не в шапке. */}
-                            {/* При записи скрываем селектор модели и распорку —
-                                ряд отдаём под пилюлю записи (менять модель прямо
-                                во время диктовки всё равно некуда и незачем). */}
+                            {/* Выбор модели — прямо в поле ввода. При записи скрываем
+                                (менять модель во время диктовки некуда) и отдаём место
+                                пилюле записи. */}
                             {!voice.recording && <ModelSelector state={state} updateState={updateState} compact />}
                             {!voice.recording && <div className="flex-1" />}
 
-                            {/* Задача 2: пилюля записи стоит В ОДНОМ РЯДУ с кнопкой
-                                «стоп» и вплотную к ней (gap-1.5), а не в другом
-                                ряду. flex-1 позволяет ей занять освободившееся
-                                место (модель/«+» при записи не нужны). */}
+                            {/* Пилюля записи — в одном ряду с кнопкой «стоп», вплотную. */}
                             {voice.recording && <RecordingPill voice={voice} className="flex-1 min-w-0 mr-1.5" />}
 
                             {voice.supported && (
                                 <LiquidMicButton
                                     voice={voice}
                                     size="sm"
+                                    bordered
                                     onStart={startVoiceGuarded}
                                     title={t(lang, 'home.voiceInput')}
                                     stopTitle={t(lang, 'chat.stopRecording')}
                                 />
                             )}
-                            {/* Кнопка отправки/Voice Mode: пока поле ввода пустое (и нет
-                                вложений) — показываем вход в разговорный Voice Mode
-                                (значок волны на месте кнопки отправки, тот же фиолетовый,
-                                что и раньше, без подписи — задача 8). Как только
-                                появляется текст или фото — кнопка тут же становится
-                                обычной стрелкой отправки. */}
+                            {/* Кнопка отправки/Voice Mode — тот же размер (w-9 h-9) и
+                                выравнивание, что и остальные, чтобы не наслаивалась на
+                                «стоп» и стояла на одном уровне. */}
                             {(state.inputValue.trim() || (state.selectedImages && state.selectedImages.length > 0)) ? (
                                 <button
                                     onClick={() => state.imageGenMode ? handleGenerateImage() : handleSendMessage()}
@@ -868,9 +863,6 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                     className="void-tap-target w-9 h-9 shrink-0 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full flex items-center justify-center transition-colors"
                                 ><Icons.ArrowUp className="w-4 h-4" /></button>
                             ) : state.imageGenMode ? (
-                                // В режиме генерации изображений поле пустым быть не может —
-                                // кнопка остаётся стрелкой (просто неактивной), Voice Mode
-                                // здесь не предлагаем: это отдельный от диалога режим.
                                 <button
                                     disabled
                                     title="Отправить"

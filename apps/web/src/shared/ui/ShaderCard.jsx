@@ -100,6 +100,7 @@ export function ShaderCard({
     bgColor = '#0d0b1a',
     speed = 1,
     opacity = 0.85,
+    light = false,
     className = '',
     children,
 }) {
@@ -213,13 +214,20 @@ export function ShaderCard({
     return (
         <div
             ref={hostRef}
-            className={`relative overflow-hidden rounded-[20px] border border-white/10 ${className}`}
-            style={{ backgroundColor: bgColor, boxShadow: '0 18px 50px -20px rgba(91,50,212,0.55)' }}
+            className={`relative overflow-hidden rounded-[20px] border ${light ? 'border-[#5b32d4]/15' : 'border-white/10'} ${className}`}
+            style={{ backgroundColor: bgColor, boxShadow: light ? '0 20px 60px -24px rgba(91,50,212,0.45)' : '0 18px 50px -20px rgba(91,50,212,0.55)' }}
         >
             <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" aria-hidden="true" />
-            {/* Затемняющая вуаль под текст: плазма яркая, без неё контраст
-                текста на светлых пятнах падает ниже читаемого. */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/35 to-black/65 pointer-events-none" aria-hidden="true" />
+            {/* Вуаль: в тёмной карточке затемняет плазму под белый текст; в
+                светлой — наоборот, высветляет (полупрозрачный белый), чтобы
+                фиолетовое свечение осталось мягким фоном, а тёмный текст
+                читался. */}
+            <div
+                className={`absolute inset-0 pointer-events-none ${light
+                    ? 'bg-gradient-to-b from-white/70 via-white/60 to-white/80'
+                    : 'bg-gradient-to-b from-black/25 via-black/35 to-black/65'}`}
+                aria-hidden="true"
+            />
             <div className="relative">{children}</div>
         </div>
     );

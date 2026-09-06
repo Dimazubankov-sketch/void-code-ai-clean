@@ -94,9 +94,9 @@ export function ChartBlock({ code }) {
     // виджеты проекта (LimitsView, MessageRenderer.code-block).
     const theme = isDark
         ? {
-            surface: '#1a1a24',     // darkCard
+            surface: '#26262b',     // darkCard
             header: '#181828',
-            border: '#2a2a35',      // darkBorder
+            border: '#35353c',      // darkBorder
             gridStrong: '#2a2a3c',
             gridDashed: '#2a2a3c',
             axisText: '#8a8ab0',
