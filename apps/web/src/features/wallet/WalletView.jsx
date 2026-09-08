@@ -37,11 +37,11 @@ export function WalletView({ state, updateState }) {
                     <p className="text-sm font-semibold text-white/70 mb-1.5 relative">Баланс кошелька</p>
                     <p className="text-4xl font-extrabold mb-5 relative">{formatMoney(balance)} ₽</p>
                     <div className="flex gap-2.5 relative">
-                        <button onClick={() => setShowTopUp(true)} className="flex items-center gap-2 bg-white text-[#5b32d4] font-bold px-5 py-3 rounded-2xl hover:bg-white/90 transition-colors shadow-md">
-                            <Icons.Plus className="w-4 h-4" /> Пополнить
+                        <button onClick={() => setShowTopUp(true)} className="flex items-center gap-2 bg-white text-[#5b32d4] font-bold px-5 py-3 rounded-2xl hover:bg-white/90 active:scale-[0.97] transition-all shadow-md">
+                            <Icons.Plus className="w-[18px] h-[18px]" /> Пополнить
                         </button>
-                        <button onClick={() => setShowWithdraw(true)} disabled={balance <= 0} className="flex items-center gap-2 bg-white/15 text-white font-bold px-5 py-3 rounded-2xl hover:bg-white/25 disabled:opacity-40 transition-colors border border-white/20">
-                            <Icons.ArrowUp className="w-4 h-4" /> Вывести
+                        <button onClick={() => setShowWithdraw(true)} disabled={balance <= 0} className="flex items-center gap-2 bg-white/15 text-white font-bold px-5 py-3 rounded-2xl hover:bg-white/25 active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100 transition-all border border-white/20">
+                            <Icons.ArrowUp className="w-[18px] h-[18px]" /> Вывести
                         </button>
                     </div>
                 </div>
