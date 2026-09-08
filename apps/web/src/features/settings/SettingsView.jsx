@@ -49,18 +49,23 @@ export function SettingsView({ state, updateState }) {
                 </div>
                 
                 <div className="space-y-6">
+                    <div>
+                    <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 ml-4">Аккаунт</h3>
                     <div className="bg-white dark:bg-darkCard rounded-[2rem] p-2 shadow-sm border border-gray-100 dark:border-darkBorder overflow-hidden">
                         <ListItem icon={Icons.User} label={t(lang, 'settings.personal')} onClick={() => setShowAccounts(true)} />
                         <ListItem icon={Icons.Volume2} label={t(lang, 'settings.voice')} extra={<span className="text-xs text-gray-400">{state.voiceLang === 'ru-RU' ? 'Русский' : (state.voiceLang || 'ru-RU')}</span>} onClick={() => setShowVoice(true)} />
                         <ListItem icon={Icons.BarChart} label={t(lang, 'settings.limits')} onClick={() => setShowLimits(true)} />
                         <ListItem icon={Icons.Star} label={t(lang, 'settings.subscription')} extra={<span className="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-3 py-1 rounded-lg border border-green-100 dark:border-green-900/50">{state.userPlan === 'free' ? 'Free' : state.userPlan === 'pro_plus' ? 'Ultra' : 'Pro'}</span>} onClick={() => updateState({currentView: 'pricing'})} />
-                        <ListItem icon={Icons.Wallet} label={t(lang, 'settings.wallet')} extra={<span className="text-xs font-bold text-[#5b32d4] dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-3 py-1 rounded-lg border border-purple-100 dark:border-purple-900/50">{formatMoney(state.walletBalance || 0)} ₽</span>} onClick={() => updateState({currentView: 'wallet'})} />
+                        <ListItem icon={Icons.Wallet} label={t(lang, 'settings.wallet')} extra={<span className="text-xs font-bold text-[#5b32d4] dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-3 py-1 rounded-lg border border-purple-100 dark:border-purple-900/50">{formatMoney(state.walletBalance || 0)} ₽</span>} onClick={() => updateState({currentView: 'wallet'})} border={false} />
                     </div>
-                    
+                    </div>
+
+                    <div>
+                    <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 ml-4">Приложение</h3>
                     <div className="bg-white dark:bg-darkCard rounded-[2rem] p-2 shadow-sm border border-gray-100 dark:border-darkBorder overflow-hidden">
                         <ListItem icon={Icons.Bell} label="Звук" onClick={() => setShowSound(true)} />
-                        <div className="flex items-center justify-between p-4 border-b border-gray-50 dark:border-gray-800/50 cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-800/50 rounded-2xl transition-colors" onClick={() => updateState({isDarkMode: !state.isDarkMode})}>
-                            <div className="flex items-center gap-4"><div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-xl"><Icons.Moon /></div><span className="font-bold text-[15px] dark:text-white">{t(lang, 'settings.darkTheme')}</span></div>
+                        <div className="group flex items-center justify-between gap-3 px-3 py-3 border-b border-gray-100 dark:border-white/[0.04] cursor-pointer hover:bg-gray-100/70 dark:hover:bg-white/[0.05] rounded-2xl transition-all duration-150 active:scale-[0.99]" onClick={() => updateState({isDarkMode: !state.isDarkMode})}>
+                            <div className="flex items-center gap-3 min-w-0"><div className="w-9 h-9 shrink-0 flex items-center justify-center bg-gray-100 dark:bg-white/[0.06] text-gray-600 dark:text-gray-300 rounded-xl"><Icons.Moon className="w-[18px] h-[18px]" /></div><span className="font-semibold text-[15px] text-gray-900 dark:text-white">{t(lang, 'settings.darkTheme')}</span></div>
                             <ToggleIndicator checked={state.isDarkMode} />
                         </div>
                         <ListItem icon={Icons.Globe} label={t(lang, 'settings.language')} extra={<span className="text-sm font-bold text-gray-400">{langLabel}</span>} onClick={() => setShowLang(true)} />
@@ -69,7 +74,8 @@ export function SettingsView({ state, updateState }) {
                             уже существует и отрисовывается в App.jsx. */}
                         <ListItem icon={Icons.Help} label="Помощь" onClick={() => updateState({ currentView: 'guide' })} />
                         <ListItem icon={Icons.Compass} label="Сведения" onClick={() => updateState({ currentView: 'info' })} />
-                        <ListItem icon={Icons.Info} label={t(lang, 'settings.version')} extra={<span className="text-sm font-bold text-gray-400">v1.2.0</span>} />
+                        <ListItem icon={Icons.Info} label={t(lang, 'settings.version')} extra={<span className="text-sm font-bold text-gray-400">v1.2.0</span>} border={false} />
+                    </div>
                     </div>
 
                     <div className="text-center pb-8 pt-4">
