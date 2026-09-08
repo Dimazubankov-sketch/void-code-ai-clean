@@ -476,10 +476,29 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             >
                 <div className="max-w-4xl mx-auto space-y-6">
                     {messages.length === 0 && (
-                        <div className="text-center mt-20 fade-in">
-                            <Icons.VoidLogo className="w-16 h-16 mx-auto mb-6 text-[#5b32d4] dark:text-purple-400 opacity-20" />
-                            <h2 className="text-2xl font-bold text-gray-400 dark:text-gray-600 mb-2">{t(lang, 'chat.startDialog')}</h2>
-                            <p className="text-gray-400 dark:text-gray-600 text-sm">{t(lang, 'chat.sendMessage')}</p>
+                        <div className="flex flex-col items-center text-center mt-16 md:mt-24 fade-in">
+                            <Icons.VoidLogo className="w-16 h-16 mx-auto mb-5" />
+                            <h2 className="text-[26px] md:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-1.5">
+                                {lang === 'en' ? 'What can I help with?' : lang === 'zh' ? '有什么可以帮您？' : 'Чем могу помочь?'}
+                            </h2>
+                            <p className="text-gray-400 dark:text-gray-500 text-sm mb-7">{t(lang, 'chat.sendMessage')}</p>
+                            <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg">
+                                {(lang === 'en'
+                                    ? ['Explain what Void can do', 'Write a React component', 'Give me 5 app name ideas', 'Build a comparison table']
+                                    : ['Что умеет Void Code AI', 'Напиши компонент на React', 'Придумай 5 названий для приложения', 'Составь таблицу сравнения']
+                                ).map((s) => (
+                                    <button
+                                        key={s}
+                                        onClick={() => {
+                                            updateState({ inputValue: s });
+                                            requestAnimationFrame(() => editableTextareaRef.current?.focus());
+                                        }}
+                                        className="void-tap-target px-3.5 py-2 rounded-full text-[13px] font-semibold text-gray-600 dark:text-gray-300 bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder shadow-sm hover:border-[#5b32d4]/40 hover:text-[#5b32d4] dark:hover:text-purple-300 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
                     
