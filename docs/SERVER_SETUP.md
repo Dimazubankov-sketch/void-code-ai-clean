@@ -42,7 +42,9 @@ PORT=3000
 ```bash
 cd /var/www/void-code-ai-clean/apps/api
 npm install
-npx prisma migrate deploy
+# В проекте нет папки prisma/migrations — схема синхронизируется напрямую
+# через db push (migrate deploy на непустой базе без миграций падает с P3005).
+npx prisma db push
 npm run build
 pm2 start ecosystem.config.js
 pm2 save

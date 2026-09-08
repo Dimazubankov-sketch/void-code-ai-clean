@@ -275,7 +275,7 @@ export function RightMenu({ state, updateState, showRail = true }) {
                 референсе), а разворачивается в полный список тем же
                 «Свернуть»/«Развернуть». На мобильном ничего не изменилось:
                 обычная выезжающая по isRightMenuOpen панель. */}
-            <div className={`fixed top-0 right-0 h-full ${collapsed ? 'w-[85vw] md:w-16' : 'w-[85vw] md:w-96'} bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : 'translate-x-full'} ${showRail ? 'md:translate-x-0' : 'md:translate-x-full'}`}>
+            <div className={`fixed top-0 left-0 h-full ${collapsed ? 'w-[85vw] md:w-16' : 'w-[85vw] md:w-96'} bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : '-translate-x-full'} ${showRail ? 'md:translate-x-0' : 'md:-translate-x-full'}`}>
                 <div ref={panelInnerRef} className={`p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden ${collapsed ? 'md:px-3' : ''}`}>
                     {/* Шапка: на мобильном — всегда обычный вид (лупа слева,
                         «Меню» по центру, крестик справа), collapsed её не
@@ -309,7 +309,7 @@ export function RightMenu({ state, updateState, showRail = true }) {
                                     title="Свернуть панель"
                                     className="void-tap-target p-2 -ml-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
                                 >
-                                    <Icons.PanelRight className="w-5 h-5" />
+                                    <Icons.PanelRight className="w-5 h-5 scale-x-[-1]" />
                                 </button>
                                 <button onClick={() => setSearchOpen(true)} className="void-tap-target p-2 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors" title={t(lang, 'menu.search')}>
                                     <Icons.Search className="w-6 h-6" />
@@ -330,7 +330,7 @@ export function RightMenu({ state, updateState, showRail = true }) {
                                 title="Развернуть панель"
                                 className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
                             >
-                                <Icons.PanelRight className="w-5 h-5" />
+                                <Icons.PanelRight className="w-5 h-5 scale-x-[-1]" />
                             </button>
                             <button onClick={() => setSearchOpen(true)} title={t(lang, 'menu.search')} className="void-tap-target w-10 h-10 flex items-center justify-center text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
                                 <Icons.Search className="w-5 h-5" />

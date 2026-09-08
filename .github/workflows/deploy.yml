@@ -21,7 +21,12 @@ jobs:
             # Бэкенд: ставим зависимости, прогоняем миграции БД, собираем, перезапускаем
             cd apps/api
             npm install
-            npx prisma migrate deploy
+            # В проекте нет папки prisma/migrations — схема синхронизируется
+            # напрямую через db push (migrate deploy падал с P3005 на
+            # непустой базе без истории миграций). db push добавляет новые
+            # поля/таблицы из schema.prisma, не трогая существующие данные.
+            npx prisma generate
+            npx prisma db push --skip-generate
             npm run build
             pm2 restart void-code-api || pm2 start ecosystem.config.js
 

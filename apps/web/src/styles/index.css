@@ -501,6 +501,22 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
     .t-stream-in { transition: none !important; filter: none !important; opacity: 1 !important; }
 }
 
+/* Каретка «печати» ответа ИИ (StreamingMessage, задача 12) */
+.void-type-caret {
+    display: inline-block;
+    width: 2px;
+    height: 1.05em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    border-radius: 2px;
+    background: #5b32d4;
+    animation: void-caret-blink 1s steps(2, start) infinite;
+}
+:root[data-theme="dark"] .void-type-caret,
+.dark .void-type-caret { background: #a78bfa; }
+@keyframes void-caret-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .void-type-caret { display: none; } }
+
 /* ==========================================
    Notification badge — счётчик непрочитанного (задача 7)
    ==========================================

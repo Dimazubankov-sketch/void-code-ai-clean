@@ -14,24 +14,33 @@ const CLI_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'console', 'cmd', 'term
 const CHART_LANGS = new Set(['chart', 'graph', 'plot', 'json-chart', 'linechart', 'barchart', 'chartjs', 'recharts']);
 
 // ==========================================
-// Безопасный рендер **bold**-фрагментов текста
+// Безопасный рендер inline-форматирования (**bold**, `code`, *italic*)
 // ==========================================
 // ВАЖНО: никогда не использовать dangerouslySetInnerHTML для текста
 // от ИИ — это не только риск XSS, но и конкретный баг, который был здесь:
-// пока сообщение печаталось посимвольно (TypewriterMessage), незакрытый
-// тройными кавычками код-блок (```html ...) на середине печати попадал
-// в этот "обычный текст" путь и, будучи вставлен как реальный HTML,
-// рендерился настоящими DOM-элементами (<div>, <header>, <nav>...)
-// вместо видимого текста — так весь код "пропадал", оставляя только
-// пустые строки. Теперь строка всегда рендерится как текст через React
-// (безопасно и предсказуемо в любой момент печати).
-function renderBoldLine(line, key) {
-    const parts = line.split(/(\*\*.*?\*\*)/g);
+// пока сообщение печаталось посимвольно, незакрытый тройными кавычками
+// код-блок (```html ...) на середине печати попадал в этот "обычный
+// текст" путь и, будучи вставлен как реальный HTML, рендерился настоящими
+// DOM-элементами вместо видимого текста. Теперь строка всегда рендерится
+// как текст через React (безопасно и предсказуемо в любой момент печати).
+function renderInline(line, key) {
+    // Разбиваем на **bold**, `inline code`, *italic* — по одному проходу.
+    const parts = String(line).split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*\n]+\*)/g);
     return (
         <React.Fragment key={key}>
             {parts.map((part, i) => {
                 if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
-                    return <strong key={i}>{part.slice(2, -2)}</strong>;
+                    return <strong key={i} className="font-bold">{part.slice(2, -2)}</strong>;
+                }
+                if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+                    return (
+                        <code key={i} className="px-1.5 py-0.5 mx-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-[0.88em] font-mono text-[#5b32d4] dark:text-purple-300 align-baseline">
+                            {part.slice(1, -1)}
+                        </code>
+                    );
+                }
+                if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
+                    return <em key={i} className="italic">{part.slice(1, -1)}</em>;
                 }
                 return <React.Fragment key={i}>{part}</React.Fragment>;
             })}
@@ -39,21 +48,13 @@ function renderBoldLine(line, key) {
     );
 }
 
+// Обратная совместимость: renderBoldLine используется в других местах.
+const renderBoldLine = renderInline;
+
 // ==========================================
-// Определение и извлечение markdown-таблиц из простого текста
+// Определители строк markdown
 // ==========================================
-// Модель присылает таблицы в стандартном GFM-формате:
-//   | Колонка 1 | Колонка 2 |
-//   | --------- | --------- |
-//   | значение  | значение  |
-// Строка считается «строкой таблицы», если содержит символ | и хотя бы
-// один разделитель. Разделитель второй строки — обязательно из тире
-// и двоеточий: | --- |, | :--- |, | :---: |, | ---: |.
-// Разбиваем блок текста на альтернирующие куски: обычный текст и
-// таблицы; таблицы рендерит TableBlock, всё остальное — обычный текст.
 function isTableSeparator(line) {
-    // допускаем ровно один : с любой стороны каждого сегмента,
-    // остальные символы — тире и пробелы, обязательно есть хотя бы один |
     if (!line.includes('|')) return false;
     const cells = line.split('|').map(s => s.trim()).filter(s => s !== '');
     if (cells.length === 0) return false;
@@ -61,25 +62,26 @@ function isTableSeparator(line) {
 }
 
 function isPipeRow(line) {
-    // "Похоже на строку таблицы": есть хотя бы два | и это не разделитель.
-    // Проверяем по количеству разделителей — таблица имеет >=2 колонок.
     const pipes = (line.match(/\|/g) || []).length;
     return pipes >= 2;
 }
 
-// ==========================================
-// Заголовки Markdown (#, ##, ###) внутри обычного текста
-// ==========================================
-// Модель присылает заголовки в стандартном синтаксисе (# Текст, ## Текст,
-// ### Текст) — раньше это выводилось «как есть» (решётки видны прямо в
-// тексте). Строка-заголовок — это строка, начинающаяся с 1-3 символов #,
-// за которыми через пробел идёт текст. Поддерживаем H1-H3 (этого достаточно
-// для структуры ответов ИИ; H4-H6 модель практически не использует).
 const HEADING_RE = /^(#{1,3})\s+(.+)$/;
+const isHeadingLine = (line) => HEADING_RE.test(line.trim());
 
-function isHeadingLine(line) {
-    return HEADING_RE.test(line.trim());
-}
+// Горизонтальный разделитель: ---, ***, ___ (3+), на отдельной строке и
+// без вертикальных чёрточек (иначе это разделитель таблицы).
+const isHrLine = (line) => /^\s*([-*_])\1{2,}\s*$/.test(line) && !line.includes('|');
+
+// Маркированный список: -, *, • (но не разделитель ---).
+const UL_RE = /^(\s*)[-*•]\s+(.+)$/;
+const isUlItem = (line) => UL_RE.test(line) && !isHrLine(line);
+// Нумерованный список: 1. / 1)
+const OL_RE = /^(\s*)(\d{1,3})[.)]\s+(.+)$/;
+const isOlItem = (line) => OL_RE.test(line);
+// Цитата: > текст
+const QUOTE_RE = /^\s*>\s?(.*)$/;
+const isQuoteLine = (line) => QUOTE_RE.test(line);
 
 function renderHeadingLine(line, key) {
     const match = line.trim().match(HEADING_RE);
@@ -93,47 +95,66 @@ function renderHeadingLine(line, key) {
     const Tag = `h${level}`;
     return (
         <Tag key={key} className={`${classes} text-gray-900 dark:text-white`}>
-            {renderBoldLine(text, `${key}-h`)}
+            {renderInline(text, `${key}-h`)}
         </Tag>
     );
 }
 
-// Разбирает произвольный текст на массив кусков: { type: 'text', text },
-// { type: 'table', lines: [...] } или { type: 'heading', line }. Таблица =
-// строка-заголовок таблицы + строка-разделитель + одна или более строк
-// с данными.
-function splitTextAndTables(text) {
+// Разбирает произвольный текст на блоки: text / table / heading / hr /
+// ul / ol / quote. Списки и цитаты собираются из подряд идущих строк.
+function splitBlocks(text) {
     const lines = text.split('\n');
     const chunks = [];
     let buffer = [];
     let i = 0;
     const flushText = () => {
         if (buffer.length) {
-            chunks.push({ type: 'text', text: buffer.join('\n') });
+            // Не плодим пустые текстовые блоки из одних переводов строки.
+            if (buffer.join('').trim() !== '') chunks.push({ type: 'text', text: buffer.join('\n') });
             buffer = [];
         }
     };
     while (i < lines.length) {
         const line = lines[i];
         const next = lines[i + 1];
-        // Возможное начало таблицы: строка-заголовок с | и следующая — разделитель
+
+        // Таблица
         if (isPipeRow(line) && next !== undefined && isTableSeparator(next)) {
             flushText();
             const tableLines = [line, next];
             let j = i + 2;
-            while (j < lines.length && isPipeRow(lines[j])) {
-                tableLines.push(lines[j]);
-                j++;
-            }
+            while (j < lines.length && isPipeRow(lines[j])) { tableLines.push(lines[j]); j++; }
             chunks.push({ type: 'table', lines: tableLines });
             i = j;
             continue;
         }
-        // Заголовок Markdown — отдельный кусок, рендерится тегом <h1-3>
-        if (isHeadingLine(line)) {
+        // Заголовок
+        if (isHeadingLine(line)) { flushText(); chunks.push({ type: 'heading', line }); i++; continue; }
+        // Горизонтальный разделитель
+        if (isHrLine(line)) { flushText(); chunks.push({ type: 'hr' }); i++; continue; }
+        // Маркированный список
+        if (isUlItem(line)) {
             flushText();
-            chunks.push({ type: 'heading', line });
-            i++;
+            const items = [];
+            while (i < lines.length && isUlItem(lines[i])) { items.push(lines[i].match(UL_RE)[2]); i++; }
+            chunks.push({ type: 'ul', items });
+            continue;
+        }
+        // Нумерованный список
+        if (isOlItem(line)) {
+            flushText();
+            const items = [];
+            let start = parseInt(lines[i].match(OL_RE)[2], 10) || 1;
+            while (i < lines.length && isOlItem(lines[i])) { items.push(lines[i].match(OL_RE)[3]); i++; }
+            chunks.push({ type: 'ol', items, start });
+            continue;
+        }
+        // Цитата (callout-карточка)
+        if (isQuoteLine(line) && line.trim() !== '>') {
+            flushText();
+            const qLines = [];
+            while (i < lines.length && isQuoteLine(lines[i])) { qLines.push(lines[i].match(QUOTE_RE)[1]); i++; }
+            chunks.push({ type: 'quote', lines: qLines });
             continue;
         }
         buffer.push(line);
@@ -143,20 +164,69 @@ function splitTextAndTables(text) {
     return chunks;
 }
 
-// Рендер куска обычного текста (между таблицами/заголовками) — переиспользуем
-// прежнюю логику с bold и <br>.
 function renderTextChunk(text, keyPrefix) {
     const lines = text.split('\n');
     return (
-        <span key={keyPrefix}>
+        <p key={keyPrefix} className="my-1.5 first:mt-0 last:mb-0">
             {lines.map((line, i) => (
                 <React.Fragment key={i}>
-                    {renderBoldLine(line, i)}
+                    {renderInline(line, i)}
                     {i !== lines.length - 1 && <br />}
                 </React.Fragment>
             ))}
-        </span>
+        </p>
     );
+}
+
+function renderChunk(chunk, key) {
+    switch (chunk.type) {
+        case 'table':
+            return <TableBlock key={key} rawLines={chunk.lines} />;
+        case 'heading':
+            return renderHeadingLine(chunk.line, key);
+        case 'hr':
+            return <div key={key} className="my-4 h-px bg-gray-200 dark:bg-gray-800" />;
+        case 'ul':
+            return (
+                <ul key={key} className="my-2.5 space-y-1.5">
+                    {chunk.items.map((it, i) => (
+                        <li key={i} className="flex gap-2.5 items-start">
+                            <span className="mt-[0.6em] w-1.5 h-1.5 rounded-full bg-[#5b32d4] dark:bg-purple-400 shrink-0" />
+                            <span className="flex-1 min-w-0">{renderInline(it, `${key}-uli-${i}`)}</span>
+                        </li>
+                    ))}
+                </ul>
+            );
+        case 'ol':
+            return (
+                <ol key={key} className="my-2.5 space-y-1.5">
+                    {chunk.items.map((it, i) => (
+                        <li key={i} className="flex gap-2.5 items-start">
+                            <span className="mt-0.5 min-w-[1.4em] h-[1.4em] px-1 rounded-md bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-300 text-[0.72em] font-bold flex items-center justify-center shrink-0">
+                                {(chunk.start || 1) + i}
+                            </span>
+                            <span className="flex-1 min-w-0 pt-px">{renderInline(it, `${key}-oli-${i}`)}</span>
+                        </li>
+                    ))}
+                </ol>
+            );
+        case 'quote':
+            return (
+                <div key={key} className="my-3 flex gap-3 pl-3.5 pr-4 py-3 rounded-2xl bg-[#f6f4fd] dark:bg-purple-900/12 border border-[#5b32d4]/15 dark:border-purple-500/20">
+                    <div className="w-1 self-stretch rounded-full bg-[#5b32d4]/60 dark:bg-purple-400/60 shrink-0" />
+                    <div className="flex-1 min-w-0 text-[0.95em] text-gray-700 dark:text-gray-300">
+                        {chunk.lines.map((l, i) => (
+                            <React.Fragment key={i}>
+                                {renderInline(l, `${key}-q-${i}`)}
+                                {i !== chunk.lines.length - 1 && <br />}
+                            </React.Fragment>
+                        ))}
+                    </div>
+                </div>
+            );
+        default:
+            return renderTextChunk(chunk.text, key);
+    }
 }
 
 export function MessageRenderer({ content }) {
@@ -168,11 +238,9 @@ export function MessageRenderer({ content }) {
                     const lines = block.slice(3, -3).split('\n');
                     const lang = lines[0].trim().toLowerCase();
                     const code = lines.slice(1).join('\n');
-                    // CHART-виджет для графиков (line/bar).
                     if (CHART_LANGS.has(lang)) {
                         return <ChartBlock key={index} code={code} />;
                     }
-                    // CLI-виджет для консольных команд.
                     if (CLI_LANGS.has(lang)) {
                         return <CliBlock key={index} code={code} lang={lang} />;
                     }
@@ -189,24 +257,18 @@ export function MessageRenderer({ content }) {
                     );
                 }
                 // Незакрытый код-блок (ещё печатается) или обычный текст —
-                // в обоих случаях рендерим как безопасный текст, без HTML-инъекции.
-                // Внутри «обычного текста» ищем markdown-таблицы и вырезаем
-                // их в TableBlock, а остальное оставляем как есть.
-                const chunks = splitTextAndTables(block);
+                // в обоих случаях рендерим как безопасный текст. Внутри
+                // «обычного текста» разбираем markdown-блоки: таблицы,
+                // заголовки, списки, цитаты, разделители.
+                const chunks = splitBlocks(block);
                 return (
                     <React.Fragment key={index}>
-                        {chunks.map((chunk, ci) => {
-                            if (chunk.type === 'table') {
-                                return <TableBlock key={`${index}-t-${ci}`} rawLines={chunk.lines} />;
-                            }
-                            if (chunk.type === 'heading') {
-                                return renderHeadingLine(chunk.line, `${index}-h-${ci}`);
-                            }
-                            return renderTextChunk(chunk.text, `${index}-t-${ci}`);
-                        })}
+                        {chunks.map((chunk, ci) => renderChunk(chunk, `${index}-c-${ci}`))}
                     </React.Fragment>
                 );
             })}
         </div>
     );
 }
+
+export { renderInline, renderBoldLine };

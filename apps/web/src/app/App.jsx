@@ -442,7 +442,7 @@ export function App() {
     // экрана открывает меню, свайп вправо по открытому меню — закрывает.
     const touchStartRef = useRef(null);
     useEffect(() => {
-        const EDGE_ZONE = 28; // px от правого края экрана, где начинается открывающий свайп
+        const EDGE_ZONE = 28; // px от ЛЕВОГО края экрана, где начинается открывающий свайп
         const MIN_DISTANCE = 55; // минимальная длина свайпа по горизонтали
         const onTouchStart = (e) => {
             const t = e.touches && e.touches[0];
@@ -457,11 +457,11 @@ export function App() {
             const dx = t.clientX - start.x;
             const dy = t.clientY - start.y;
             if (Math.abs(dx) < MIN_DISTANCE || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-            if (dx < 0 && !stateRef.current.isRightMenuOpen && stateRef.current.user && start.x > window.innerWidth - EDGE_ZONE) {
-                // Свайп влево от самого правого края экрана — открыть меню
+            if (dx > 0 && !stateRef.current.isRightMenuOpen && stateRef.current.user && start.x < EDGE_ZONE) {
+                // Свайп вправо от самого левого края экрана — открыть меню
                 updateStateRef.current({ isRightMenuOpen: true });
-            } else if (dx > 0 && stateRef.current.isRightMenuOpen) {
-                // Свайп вправо по открытому меню — закрыть его
+            } else if (dx < 0 && stateRef.current.isRightMenuOpen) {
+                // Свайп влево по открытому меню — закрыть его
                 updateStateRef.current({ isRightMenuOpen: false });
             }
         };
@@ -893,7 +893,7 @@ export function App() {
                 Задача 3: место под рельс резервируем только на корневых
                 экранах (isRailView) — на вложенных (Настройки и т.д.)
                 рельса нет, поэтому и отступ не нужен. */}
-            <main className={`flex-1 flex flex-col h-full w-full relative z-10 transition-transform ${state.user && isRailView(state.currentView) ? 'md:mr-16' : ''}`}>
+            <main className={`flex-1 flex flex-col h-full w-full relative z-10 transition-transform ${state.user && isRailView(state.currentView) ? 'md:ml-16' : ''}`}>
                 {state.currentView === 'chat' && <ChatView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} messagesEndRef={messagesEndRef} chatFileInputRef={chatFileInputRef} voiceMode={voiceMode} />}
                 {state.currentView === 'settings' && <SettingsView state={state} updateState={updateState} />}
                 {state.currentView === 'pricing' && <PricingView state={state} updateState={updateState} />}
