@@ -208,11 +208,17 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     className="absolute inset-x-0 top-16 h-8 -z-10 pointer-events-none bg-gradient-to-b from-white/40 to-transparent dark:from-darkBg/45 dark:to-transparent"
                 />
                 <div className="flex items-center justify-self-start">
-                    {/* Кнопка «+ Новый чат» здесь убрана — она дублировала
-                        «Создать новый чат» в меню (RightMenu.jsx). Левый
-                        слот шапки остаётся пустым, сетка (grid-cols
-                        [1fr_auto_1fr]) не требует содержимого в крайних
-                        колонках. */}
+                    {/* Задача #4 (доп.): кнопка меню (две полоски) — в ЛЕВОМ
+                        верхнем углу чата, рядом с боковым меню, которое теперь
+                        слева. На ПК меню — постоянный рельс слева, поэтому
+                        кнопка только мобильная (md:hidden). */}
+                    {state.user && (
+                        <div className="md:hidden">
+                            <IconCircleButton onClick={() => updateState({ isRightMenuOpen: true })} title="Меню">
+                                <Icons.TwoLines className="w-5 h-5" />
+                            </IconCircleButton>
+                        </div>
+                    )}
                 </div>
                 <div className="justify-self-center">
                     {/* Задача 7: селектор модели убран из шапки — теперь
@@ -259,16 +265,10 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                         показывать меню с недоступными пунктами — врать о
                         состоянии интерфейса. После входа кнопка сменяется
                         обычным меню и всё становится доступно. */}
-                    {state.user ? (
-                        // Задача 1: на ПК RightMenu теперь постоянная полоска
-                        // сбоку (см. RightMenu.jsx) — отдельная кнопка
-                        // «открыть меню» там не нужна, поэтому скрыта на md+.
-                        <div className="md:hidden">
-                            <IconCircleButton onClick={() => updateState({ isRightMenuOpen: true })} title="Меню">
-                                <Icons.TwoLines className="w-5 h-5" />
-                            </IconCircleButton>
-                        </div>
-                    ) : (
+                    {/* Кнопка меню (две полоски) переехала в ЛЕВЫЙ верхний
+                        угол (см. левый слот выше, задача #4). Справа для гостя
+                        остаётся «Войти», у вошедшего — только «⋮» действий. */}
+                    {!state.user && (
                         <PressButton
                             onClick={() => updateState({ showAuthModal: true })}
                             className="void-tap-target flex-shrink-0 px-4 py-2 bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold rounded-full shadow-md text-sm whitespace-nowrap transition-colors"

@@ -92,7 +92,7 @@ function LimitModal({ onClose }) {
 export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSendText }) {
     const {
         phase, muted, errorMsg, primaryTap, toggleMute, analyserRef,
-        speechAudioRef, speechEnvelopeRef, videoSource, startVideo,
+        speechAudioRef, speechEnvelopeRef, videoSource, startVideo, interruptSignal,
     } = voiceMode;
     const [showVoiceSettings, setShowVoiceSettings] = useState(false);
     const [showMediaMenu, setShowMediaMenu] = useState(false);
@@ -266,7 +266,15 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                             analyserRef={analyserRef}
                             speechAudioRef={speechAudioRef}
                             speechEnvelopeRef={speechEnvelopeRef}
-                            onClick={isLimited ? undefined : () => setMinimized((v) => !v)}
+                            interruptSignal={interruptSignal}
+                            // Во время речи Сары тап по орбу ПЕРЕБИВАЕТ её
+                            // (primaryTap → обрыв + плавное затухание, см.
+                            // useVoiceMode) и сразу играет анимацию перебивания.
+                            // В остальных фазах тап сворачивает/разворачивает режим.
+                            onClick={isLimited ? undefined : () => {
+                                if (phase === VOICE_MODE_PHASE.SPEAKING) primaryTap();
+                                else setMinimized((v) => !v);
+                            }}
                             size={200}
                         />
                     )}

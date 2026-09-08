@@ -46,6 +46,10 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     const [phase, setPhase] = useState(VOICE_MODE_PHASE.IDLE);
     const [muted, setMuted] = useState(false);
     const [errorMsg, setErrorMsg] = useState(null);
+    // Счётчик перебиваний: увеличивается каждый раз, когда пользователь
+    // прерывает речь Сары (голосом-barge-in или тапом). Орб слушает его
+    // изменение и проигрывает одноразовую анимацию перебивания (рипл).
+    const [interruptSignal, setInterruptSignal] = useState(0);
 
     const savedModelIdRef = useRef(null);
     const phaseRef = useRef(VOICE_MODE_PHASE.IDLE);
@@ -304,6 +308,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
                     speech.stopGraceful(900);
                     pendingReplyRef.current = false;
                     recognition.resume();
+                    setInterruptSignal((n) => n + 1);
                     setPhaseBoth(VOICE_MODE_PHASE.LISTENING);
                     return;
                 }
@@ -441,6 +446,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
             speech.stopGraceful(900);
             pendingReplyRef.current = false;
             recognition.resume();
+            setInterruptSignal((n) => n + 1);
             setPhaseBoth(VOICE_MODE_PHASE.LISTENING);
             return;
         }
@@ -498,7 +504,7 @@ export function useVoiceMode({ state, updateState, handleSendMessage, voiceOpts,
     }, [setPhaseBoth, voiceOpts]);
 
     return {
-        active, phase, muted, errorMsg,
+        active, phase, muted, errorMsg, interruptSignal,
         videoSource, videoStream, startVideo, stopVideo, flipCamera, replay,
         open, close, primaryTap, toggleMute,
         analyserRef: recognition.analyserRef,

@@ -50,13 +50,15 @@ function settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef) {
     });
 }
 
-export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelopeRef, onClick, size = 200 }) {
+export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelopeRef, onClick, size = 200, interruptSignal = 0 }) {
     const scope = useRef(null);
     const coreRef = useRef(null);
     const halo1Ref = useRef(null);
     const halo2Ref = useRef(null);
+    const rippleRef = useRef(null);
     const idleTweensRef = useRef([]);
     const rafRef = useRef(null);
+    const firstInterruptRef = useRef(true);
 
     // ---- «Дыхание» покоя — база, ставится на паузу другими фазами и
     // возобновляется, когда они заканчиваются ----
@@ -234,6 +236,26 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
         return () => { idleTweensRef.current.forEach((tw) => tw?.resume()); };
     }, { scope, dependencies: [phase] });
 
+    // ---- Перебивание: одноразовая анимация «рипл» ----
+    // Каждый раз, когда пользователь перебивает Сару (barge-in голосом или
+    // тап по орбу — см. useVoiceMode), interruptSignal увеличивается. Здесь
+    // мы проигрываем расходящееся бирюзовое кольцо (цвет фазы «слушаю») +
+    // короткий отскок ядра — чёткий отклик «я тебя услышал, говори».
+    useEffect(() => {
+        if (firstInterruptRef.current) { firstInterruptRef.current = false; return undefined; }
+        const ring = rippleRef.current;
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce || !ring) return undefined;
+        gsap.killTweensOf(ring);
+        gsap.fromTo(ring,
+            { scale: 0.82, autoAlpha: 0.7 },
+            { scale: 2, autoAlpha: 0, duration: 0.6, ease: 'power2.out' });
+        if (coreRef.current) {
+            gsap.fromTo(coreRef.current, { scale: 0.9 }, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.55)', overwrite: 'auto' });
+        }
+        return undefined;
+    }, [interruptSignal]);
+
     const c = PHASE_COLORS[phase] || PHASE_COLORS.idle;
     const px = `${size}px`;
     return (
@@ -247,6 +269,7 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
         >
             <div ref={halo1Ref} className="vm-orb-halo-1 absolute inset-0 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c.from}, transparent 70%)` }} />
             <div ref={halo2Ref} className="vm-orb-halo-2 absolute inset-0 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c.to}, transparent 70%)` }} />
+            <div ref={rippleRef} className="absolute inset-0 rounded-full pointer-events-none border-2" style={{ borderColor: '#5eead4', opacity: 0 }} />
             <div
                 ref={coreRef}
                 className="vm-orb-core rounded-full shadow-xl will-change-transform"
