@@ -192,13 +192,18 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
             const k = target > smooth ? ATTACK : RELEASE;
             smooth += (target - smooth) * k;
 
-            const level = Math.min(smooth, 1);
-            const scale = 1 + level * 0.26;
+            // «Живой пол»: даже в тихих местах речи орб продолжает мягко
+            // дышать (лёгкая синусоида) — так он НИКОГДА не выглядит
+            // застывшим, пока Сара говорит, но на громких слогах реальная
+            // огибающая всё равно перебивает пол и орб пульсирует в тон.
+            const floor = 0.16 + 0.06 * Math.sin(Date.now() / 260);
+            const level = Math.min(Math.max(smooth, floor), 1);
+            const scale = 1 + level * 0.34;
             scaleTo(scale);
-            h1To?.(scale + 0.07);
-            h2To?.(scale + 0.13);
-            h1Alpha?.(0.28 + level * 0.34);
-            h2Alpha?.(0.2 + level * 0.28);
+            h1To?.(scale + 0.08);
+            h2To?.(scale + 0.15);
+            h1Alpha?.(0.3 + level * 0.4);
+            h2Alpha?.(0.22 + level * 0.32);
             raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
