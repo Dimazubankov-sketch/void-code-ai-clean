@@ -103,7 +103,7 @@ export function ScrollDownButton({ visible, bottomPad, onClick, title }) {
                 hover:bg-white/80 dark:hover:bg-darkCard/80
                 transition-colors"
         >
-            {/* opacity-100 явно — SVG должна быть чёткой даже если контейнер полупрозрачный */}
+            {/* opacity-100 явно - SVG должна быть чёткой даже если контейнер полупрозрачный */}
             <Icons.ChevronDown className="w-5 h-5 opacity-100" />
         </button>
     );

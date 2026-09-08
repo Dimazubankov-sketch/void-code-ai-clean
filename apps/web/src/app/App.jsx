@@ -133,7 +133,7 @@ export function App() {
             readUpdateIds: [],                 // прочитанные обновления (для бейджа)
             readPersonalIds: [],               // прочитанные личные письма
             starredIds: [],                    // id писем, помеченных звёздочкой
-            savedAccounts: [],                 // [{email, name, plan}] — для переключателя аккаунтов
+            savedAccounts: [],                 // [{email, name, plan}] - для переключателя аккаунтов
             accountPhotos: {},                 // email -> dataURL фото профиля
             accountData: {},                   // email -> личная история аккаунта (чаты, кошелёк, агенты...)
             mailComposeDraft: null,            // черновик, который автосохраняется при закрытии окна
@@ -143,7 +143,7 @@ export function App() {
             pendingHitl: null,                 // { orchestratorId, reportId, decision }
             inbox: {
                 updates: [
-                    { id: 'upd_cockpit', title: 'Новинка: Cockpit', body: 'Панель управления агентами и оркестраторами. Ставьте задачи оркестратору — он раздаёт их агентам с вашего подтверждения.', at: Date.now() },
+                    { id: 'upd_cockpit', title: 'Новинка: Cockpit', body: 'Панель управления агентами и оркестраторами. Ставьте задачи оркестратору - он раздаёт их агентам с вашего подтверждения.', at: Date.now() },
                 ],
                 personal: [
                     { id: 'pm_welcome', from: 'team@voidops.ru', subject: 'Добро пожаловать в Void Code AI', preview: 'Спасибо, что присоединились к закрытому тесту. Здесь появятся письма от внешних компаний и пользователей.', at: Date.now() },
@@ -505,7 +505,7 @@ export function App() {
         // (handleGenerateImage: DALL-E/DeepInfra на бэкенде). Уже включённый
         // ручной imageGenMode или режим агента не переопределяем — считаем,
         // что пользователь там осознанно выбрал другой путь ввода.
-        const IMAGE_COMMAND_REGEX = /^\s*(создай\s+изображение|нарисуй|сгенерируй)\b[\s:,\-—]*/i;
+        const IMAGE_COMMAND_REGEX = /^\s*(создай\s+изображение|нарисуй|сгенерируй)\b[\s:,\--]*/i;
         if (!state.imageGenMode && !state.activeAgentId && IMAGE_COMMAND_REGEX.test(textToSend)) {
             const imagePrompt = textToSend.replace(IMAGE_COMMAND_REGEX, '').trim() || textToSend.trim();
             await handleGenerateImage(imagePrompt);
@@ -522,7 +522,7 @@ export function App() {
         // дневной бюджет уже исчерпан, а модель платная (не Mini/Flash) —
         // блокируем отправку до восстановления лимита.
         if (activeModel.id !== 'flash' && state.usedDailyLimits >= maxLimits.daily) {
-            alert('Вы исчерпали дневной лимит. Лимиты обновятся автоматически через 6 часов — можно отслеживать обратный отсчёт во вкладке «Лимиты», либо переключитесь на бесплатную модель Flash.');
+            alert('Вы исчерпали дневной лимит. Лимиты обновятся автоматически через 6 часов - можно отслеживать обратный отсчёт во вкладке «Лимиты», либо переключитесь на бесплатную модель Flash.');
             return;
         }
         // Уровень рассуждений влияет на вес запроса (см. models.jsx) —
@@ -657,7 +657,7 @@ export function App() {
                     try {
                         const page = await fetchWebPage(u);
                         if (page?.text) {
-                            parts.push(`\n\n[Содержимое страницы ${page.url}${page.title ? ` — «${page.title}»` : ''}${page.truncated ? ' (обрезано)' : ''}]\n${page.text}`);
+                            parts.push(`\n\n[Содержимое страницы ${page.url}${page.title ? ` - «${page.title}»` : ''}${page.truncated ? ' (обрезано)' : ''}]\n${page.text}`);
                         }
                     } catch (e) {
                         console.warn(`[App] Не удалось загрузить ${u}:`, e?.message);
@@ -677,7 +677,7 @@ export function App() {
             if (extraDelay > 0) await new Promise(resolve => setTimeout(resolve, extraDelay));
         } catch (e) {
             if (e instanceof ApiError && e.status === 401) {
-                responseText = '⚠️ Сессия истекла — выйдите и войдите заново, чтобы продолжить общение с ИИ.';
+                responseText = '⚠️ Сессия истекла - выйдите и войдите заново, чтобы продолжить общение с ИИ.';
             } else if (e instanceof ApiError && (e.status === 402 || e.status === 429)) {
                 // Документ 10: реальный отказ от бэкенда (лимит токенов/режима
                 // исчерпан) — переиспользуем УЖЕ существующий механизм
@@ -695,7 +695,7 @@ export function App() {
                 }));
                 responseText = `⚠️ ${e.message}`;
             } else if (e instanceof ApiError) {
-                responseText = `⚠️ ${e.message}`; // напр. 403 — исчерпан лимит запросов
+                responseText = `⚠️ ${e.message}`; // напр. 403 - исчерпан лимит запросов
             } else {
                 responseText = 'Произошла ошибка при получении ответа от ИИ.';
             }
@@ -705,7 +705,7 @@ export function App() {
         // в отдельные карточки, которые открывают окно просмотра кода.
         setState(prev => {
             const { text: displayText, blocks: codeBlocks } = splitMessageContent(responseText);
-            const finalText = displayText || (codeBlocks.length > 0 ? 'Готово! Я подготовил код — открой его в окне просмотра ниже, чтобы посмотреть исходник или результат.' : responseText);
+            const finalText = displayText || (codeBlocks.length > 0 ? 'Готово! Я подготовил код - открой его в окне просмотра ниже, чтобы посмотреть исходник или результат.' : responseText);
             const reasoningLevel = (prev.reasoningByModel || {})[prev.selectedModelId] || defaultReasoningFor(prev.selectedModelId);
             const reasoningTrace = buildReasoningScript(reasoningLevel, prev.lang || 'ru');
 
@@ -832,7 +832,7 @@ export function App() {
             const msg = e?.message || '';
             errorText = msg && msg.length < 200 && msg !== 'Failed to fetch'
                 ? `Не удалось сгенерировать изображение: ${msg}`
-                : 'Не удалось сгенерировать изображение — сервис временно недоступен. Попробуй ещё раз через минуту.';
+                : 'Не удалось сгенерировать изображение - сервис временно недоступен. Попробуй ещё раз через минуту.';
             // eslint-disable-next-line no-console
             console.warn('[Image generation] failed:', e);
         }
@@ -865,11 +865,11 @@ export function App() {
             {showSplash && <Splash dark={state.isDarkMode} onDone={() => setShowSplash(false)} />}
             {/* МОДАЛКА АВТОРИЗАЦИИ ПОВЕРХ ВСЕГО */}
             <AuthModal state={state} updateState={updateState} />
-            {/* Paywall «Лимит исчерпан» — показывается по 402/429 от бэкенда
+            {/* Paywall «Лимит исчерпан» - показывается по 402/429 от бэкенда
                 и по команде @plan в чате (см. handleSendMessage). Один
                 инстанс на всё приложение, управляется через state.paywall. */}
             <LimitExceededModal state={state} updateState={updateState} />
-            {/* Voice Mode — рендерится здесь, а не внутри Home/Chat, ровно
+            {/* Voice Mode - рендерится здесь, а не внутри Home/Chat, ровно
                 по той же причине, по которой сам хук живёт в App.jsx (см.
                 комментарий у useVoiceMode выше): не должен размонтироваться
                 при переключении currentView. */}
@@ -887,11 +887,11 @@ export function App() {
                 (узкая полоска-рельс шириной 64px), а не оверлей поверх
                 всего. md:mr-16 резервирует под неё реальное место в
                 layout, чтобы правый край чата не оказывался под панелью.
-                Когда пользователь разворачивает панель на полную ширину —
+                Когда пользователь разворачивает панель на полную ширину -
                 это уже временный оверлей (как и на мобильном), с тем же
                 затемнением фона.
                 Задача 3: место под рельс резервируем только на корневых
-                экранах (isRailView) — на вложенных (Настройки и т.д.)
+                экранах (isRailView) - на вложенных (Настройки и т.д.)
                 рельса нет, поэтому и отступ не нужен. */}
             <main className={`flex-1 flex flex-col h-full w-full relative z-10 transition-transform ${state.user && isRailView(state.currentView) ? 'md:ml-16' : ''}`}>
                 {state.currentView === 'chat' && <ChatView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} messagesEndRef={messagesEndRef} chatFileInputRef={chatFileInputRef} voiceMode={voiceMode} />}
@@ -909,7 +909,7 @@ export function App() {
                 {state.currentView === 'images' && <ImagesView state={state} updateState={updateState} />}
                 {state.currentView === 'wallet' && <WalletView state={state} updateState={updateState} />}
                 {state.currentView === 'guide' && <GuideView state={state} updateState={updateState} />}
-                {/* Единая вкладка «Агенты»: Cockpit — главная страница, магазин — внутри */}
+                {/* Единая вкладка «Агенты»: Cockpit - главная страница, магазин - внутри */}
                 {state.currentView === 'agent-store' && <AgentStoreApp state={state} updateState={updateState} />}
                 {state.currentView === 'cockpit' && <AgentStoreApp state={state} updateState={updateState} />}
                 {(state.currentView === 'orchestrator-chat' || state.currentView === 'agent-chat') && <CockpitView state={state} updateState={updateState} />}
@@ -917,7 +917,7 @@ export function App() {
                 {state.currentView === 'agent-chat' && <AgentChatView state={state} updateState={updateState} />}
             </main>
             
-            {/* Задача 3: showRail=false на вложенных экранах — на ПК рельс
+            {/* Задача 3: showRail=false на вложенных экранах - на ПК рельс
                 тогда не отрисовывается совсем (мобильное выезжающее меню
                 продолжает работать из любого экрана). */}
             <RightMenu state={state} updateState={updateState} showRail={state.user && isRailView(state.currentView)} />

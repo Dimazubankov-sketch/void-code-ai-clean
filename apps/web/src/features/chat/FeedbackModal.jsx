@@ -29,7 +29,7 @@ export function FeedbackModal({ type, onSubmit, onClose }) {
                     <h4 className="font-extrabold text-lg dark:text-white">{positive ? 'Что понравилось?' : 'Что пошло не так?'}</h4>
                     <button onClick={onClose} className="ml-auto p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.X /></button>
                 </div>
-                <p className="text-sm text-gray-400 mb-4">Выберите причины или напишите своё — это поможет нам стать лучше.</p>
+                <p className="text-sm text-gray-400 mb-4">Выберите причины или напишите своё - это поможет нам стать лучше.</p>
 
                 <div className="flex flex-wrap gap-2 mb-4">
                     {tags.map(tag => {

@@ -85,7 +85,7 @@ export function EmotionSettings({ state, updateState, onClose }) {
 
                 <div className="flex-1 overflow-y-auto void-no-scrollbar px-4 md:px-6 pb-10 space-y-4">
                     {/* Один экран вместо двух вкладок: сверху тумблер
-                        «Автоматически», ниже — ручные настройки, которые
+                        «Автоматически», ниже - ручные настройки, которые
                         гаснут и перестают нажиматься, пока авто включён.
                         Так видно и текущий режим, и что именно он отключает. */}
                     <div className="em-anim rounded-2xl bg-gray-100 dark:bg-white/[0.06] overflow-hidden">
@@ -106,7 +106,7 @@ export function EmotionSettings({ state, updateState, onClose }) {
                         </div>
                         <div ref={infoRef} className="overflow-hidden" style={{ height: 0, opacity: 0 }}>
                             <p className="px-4 pb-4 text-xs text-gray-500 dark:text-white/60 leading-relaxed">
-                                Подача выбирается по смыслу самого ответа: серьёзный вопрос прозвучит сдержанно, а хорошая новость — живее. Выключите автоматический режим, чтобы задать стиль голоса вручную.
+                                Подача выбирается по смыслу самого ответа: серьёзный вопрос прозвучит сдержанно, а хорошая новость - живее. Выключите автоматический режим, чтобы задать стиль голоса вручную.
                             </p>
                         </div>
                     </div>
@@ -130,14 +130,14 @@ export function EmotionSettings({ state, updateState, onClose }) {
                         <Slider label="Эмоциональность" value={s.expressiveness} disabled={isAuto} onChange={(v) => patch({ expressiveness: v })} />
                         <Slider label="Энергичность" value={s.energy} disabled={isAuto} onChange={(v) => patch({ energy: v })} />
                         <Slider label="Теплота" value={s.warmth} disabled={isAuto} onChange={(v) => patch({ warmth: v })} />
-                        {/* Скорость пишется в voiceRate — то же поле, что и в
+                        {/* Скорость пишется в voiceRate - то же поле, что и в
                             голосовых настройках, второго источника правды нет.
                             Она работает и в авто-режиме, поэтому не гаснет. */}
                         <Slider label="Скорость" value={Math.round(((state.voiceRate || 1) - 0.5) / 1.5 * 100)} onChange={(v) => updateState({ voiceRate: +(0.5 + (v / 100) * 1.5).toFixed(1) })} />
                     </div>
 
                     <p className="em-anim text-xs text-gray-400 leading-relaxed px-1">
-                        В голосовом режиме подачу можно менять на лету — просто скажите «говори спокойнее» или «будь энергичнее». Такая смена действует только до конца разговора и не меняет настройки здесь.
+                        В голосовом режиме подачу можно менять на лету - просто скажите «говори спокойнее» или «будь энергичнее». Такая смена действует только до конца разговора и не меняет настройки здесь.
                     </p>
                 </div>
             </div>

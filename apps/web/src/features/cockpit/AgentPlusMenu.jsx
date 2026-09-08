@@ -27,7 +27,7 @@ export function AgentPlusMenu({ state, updateState, agentId, onClose, onPickCame
     if (sub === 'agentSkills') {
         return (
             <SheetWithBack title="Инструкции" onBack={() => setSub(null)} onClose={onClose}>
-                <p className="text-xs text-gray-400 mb-4 leading-relaxed">Эти инструкции применяются только к этому агенту — не путать с общими скиллами выше.</p>
+                <p className="text-xs text-gray-400 mb-4 leading-relaxed">Эти инструкции применяются только к этому агенту - не путать с общими скиллами выше.</p>
                 <AgentSkillsPanel state={state} updateState={updateState} agentId={agentId} />
             </SheetWithBack>
         );
@@ -47,9 +47,9 @@ export function AgentPlusMenu({ state, updateState, agentId, onClose, onPickCame
                 <BigButton icon="PaperclipThin" label="Файлы" onClick={() => onPickFile?.()} />
             </div>
 
-            {/* Каждый пункт — свой отдельный блок-«столбик», как и просили,
+            {/* Каждый пункт - свой отдельный блок-«столбик», как и просили,
                 а не один общий список: скиллы (общие) отделены от скиллов
-                именно этого агента, голос и коннекторы — тоже сами по себе. */}
+                именно этого агента, голос и коннекторы - тоже сами по себе. */}
             <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl overflow-hidden mb-3">
                 <RowButton icon="Skills" label="Скиллы" chevron onClick={() => setSub('skills')} />
             </div>

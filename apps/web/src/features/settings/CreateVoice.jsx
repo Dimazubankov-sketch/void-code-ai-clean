@@ -77,11 +77,11 @@ function ConsentBlock({ checked, onChange, onOpenLegal }) {
 // чтобы пользователь читал привычную ему речь: на родном языке дикция
 // естественнее, а значит и клон получается точнее.
 const READING_TEXTS = [
-    { id: 'ru', name: 'Русский', text: 'Меня зовут так, как я привык представляться. Сегодня хорошая погода, и я спокойно читаю этот текст обычным голосом, не торопясь и не играя интонацией. Один, два, три, четыре, пять — я говорю ровно и разборчиво.' },
-    { id: 'en', name: 'English', text: 'This is my natural speaking voice, calm and unhurried. I am reading this short passage clearly, without acting or changing my tone. One, two, three, four, five — I speak evenly and distinctly.' },
-    { id: 'de', name: 'Deutsch', text: 'Das ist meine natürliche Stimme, ruhig und gelassen. Ich lese diesen kurzen Text deutlich vor, ohne zu schauspielern. Eins, zwei, drei, vier, fünf — ich spreche gleichmäßig und klar.' },
-    { id: 'es', name: 'Español', text: 'Esta es mi voz natural, tranquila y sin prisa. Leo este texto con claridad, sin actuar ni cambiar el tono. Uno, dos, tres, cuatro, cinco — hablo de forma pareja y clara.' },
-    { id: 'zh', name: '中文', text: '这是我平常说话的声音，平静而放松。我正在清楚地朗读这段短文，没有表演，也没有改变语调。一、二、三、四、五——我说得均匀而清晰。' },
+    { id: 'ru', name: 'Русский', text: 'Меня зовут так, как я привык представляться. Сегодня хорошая погода, и я спокойно читаю этот текст обычным голосом, не торопясь и не играя интонацией. Один, два, три, четыре, пять - я говорю ровно и разборчиво.' },
+    { id: 'en', name: 'English', text: 'This is my natural speaking voice, calm and unhurried. I am reading this short passage clearly, without acting or changing my tone. One, two, three, four, five - I speak evenly and distinctly.' },
+    { id: 'de', name: 'Deutsch', text: 'Das ist meine natürliche Stimme, ruhig und gelassen. Ich lese diesen kurzen Text deutlich vor, ohne zu schauspielern. Eins, zwei, drei, vier, fünf - ich spreche gleichmäßig und klar.' },
+    { id: 'es', name: 'Español', text: 'Esta es mi voz natural, tranquila y sin prisa. Leo este texto con claridad, sin actuar ni cambiar el tono. Uno, dos, tres, cuatro, cinco - hablo de forma pareja y clara.' },
+    { id: 'zh', name: '中文', text: '这是我平常说话的声音，平静而放松。我正在清楚地朗读这段短文，没有表演，也没有改变语调。一、二、三、四、五--我说得均匀而清晰。' },
 ];
 
 function Header({ title, onBack }) {
@@ -105,7 +105,7 @@ function Paywall({ onClose, onUpgrade }) {
             </div>
             <h4 className="font-extrabold text-xl text-gray-900 dark:text-white mb-2">Создание своего голоса</h4>
             <p className="text-sm text-gray-500 dark:text-white/60 leading-relaxed mb-7 max-w-xs">
-                Это платная возможность. Склонируйте собственный голос по короткой записи или создайте новый по описанию — и используйте его и в озвучке сообщений, и в голосовом режиме.
+                Это платная возможность. Склонируйте собственный голос по короткой записи или создайте новый по описанию - и используйте его и в озвучке сообщений, и в голосовом режиме.
             </p>
             <button onClick={onUpgrade} className="void-tap-target w-full max-w-xs py-3.5 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold text-sm transition-colors mb-2.5">
                 Выбрать тариф
@@ -191,7 +191,7 @@ function Progress({ stage }) {
                     </div>
                 ))}
             </div>
-            <p className="text-xs text-gray-400 mt-6 text-center">Обучение модели занимает до минуты — не закрывайте экран</p>
+            <p className="text-xs text-gray-400 mt-6 text-center">Обучение модели занимает до минуты - не закрывайте экран</p>
         </div>
     );
 }
@@ -286,7 +286,7 @@ function CloneScreen({ onBack, onCreated, onOpenLegal }) {
             <Header title="Клонирование голоса" onBack={onBack} />
             <div className="flex-1 overflow-y-auto void-no-scrollbar px-4 md:px-6 pb-8 space-y-5">
                 <p className="text-xs text-gray-400 leading-relaxed">
-                    Запишите до 30 секунд речи в тихом помещении. Читайте ровно и обычным голосом — не играйте интонацией: клон повторит именно то, как вы звучите на записи.
+                    Запишите до 30 секунд речи в тихом помещении. Читайте ровно и обычным голосом - не играйте интонацией: клон повторит именно то, как вы звучите на записи.
                 </p>
 
                 <div>

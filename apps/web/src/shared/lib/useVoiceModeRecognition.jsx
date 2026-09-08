@@ -19,7 +19,7 @@ import { useCallback, useEffect, useRef } from 'react';
 //   • SILENCE_MS снижен — меньше «мёртвого» ожидания после того, как
 //     пользователь договорил.
 
-const SILENCE_MS = 700;        // было 1100 — пауза после речи до отправки
+const SILENCE_MS = 700;        // было 1100 - пауза после речи до отправки
 const MAX_UTTERANCE_MS = 12000; // предохранитель: максимум одна фраза
 const MIN_UTTERANCE_CHARS = 2;  // отсекаем случайные «а», щелчки, шум
 
@@ -145,7 +145,7 @@ export function useVoiceModeRecognition({ lang = 'ru-RU', onUtterance, onSpeechA
             // если мы всё ещё должны слушать, перезапускаем без паузы, чтобы
             // разговор ощущался непрерывным, а не «отваливался» тихо.
             if (listeningRef.current && !pausedRef.current) {
-                try { rec.start(); } catch { /* уже запущено — ок, игнорируем */ }
+                try { rec.start(); } catch { /* уже запущено - ок, игнорируем */ }
             }
         };
 
@@ -171,7 +171,7 @@ export function useVoiceModeRecognition({ lang = 'ru-RU', onUtterance, onSpeechA
         clearTimers();
         startLevelMeter();
         if (hasRealApiRef.current && recognitionRef.current) {
-            try { recognitionRef.current.start(); } catch { /* уже запущено — ок */ }
+            try { recognitionRef.current.start(); } catch { /* уже запущено - ок */ }
         }
     }, [startLevelMeter, clearTimers]);
 
@@ -206,7 +206,7 @@ export function useVoiceModeRecognition({ lang = 'ru-RU', onUtterance, onSpeechA
         bufferRef.current = '';
         interimRef.current = '';
         if (hasRealApiRef.current && recognitionRef.current) {
-            try { recognitionRef.current.start(); } catch { /* уже запущено — ок */ }
+            try { recognitionRef.current.start(); } catch { /* уже запущено - ок */ }
         }
     }, []);
 

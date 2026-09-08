@@ -38,16 +38,17 @@ const PHASE_COLORS = {
 // Возвращает к масштабу 1 и (если передан) возобновляет фоновое «дыхание».
 // Общая функция для всех cleanup — с защитой на случай, что рефы уже null
 // (компонент размонтирован).
-function settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef) {
+// Возвращает масштаб к 1. ВАЖНО (баг «орб мёртв во время речи»): раньше
+// эта функция по завершении ещё и ВОЗОБНОВЛЯЛА фоновое дыхание покоя. Но
+// вызывается она в cleanup завершающейся фазы, который в React срабатывает
+// ПОСЛЕ старта следующей фазы — из-за чего дыхание возобновлялось прямо
+// во время SPEAKING (через ~0.3с) и перебивало анимацию речи: орб «дышал»,
+// а не пульсировал в тон голосу. Теперь возобновление дыхания вынесено в
+// единый контроллер по фазе (см. useEffect ниже), а тут — только сброс.
+function settleToIdle(coreRef, halo1Ref, halo2Ref) {
     const targets = [coreRef.current, halo1Ref.current, halo2Ref.current].filter(Boolean);
-    if (!targets.length) {
-        idleTweensRef.current.forEach((tw) => tw?.resume());
-        return;
-    }
-    gsap.to(targets, {
-        scale: 1, x: 0, duration: 0.3, ease: 'power2.out', overwrite: 'auto',
-        onComplete: () => idleTweensRef.current.forEach((tw) => tw?.resume()),
-    });
+    if (!targets.length) return;
+    gsap.to(targets, { scale: 1, x: 0, duration: 0.3, ease: 'power2.out', overwrite: 'auto' });
 }
 
 export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelopeRef, onClick, size = 200, interruptSignal = 0 }) {
@@ -73,6 +74,18 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
         idleTweensRef.current = [coreTween, halo1, halo2];
         return () => { coreTween.kill(); halo1.kill(); halo2.kill(); idleTweensRef.current = []; };
     }, { scope });
+
+    // ---- Единый контроллер фонового дыхания ----
+    // Дыхание покоя работает ТОЛЬКО в IDLE. Во всех активных фазах
+    // (listening/thinking/speaking/error/limit) оно на паузе, а масштабом
+    // управляет соответствующая фаза. Это и чинит баг «орб не пульсирует
+    // во время речи»: раньше дыхание возобновлялось из cleanup предыдущей
+    // фазы и перебивало анимацию речи.
+    useEffect(() => {
+        const tweens = idleTweensRef.current;
+        if (phase === VOICE_MODE_PHASE.IDLE) tweens.forEach((tw) => tw?.resume());
+        else tweens.forEach((tw) => tw?.pause());
+    }, [phase]);
 
     // ---- Плавная смена цвета по фазе ----
     useGSAP(() => {
@@ -113,7 +126,7 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
         return () => {
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
             rafRef.current = null;
-            settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef);
+            settleToIdle(coreRef, halo1Ref, halo2Ref);
         };
     }, [phase, analyserRef]);
 
@@ -125,7 +138,7 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
         const tween = gsap.to(coreRef.current, { scale: 1.08, duration: 0.7, ease: 'sine.inOut', yoyo: true, repeat: -1 });
         return () => {
             tween.kill();
-            settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef);
+            settleToIdle(coreRef, halo1Ref, halo2Ref);
         };
     }, { scope, dependencies: [phase] });
 
@@ -156,7 +169,7 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
         if (reduce) {
             const targets = [coreRef.current, halo1Ref.current, halo2Ref.current].filter(Boolean);
             if (targets.length) gsap.set(targets, { scale: 1 });
-            return () => settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef);
+            return () => settleToIdle(coreRef, halo1Ref, halo2Ref);
         }
 
         // duration чуть короче шага кадра сглаживания: quickTo здесь нужен
@@ -171,8 +184,8 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
         const h1Alpha = halo1Ref.current ? gsap.quickTo(halo1Ref.current, 'autoAlpha', { duration: 0.18, ease: 'power2.out' }) : null;
         const h2Alpha = halo2Ref.current ? gsap.quickTo(halo2Ref.current, 'autoAlpha', { duration: 0.24, ease: 'power2.out' }) : null;
 
-        const ATTACK = 0.55;   // быстро вверх — ловим начало слога
-        const RELEASE = 0.12;  // медленно вниз — мягкий хвост в паузе
+        const ATTACK = 0.55;   // быстро вверх - ловим начало слога
+        const RELEASE = 0.12;  // медленно вниз - мягкий хвост в паузе
 
         let raf = null;
         let smooth = 0;
@@ -213,7 +226,7 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
             // остался бы неестественно ярким после конца реплики.
             const halos = [halo1Ref.current, halo2Ref.current].filter(Boolean);
             if (halos.length) gsap.to(halos, { autoAlpha: (i) => (i === 0 ? 0.28 : 0.2), duration: 0.3, ease: 'power2.out' });
-            settleToIdle(coreRef, halo1Ref, halo2Ref, idleTweensRef);
+            settleToIdle(coreRef, halo1Ref, halo2Ref);
         };
     }, [phase, speechAudioRef, speechEnvelopeRef]);
 

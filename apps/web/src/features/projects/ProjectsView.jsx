@@ -155,7 +155,7 @@ export function ProjectsView({ state, updateState }) {
                     <h2 className="text-3xl font-extrabold dark:text-white">{t(lang, 'projects.title')}</h2>
                 </div>
 
-                {/* Поиск проектов по названию — в верхней части */}
+                {/* Поиск проектов по названию - в верхней части */}
                 <div className="relative mb-6">
                     <Icons.Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
@@ -188,7 +188,7 @@ export function ProjectsView({ state, updateState }) {
                 )}
             </div>
 
-            {/* Кнопка «+» создания нового проекта — в нижней части */}
+            {/* Кнопка «+» создания нового проекта - в нижней части */}
             <button
                 onClick={() => setCreating(true)}
                 title={t(lang, 'projects.create')}
@@ -197,7 +197,7 @@ export function ProjectsView({ state, updateState }) {
                 <Icons.Plus className="w-8 h-8" />
             </button>
 
-            {/* Задача 5: единая форма создания проекта — те же поля/подписи,
+            {/* Задача 5: единая форма создания проекта - те же поля/подписи,
                 что и в AddToProjectModal (открывается из «+» в чате). */}
             {creating && (
                 <div className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in" onClick={() => setCreating(false)}>

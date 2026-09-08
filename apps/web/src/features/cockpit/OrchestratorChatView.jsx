@@ -97,7 +97,7 @@ export function OrchestratorChatView({ state, updateState }) {
                 className="relative w-full h-full sm:h-[90vh] sm:max-h-[880px] sm:w-[430px] bg-[#f8f9fc] dark:bg-darkBg sm:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col slide-in-right"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* ===== ПРИБОРНАЯ ПАНЕЛЬ (всё управление — сверху) ===== */}
+                {/* ===== ПРИБОРНАЯ ПАНЕЛЬ (всё управление - сверху) ===== */}
                 <div className="bg-white dark:bg-darkCard border-b border-gray-100 dark:border-darkBorder shrink-0">
                     {/* Ряд 1: идентификация + закрыть */}
                     <div className="flex items-center gap-3 px-4 pt-4 pb-3">
@@ -159,7 +159,7 @@ export function OrchestratorChatView({ state, updateState }) {
                         onRespond={respond}
                         thinking={thinking}
                         lang={state.lang || 'ru'}
-                        emptyHint={<>Поставьте задачу — оркестратор разложит её<br />на подзадачи и предложит план.{subordinates.length === 0 && (
+                        emptyHint={<>Поставьте задачу - оркестратор разложит её<br />на подзадачи и предложит план.{subordinates.length === 0 && (
                             <><br /><button onClick={() => setShowLinkMenu(true)} className="text-xs text-[#5b32d4] font-bold mt-3 underline underline-offset-2">Привязать агентов →</button></>
                         )}</>}
                     />
@@ -171,8 +171,8 @@ export function OrchestratorChatView({ state, updateState }) {
                 <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
                 <input type="file" ref={anyFileInputRef} accept=".pdf,.doc,.docx,.txt,.csv,.json" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
 
-                {/* ===== ВВОД — точная копия основного чата (AgentComposer),
-                    без Voice Mode. Разделительная полоса над полем убрана —
+                {/* ===== ВВОД - точная копия основного чата (AgentComposer),
+                    без Voice Mode. Разделительная полоса над полем убрана -
                     она дублировала границу самого поля ввода. ===== */}
                 <div className="px-4 py-3 bg-white dark:bg-darkCard pb-safe shrink-0 relative">
                     {image && (

@@ -38,7 +38,7 @@ export function useVoiceInput(onResult, lang = 'ru-RU') {
         const rec = new SR();
         rec.lang = lang;
         rec.interimResults = true;
-        rec.continuous = true;      // не обрывать на паузах — убирает задержку
+        rec.continuous = true;      // не обрывать на паузах - убирает задержку
         rec.maxAlternatives = 1;
 
         rec.onresult = (e) => {

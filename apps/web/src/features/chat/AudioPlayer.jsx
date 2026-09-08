@@ -44,7 +44,7 @@ export function AudioPlayer({ tts, onClose }) {
                     <div className="h-full bg-[#5b32d4] transition-all duration-200" style={{ width: `${progress}%` }} />
                 </div>
                 <span className="text-[11px] text-gray-400 tabular-nums shrink-0">{fmt(elapsed)} / {fmt(duration)}</span>
-                {/* Пометка синтетической речи — видна по умолчанию везде,
+                {/* Пометка синтетической речи - видна по умолчанию везде,
                     где звучит сгенерированный голос. */}
                 <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-gray-400 shrink-0" title="Синтетическая речь (AI-generated voice)">
                     <Icons.Sparkles className="w-3 h-3" />

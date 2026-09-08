@@ -66,7 +66,7 @@ async function shareImage(url, prompt) {
             await navigator.share({ url, title: 'Void Code AI', text: prompt || '' });
             return true;
         }
-    } catch { /* пользователь мог отменить — молча */ }
+    } catch { /* пользователь мог отменить - молча */ }
     // Фолбэк: копируем URL.
     try { await navigator.clipboard.writeText(url); return true; } catch { return false; }
 }
@@ -157,7 +157,7 @@ export function GeneratedImage({ url, prompt = '', idx = 0, onEdit }) {
             >
                 {/* Задача 5: ограничиваем максимальный размер картинки
                     (max-w-sm) и держим строго квадратные пропорции
-                    (aspect-square + object-cover) — ТОЧНО тот же размер и
+                    (aspect-square + object-cover) - ТОЧНО тот же размер и
                     те же классы использует «холст»-скелетон в
                     ImageGenLoader, поэтому в момент появления готовой
                     картинки макет не «прыгает». */}
@@ -169,7 +169,7 @@ export function GeneratedImage({ url, prompt = '', idx = 0, onEdit }) {
                         draggable={false}
                     />
                 </button>
-                {/* Кнопка «скачать» — в левом нижнем углу картинки */}
+                {/* Кнопка «скачать» - в левом нижнем углу картинки */}
                 <button
                     onClick={handleDownload}
                     title="Скачать изображение"

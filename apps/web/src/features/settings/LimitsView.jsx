@@ -158,13 +158,13 @@ function LimitsContent({ state, updateState, onNavigate }) {
 
             {/* Задача 6: лимит теперь реальный токен-бюджет (см.
                 estimateRequestWeight в models.jsx), но показываем его в
-                процентах — так понятнее обычному пользователю, чем сырые
+                процентах - так понятнее обычному пользователю, чем сырые
                 числа токенов. */}
             <div className="space-y-5">
                 <h5 className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Чат-запросы</h5>
                 <LimitBar title="Дневной лимит" used={usedDaily} limit={maxDaily} asPercent />
                 <LimitBar title="Недельный лимит" used={usedWeekly} limit={maxWeekly} asPercent />
-                <p className="text-[11px] text-gray-400 font-medium -mt-2">Тратится по фактическому весу запроса: длинные и сложные сообщения (картинки, высокий уровень рассуждений, мощная модель) расходуют лимит быстрее коротких. Void Mini — всегда безлимитна.</p>
+                <p className="text-[11px] text-gray-400 font-medium -mt-2">Тратится по фактическому весу запроса: длинные и сложные сообщения (картинки, высокий уровень рассуждений, мощная модель) расходуют лимит быстрее коротких. Void Mini - всегда безлимитна.</p>
             </div>
 
             {/* Лимит изображений */}

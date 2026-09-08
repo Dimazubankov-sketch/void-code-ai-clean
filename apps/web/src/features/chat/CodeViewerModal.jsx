@@ -39,7 +39,7 @@ export function CodeViewerModal({ block, siblings = [], onClose }) {
             startY: t.clientY,
             startScrollLeft: e.currentTarget.scrollLeft,
             startScrollTop: e.currentTarget.scrollTop,
-            axis: null, // 'x' | 'y' — определяется после первых ~8px движения
+            axis: null, // 'x' | 'y' - определяется после первых ~8px движения
         };
     };
     const handleTouchMove = (e) => {
@@ -74,7 +74,7 @@ export function CodeViewerModal({ block, siblings = [], onClose }) {
             const scriptEl = doc.createElement('script');
             scriptEl.textContent = preview.jsCode;
             doc.body.appendChild(scriptEl);
-        } catch (e) { /* iframe в песочнице — просто не покажем результат */ }
+        } catch (e) { /* iframe в песочнице - просто не покажем результат */ }
     };
 
     // Копируем ВЫДЕЛЕННЫЙ пользователем участок кода, если он есть, иначе —
@@ -104,7 +104,7 @@ export function CodeViewerModal({ block, siblings = [], onClose }) {
     return (
         <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center ${fullscreen ? 'p-0' : 'sm:p-4'} fade-in`}>
             <div className={`bg-white dark:bg-darkCard w-full shadow-2xl border border-gray-100 dark:border-darkBorder flex flex-col overflow-hidden overscroll-contain transition-all ${fullscreen ? 'max-w-full h-dvh rounded-none' : 'sm:max-w-3xl code-modal-h rounded-t-[2rem] sm:rounded-[2rem]'}`}>
-                {/* Шапка с кнопкой закрытия — всегда видна, вне скроллящейся
+                {/* Шапка с кнопкой закрытия - всегда видна, вне скроллящейся
                     области, чтобы выход был доступен в любой момент. */}
                 <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 dark:border-darkBorder flex-shrink-0 relative z-10 bg-white dark:bg-darkCard">
                     <div className="flex items-center gap-3 min-w-0">
@@ -116,7 +116,7 @@ export function CodeViewerModal({ block, siblings = [], onClose }) {
                         </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                        {/* Полноэкранный режим — теперь доступен и на телефоне,
+                        {/* Полноэкранный режим - теперь доступен и на телефоне,
                             а не только на ПК (была задача 1: раньше кнопка
                             была скрыта классом hidden sm:flex, и мобильный
                             вообще не мог развернуть превью). */}
@@ -147,8 +147,8 @@ export function CodeViewerModal({ block, siblings = [], onClose }) {
                                     {copied ? 'Скопировано ✓' : 'Копировать'}
                                 </button>
                             </div>
-                            {/* void-selectable — разрешает выделение текста (в т.ч. долгим
-                                нажатием на телефоне). touchAction: none — полностью берём
+                            {/* void-selectable - разрешает выделение текста (в т.ч. долгим
+                                нажатием на телефоне). touchAction: none - полностью берём
                                 прокрутку под ручное управление (см. handleTouch* выше), чтобы
                                 жёстко ограничить её строго вертикалью ИЛИ горизонталью. */}
                             <pre

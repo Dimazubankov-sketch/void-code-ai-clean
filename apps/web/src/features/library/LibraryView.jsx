@@ -59,13 +59,13 @@ export function LibraryView({ state, updateState }) {
     const handleShare = async (item) => {
         const shareData = { title: item.prompt || 'Void Code AI', url: item.url };
         if (navigator.share) {
-            try { await navigator.share(shareData); return; } catch { /* пользователь отменил — не ошибка */ }
+            try { await navigator.share(shareData); return; } catch { /* пользователь отменил - не ошибка */ }
         }
         try {
             await navigator.clipboard.writeText(item.url);
             setShareCopiedId(item.id);
             setTimeout(() => setShareCopiedId(null), 1500);
-        } catch { /* буфер обмена недоступен без HTTPS/разрешения — молча игнорируем */ }
+        } catch { /* буфер обмена недоступен без HTTPS/разрешения - молча игнорируем */ }
     };
 
     return (
@@ -102,7 +102,7 @@ export function LibraryView({ state, updateState }) {
                                         ) : (
                                             <>
                                                 {/* Задача 6: превью видео в квадратной карточке. preload="metadata"
-                                                    обязателен — без него Safari/iOS не рисует первый кадр
+                                                    обязателен - без него Safari/iOS не рисует первый кадр
                                                     и карточка остаётся чёрной; #t=0.1 во фрагменте заставляет
                                                     браузер отрисовать именно кадр, а не пустой холст.
                                                     object-cover обрезает любое соотношение (16:9, 9:16) в 1:1. */}
@@ -172,7 +172,7 @@ export function LibraryView({ state, updateState }) {
             </div>
 
             {/* Полноэкранный просмотр (пункт 1): открыть картинку/видео на
-                весь экран, скачать, поделиться ссылкой — прямо отсюда, без
+                весь экран, скачать, поделиться ссылкой - прямо отсюда, без
                 необходимости искать чат, в котором это было сгенерировано. */}
             {viewerItem && (
                 <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setViewerItem(null)}>

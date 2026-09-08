@@ -99,7 +99,7 @@ export function ProfileEditView({ state, updateState }) {
                                 className={`w-full p-4 border rounded-2xl font-medium outline-none transition-all ${birthDateLocked ? 'bg-gray-100 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-400 cursor-not-allowed' : 'bg-gray-50 dark:bg-[#23232f] border-gray-100 dark:border-gray-800 dark:text-white focus:border-[#5b32d4]'}`}
                             />
                             <p className="text-[11px] text-gray-400 mt-1.5 ml-1">
-                                {birthDateLocked ? 'Дату рождения можно указать только один раз — изменить её больше нельзя.' : 'Можно указать только один раз. Проверьте дату перед сохранением.'}
+                                {birthDateLocked ? 'Дату рождения можно указать только один раз - изменить её больше нельзя.' : 'Можно указать только один раз. Проверьте дату перед сохранением.'}
                             </p>
                         </div>
 

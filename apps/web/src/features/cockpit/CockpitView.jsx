@@ -65,7 +65,7 @@ function GiftAgentModal({ agent, onClaim }) {
                 <div className="gift-text">
                     <h2 className="text-xl font-extrabold dark:text-white mb-2">Подарок для вас!</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
-                        Мы дарим вам агента «{agent.name}» — он готов приступить к задачам сразу после того, как вы его заберёте.
+                        Мы дарим вам агента «{agent.name}» - он готов приступить к задачам сразу после того, как вы его заберёте.
                     </p>
                     <button onClick={onClaim} className="w-full py-3.5 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold text-sm transition-colors">
                         Забрать
@@ -149,7 +149,7 @@ function AgentCard({ agent, expanded, onToggle, onUpdate, onChat, allAgents, ind
                         </div>
                     </div>
                 </button>
-                {/* Чат агента — отдельная иконка справа от имени */}
+                {/* Чат агента - отдельная иконка справа от имени */}
                 <button onClick={() => onChat(agent)} className="p-2 rounded-xl text-gray-400 hover:text-[#5b32d4] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0" title="Чат с агентом"><Icons.MessageSquare className="w-4.5 h-4.5 w-5 h-5" /></button>
                 <button onClick={onToggle} className="p-1 text-gray-300 shrink-0"><Icons.ChevronLeft className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : '-rotate-90'}`} /></button>
             </div>
@@ -212,7 +212,7 @@ export function CockpitView({ state, updateState, embedded = false, searchQuery 
                     <span className="px-3 py-1.5 rounded-full bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-300 text-xs font-bold">Всего агентов: {agents.length}</span>
                 </div>
 
-                {/* Оркестраторы — всегда сверху, с градиентом */}
+                {/* Оркестраторы - всегда сверху, с градиентом */}
                 {orchestrators.map((orch, oi) => {
                     const linked = (orch.orchestration?.subordinateIds || []).length;
                     // На тарифе ниже Pro оркестраторы заблокированы до оплаты подписки

@@ -47,7 +47,7 @@ export function CliBlock({ code, lang = 'bash' }) {
                     {copied ? 'Скопировано' : 'Копировать'}
                 </button>
             </div>
-            {/* Тело — промпт + команды. Разрешаем выделение (mobile long-press).
+            {/* Тело - промпт + команды. Разрешаем выделение (mobile long-press).
                 Кастомный скроллбар (void-cli-scroll) через global CSS в index.css. */}
             <div className="px-4 py-3 overflow-x-auto void-cli-scroll">
                 <pre className="text-[13px] leading-relaxed font-mono text-gray-100 whitespace-pre">

@@ -81,7 +81,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         const current = state.selectedImages || [];
         const roomLeft = Math.max(0, limit - current.length);
         if (roomLeft === 0) {
-            alert(`Лимит вложений на вашем тарифе — ${limit} фото за раз.`);
+            alert(`Лимит вложений на вашем тарифе - ${limit} фото за раз.`);
             return;
         }
         const toAdd = files.slice(0, roomLeft);
@@ -234,7 +234,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
         try {
             if (!tooLong && navigator.share) { await navigator.share({ title: chat.title, url }); return; }
             if (!tooLong) { await navigator.clipboard.writeText(url); setShareToast('Ссылка на диалог скопирована'); }
-            else { await navigator.clipboard.writeText(dialogToText(chat)); setShareToast('Диалог длинный — скопирован текстом'); }
+            else { await navigator.clipboard.writeText(dialogToText(chat)); setShareToast('Диалог длинный - скопирован текстом'); }
         } catch {
             await navigator.clipboard.writeText(tooLong ? dialogToText(chat) : url);
             setShareToast('Скопировано');
@@ -602,13 +602,13 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 </div>
             </div>
 
-            {/* Плавающая кнопка «прокрутить вниз» — всегда доступна, если чат
+            {/* Плавающая кнопка «прокрутить вниз» - всегда доступна, если чат
                 отскроллен от самого низа переписки (в т.ч. после ответа ИИ).
                 Позиция считается от РЕАЛЬНОЙ высоты инпут-бара (bottomPad),
                 поэтому при росте многострочного ввода стрелка плавно уходит
                 выше и никогда не наезжает на поле. Фон полупрозрачный с
                 backdrop-blur, чтобы кнопка не отвлекала внимание, но иконка
-                стрелки — четкая на 100% (см. ScrollDownButton). */}
+                стрелки - четкая на 100% (см. ScrollDownButton). */}
             <ScrollDownButton
                 visible={showScrollDown}
                 bottomPad={bottomPad}
@@ -619,14 +619,14 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             <div ref={inputWrapRef} className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white dark:from-darkBg via-white dark:via-darkBg to-transparent pt-14 px-3 sm:px-4 md:px-8 z-20 pointer-events-none pb-safe">
                 <div className="relative max-w-4xl mx-auto pointer-events-auto">
                     {/* Warning-баннер: показывается когда дневной лимит чата
-                        превышает 90%. Пользователь может закрыть крестиком —
+                        превышает 90%. Пользователь может закрыть крестиком -
                         тогда баннер не появится до следующего дня (сброс по
                         календарной дате в localStorage). */}
                     {showLimitWarning && (
                         <div className="flex items-center gap-2.5 mb-2.5 px-3.5 py-2.5 rounded-2xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/50 fade-in">
                             <Icons.Alert className="w-4 h-4 shrink-0 text-orange-500" />
                             <p className="flex-1 text-xs font-semibold text-orange-700 dark:text-orange-300 leading-tight">
-                                Использовано {dailyPercent}% дневного лимита. Скоро запросы закончатся —
+                                Использовано {dailyPercent}% дневного лимита. Скоро запросы закончатся -
                                 <button
                                     onClick={() => updateState({ currentView: 'pricing' })}
                                     className="ml-1 underline hover:no-underline"
@@ -688,14 +688,14 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             ))}
                         </div>
                     )}
-                    {/* В голосовом режиме поле ввода одно — то, что в
+                    {/* В голосовом режиме поле ввода одно - то, что в
                         оверлее Voice Mode (сжатая полоса внизу). Свой
                         композер чата в это время не рисуем, иначе два поля
                         наслаивались бы друг на друга. */}
                     {/* Атрибут hidden здесь НЕ работал: у элемента классом
                         задан display:flex, а CSS перебивает hidden. Поэтому
                         композер чата в голосовом режиме именно НЕ
-                        РЕНДЕРИТСЯ — поле ввода остаётся ровно одно (полоса
+                        РЕНДЕРИТСЯ - поле ввода остаётся ровно одно (полоса
                         в оверлее Voice Mode). */}
                     <div
                         ref={composerWrapRef}
@@ -703,21 +703,21 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         /* Спокойная серая рамка вместо фиолетового кольца и
                            тяжёлой тени: раньше focus-within:ring-4 + shadow-2xl
                            притягивали к себе всё внимание. min-h при развёрнутой
-                           кнопке — чтобы верхняя кнопка «на весь экран» и нижний
+                           кнопке - чтобы верхняя кнопка «на весь экран» и нижний
                            ряд кнопок физически не могли наложиться друг на друга
                            (см. задачу 6). */
                         className={`flex flex-col bg-white dark:bg-darkCard rounded-[26px] border transition-colors relative ${state.imageGenMode ? 'border-[#5b32d4]/30 focus-within:border-[#5b32d4]/50' : 'border-gray-200 dark:border-darkBorder focus-within:border-gray-300 dark:focus-within:border-gray-600'}`}
                     >
-                        {/* multiple — нативный мультивыбор из галереи: пользователь
+                        {/* multiple - нативный мультивыбор из галереи: пользователь
                             отмечает галочками несколько фото за один заход системного
                             пикера (задача 2-4). Лимит по тарифу применяется в
                             addImageFiles ниже (3 фото Free / 9 на платных).
                             ПОПЫТКА №6: предыдущий комментарий утверждал, что
                             accept="image/*" убирает системное меню-разветвитель
                             («Медиатека / Сделать снимок / Выбрать файлы») на
-                            iOS — по факту (см. скриншоты) это не так, меню
+                            iOS - по факту (см. скриншоты) это не так, меню
                             всё равно показывается. Переходим на явный список
-                            MIME-типов без wildcard — по отчётам это чаще
+                            MIME-типов без wildcard - по отчётам это чаще
                             приводит к прямому открытию галереи на WebKit.
                             Полной гарантии от самой iOS на это нет (см. итоговое
                             сообщение), но это самый близкий к нативному
@@ -730,7 +730,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             addImageFiles(e.target.files);
                             e.target.value = '';
                         }} />
-                        {/* Инпут для «Файлы» — намеренно исключает image/* из accept,
+                        {/* Инпут для «Файлы» - намеренно исключает image/* из accept,
                             чтобы на мобильных браузер сразу открывал файловый
                             менеджер, а не то же окно «Медиатека/Файлы/Камера», что
                             и для «Фото» (когда accept допускает картинки, система
@@ -744,7 +744,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             кнопка «на весь экран») ── */}
                         <div className="relative">
                             {/* Задача 2: во время записи текстовое поле просто
-                                гасится (void-text-hide на самом textarea ниже) —
+                                гасится (void-text-hide на самом textarea ниже) -
                                 отдельного оверлея с пилюлей здесь БОЛЬШЕ НЕТ.
                                 Пилюля с волной и таймером переехала в ряд 2,
                                 вплотную к кнопке-квадрату «стоп» (как в
@@ -753,7 +753,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             {voice.recording && (
                                 <div className="absolute inset-0 z-10 rounded-t-[26px] bg-white/70 dark:bg-darkCard/70 backdrop-blur-sm pointer-events-none fade-in" />
                             )}
-                            {/* Задача 2: «Преобразование в текст…» — по ЦЕНТРУ поля
+                            {/* Задача 2: «Преобразование в текст…» - по ЦЕНТРУ поля
                                 (между выбором модели и микрофоном), нейтральным
                                 серым, без фиолетового. */}
                             {voice.transcribing && !state.inputValue && (
@@ -816,7 +816,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             />
                             {/* Задача 2 (повторный раунд): кнопка полноэкранного
                                 режима появляется только после 57 символов ИЛИ 3
-                                вставленных отступов (см. useExpandableComposer) —
+                                вставленных отступов (см. useExpandableComposer) -
                                 раньше срабатывало по высоте textarea, слишком
                                 рано. */}
                             {composerManyChars && (
@@ -830,7 +830,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             )}
                         </div>
 
-                        {/* ── Ряд 2: панель инструментов — «+», модель, затем
+                        {/* ── Ряд 2: панель инструментов - «+», модель, затем
                             (справа) микрофон и отправка/Voice Mode. Задача 7:
                             селектор модели переехал сюда из шапки. Задача 8:
                             вся строка теперь обычный flex-ряд (как в референсе),
@@ -839,25 +839,25 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                         <div ref={composerBtnsRef} className="flex items-center gap-2 px-3 pb-2.5">
                             {/* «+» слева: при записи переворачивается в «×» (отмена записи),
                                 иначе открывает меню действий (проект/изображение/агенты/…).
-                                Задача: единый размер (h-9 w-9) и серая обводка — как у
+                                Задача: единый размер (h-9 w-9) и серая обводка - как у
                                 выбора модели, микрофона и кнопки отправки, чтобы весь ряд
                                 был из одинаковых по высоте и рамке кнопок на одном уровне. */}
                             <button
                                 onClick={() => voice.recording ? voice.cancel() : setShowPlusMenu(true)}
                                 {...pressProps(gsap)}
                                 title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
-                                className="void-tap-target w-9 h-9 shrink-0 rounded-full border border-gray-200 dark:border-darkBorder flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                className="void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                             >
                                 <Icons.Plus className={`w-[18px] h-[18px] void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
                             </button>
 
-                            {/* Выбор модели — прямо в поле ввода. При записи скрываем
+                            {/* Выбор модели - прямо в поле ввода. При записи скрываем
                                 (менять модель во время диктовки некуда) и отдаём место
                                 пилюле записи. */}
                             {!voice.recording && <ModelSelector state={state} updateState={updateState} compact />}
                             {!voice.recording && <div className="flex-1" />}
 
-                            {/* Пилюля записи — в одном ряду с кнопкой «стоп», вплотную. */}
+                            {/* Пилюля записи - в одном ряду с кнопкой «стоп», вплотную. */}
                             {voice.recording && <RecordingPill voice={voice} className="flex-1 min-w-0 mr-1.5" />}
 
                             {voice.supported && (
@@ -870,7 +870,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                     stopTitle={t(lang, 'chat.stopRecording')}
                                 />
                             )}
-                            {/* Кнопка отправки/Voice Mode — тот же размер (w-9 h-9) и
+                            {/* Кнопка отправки/Voice Mode - тот же размер (w-9 h-9) и
                                 выравнивание, что и остальные, чтобы не наслаивалась на
                                 «стоп» и стояла на одном уровне. */}
                             {(state.inputValue.trim() || (state.selectedImages && state.selectedImages.length > 0)) ? (
@@ -904,20 +904,20 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 </div>
             </div>
 
-            {/* Задача 2 (повторный раунд) — полноэкранный режим ЧЕРЕЗ PORTAL
+            {/* Задача 2 (повторный раунд) - полноэкранный режим ЧЕРЕЗ PORTAL
                 прямо в document.body. Раньше пытались анимировать исходный
                 элемент через position:fixed (GSAP FLIP), но он был вложен в
                 предка с собственным position:absolute+z-index (см.
-                inputWrapRef ниже) — это создаёт свой стекинговый контекст,
+                inputWrapRef ниже) - это создаёт свой стекинговый контекст,
                 и fixed-потомок всё равно рисовался ВНУТРИ него, из-за чего
                 оверлей перекрывал содержимое («видно только блюр»). Portal
-                полностью решает это — дерево рендерится в document.body,
+                полностью решает это - дерево рендерится в document.body,
                 вне любых родительских z-index/position/transform. */}
             {composerExpanded && createPortal(
                 <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-stretch justify-stretch fade-in">
                     {/* Задача 6: раньше на десктопе (sm: и выше) это окно
                         схлопывалось в маленькую центрированную карточку
-                        (sm:h-auto sm:max-h-[85vh] sm:max-w-2xl) — «полноэкранный
+                        (sm:h-auto sm:max-h-[85vh] sm:max-w-2xl) - «полноэкранный
                         ввод» на ПК был вовсе не полноэкранным. Теперь занимает
                         весь экран на любом брейкпоинте, как и задумано. */}
                     <div className="bg-white dark:bg-darkCard w-full h-full flex flex-col shadow-2xl">

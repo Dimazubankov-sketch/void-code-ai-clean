@@ -128,7 +128,7 @@ export function SupportChatView({ state, updateState, onClose }) {
                     {messages.length === 0 && (
                         <div className="flex justify-start">
                             <div className="max-w-[85%] p-4 rounded-3xl rounded-tl-sm bg-white dark:bg-darkCard border border-gray-100 dark:border-darkBorder">
-                                <p className="text-sm text-gray-700 dark:text-gray-200 font-medium">Здравствуйте! Я — агент поддержки Void Code AI. С чем помочь?</p>
+                                <p className="text-sm text-gray-700 dark:text-gray-200 font-medium">Здравствуйте! Я - агент поддержки Void Code AI. С чем помочь?</p>
                                 <p className="text-xs text-gray-400 mt-1">Выберите тему ниже или опишите проблему своими словами.</p>
                             </div>
                         </div>
@@ -155,7 +155,7 @@ export function SupportChatView({ state, updateState, onClose }) {
             {/* Поле ввода */}
             <div className="shrink-0 p-3 sm:p-4 border-t border-gray-100 dark:border-darkBorder bg-[#f8f9fc]/95 dark:bg-darkBg/95 backdrop-blur-md">
                 <div className="max-w-2xl mx-auto">
-                    {/* Задача 6: чипсы с готовыми темами — прямо в чате, над
+                    {/* Задача 6: чипсы с готовыми темами - прямо в чате, над
                         полем ввода, а не отдельным экраном до него. Тап по
                         теме сразу отправляет её как первое сообщение,
                         «Другое» просто убирает чипсы и даёт написать
@@ -193,7 +193,7 @@ export function SupportChatView({ state, updateState, onClose }) {
                             ))}
                         </div>
                     )}
-                    {/* accept="image/*" — та же маска, что и в основном чате
+                    {/* accept="image/*" - та же маска, что и в основном чате
                         (ChatView.jsx): именно она даёт iOS сразу открыть
                         галерею вместо системного меню выбора источника. */}
                     <input type="file" ref={fileInputRef} multiple accept="image/*" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />

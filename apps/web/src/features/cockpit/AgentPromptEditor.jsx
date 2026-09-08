@@ -36,7 +36,7 @@ export function AgentPromptEditor({ agent, state, updateState, onClose }) {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={7}
-                placeholder="Например: Ты — агент поддержки. Отвечай кратко и по делу, всегда предлагай следующий шаг…"
+                placeholder="Например: Ты - агент поддержки. Отвечай кратко и по делу, всегда предлагай следующий шаг…"
                 className="w-full px-4 py-3 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-darkBorder text-sm dark:text-white outline-none focus:border-[#5b32d4] resize-none mb-3"
                 autoFocus
             />

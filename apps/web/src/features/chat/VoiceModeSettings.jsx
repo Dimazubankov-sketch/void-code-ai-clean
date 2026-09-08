@@ -34,14 +34,14 @@ const PANEL_DESKTOP = 'md:w-[560px] md:h-[560px] md:rounded-3xl md:shadow-2xl md
 export const BUILTIN_PERSONAS = [
     { id: 'assistant', sticker: 'smile', name: 'Ассистент', instructions: 'Ты обычный дружелюбный ассистент. Отвечай коротко и по делу, без лишних вступлений.' },
     { id: 'support', sticker: 'bear', name: 'Поддерживающий', instructions: 'Ты тёплый и спокойный собеседник. Слушай внимательно, поддерживай, но не сюсюкай и не давай пустых обещаний.' },
-    { id: 'storyteller', sticker: 'book', name: 'Рассказчик', instructions: 'Ты мастер устного рассказа. Говори образно, держи интригу, но помни, что тебя слушают вслух — не растягивай без нужды.' },
+    { id: 'storyteller', sticker: 'book', name: 'Рассказчик', instructions: 'Ты мастер устного рассказа. Говори образно, держи интригу, но помни, что тебя слушают вслух - не растягивай без нужды.' },
     { id: 'kids', sticker: 'owl', name: 'Сказки детям', instructions: 'Ты рассказываешь добрые сказки для детей. Простые слова, короткие фразы, никакого страшного или взрослого содержания.' },
     { id: 'coach', sticker: 'muscle', name: 'Коуч', instructions: 'Ты требовательный коуч. Задавай неудобные вопросы, не давай отговорок, подталкивай к конкретному следующему шагу.' },
     { id: 'teacher', sticker: 'teacher', name: 'Преподаватель', instructions: 'Ты объясняешь сложное простым языком. Проверяй понимание короткими вопросами, приводи бытовые аналогии.' },
     { id: 'engineer', sticker: 'robot', name: 'Инженер', instructions: 'Ты опытный инженер. Говори технически точно, называй компромиссы, не притворяйся, что знаешь то, чего не знаешь.' },
     { id: 'skeptic', sticker: 'detective', name: 'Скептик', instructions: 'Ты дотошный скептик. Ищи слабые места в рассуждениях собеседника и прямо на них указывай, но без грубости.' },
     { id: 'calm', sticker: 'moon', name: 'Спокойный', instructions: 'Ты говоришь медленно и размеренно. Короткие предложения, спокойный тон, никакой спешки и напора.' },
-    { id: 'brief', sticker: 'bolt', name: 'Максимально кратко', instructions: 'Отвечай предельно коротко — одна-две фразы, только суть, без примеров и пояснений, если о них не просили.' },
+    { id: 'brief', sticker: 'bolt', name: 'Максимально кратко', instructions: 'Отвечай предельно коротко - одна-две фразы, только суть, без примеров и пояснений, если о них не просили.' },
 ];
 
 export const VOICE_MODE_LANGS = [
@@ -297,7 +297,7 @@ function MicCheck({ onClose }) {
         <div className="fixed inset-0 z-[250] bg-black/40 backdrop-blur-sm flex items-center justify-center p-6 fade-in" onClick={onClose}>
             <div className="bg-white dark:bg-[#150d28] w-full max-w-xs rounded-3xl shadow-2xl p-6 text-center" onClick={(e) => e.stopPropagation()}>
                 <h4 className="font-extrabold text-gray-900 dark:text-white mb-1">Микрофон</h4>
-                <p className="text-sm text-gray-400 mb-5">{error ? '' : 'Скажи что-нибудь — полоса должна двигаться'}</p>
+                <p className="text-sm text-gray-400 mb-5">{error ? '' : 'Скажи что-нибудь - полоса должна двигаться'}</p>
                 {error ? (
                     <p className="text-sm text-red-500 mb-5">{error}</p>
                 ) : (
@@ -376,7 +376,7 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
 
                     <div className="vm-anim">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Личность</p>
-                        {/* py-2 и отсутствие вертикального overflow — чтобы кольцо
+                        {/* py-2 и отсутствие вертикального overflow - чтобы кольцо
                             выделения и галочка не срезались краем ленты. */}
                         <div className="flex gap-3 overflow-x-auto overflow-y-visible void-persona-scroll py-2 -mx-4 px-4 md:-mx-6 md:px-6 md:pb-3">
                             <CreateTile onClick={() => setEditorOpen(true)} />
@@ -392,11 +392,11 @@ export function VoiceModeSettings({ state, updateState, onClose }) {
                         </div>
                     </div>
 
-                    {/* Создание своего голоса — тот же общий компонент, что и
+                    {/* Создание своего голоса - тот же общий компонент, что и
                         в Настройках → Голос (второй реализации нет). */}
                     <div className="vm-anim"><Row label="Создать голос" value="Клон или описание" onClick={() => setCreateVoiceOpen(true)} /></div>
 
-                    {/* Эмоции — сразу после блока «Личность», как и в общих
+                    {/* Эмоции - сразу после блока «Личность», как и в общих
                         настройках голоса. Компонент общий, второй копии нет. */}
                     <div className="vm-anim"><Row label="Эмоции" value={emotionLabel} onClick={() => setEmotionsOpen(true)} /></div>
 

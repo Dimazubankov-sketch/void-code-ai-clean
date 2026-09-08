@@ -59,7 +59,7 @@ export function SoundSettings({ state, updateState, onClose }) {
         <div data-modal-overlay className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 fade-in" onClick={onClose}>
             {/* Всегда по центру и со скруглением со ВСЕХ сторон: раньше на
                 телефоне это была «шторка» снизу с прямым нижним краем.
-                Небольшому меню центр подходит лучше — и выглядит цельно,
+                Небольшому меню центр подходит лучше - и выглядит цельно,
                 и не упирается в системную панель браузера. */}
             <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm rounded-3xl p-6 shadow-2xl slide-in-right" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center gap-3 mb-1">

@@ -294,7 +294,7 @@ export function ChartBlock({ code }) {
                     )}
                 </svg>
 
-                {/* Легенда — только если серий больше одной */}
+                {/* Легенда - только если серий больше одной */}
                 {series.length > 1 && (
                     <div className="flex flex-wrap gap-3 justify-center mt-2 px-2">
                         {series.map((s, i) => (

@@ -42,7 +42,7 @@ function IconCircleButton({ onClick, title, children }) {
             onTouchEnd={onUp}
             /* Задача 9: раньше кнопки шапки чата были полупрозрачным
                «стеклом» (bg-white/45 + backdrop-blur) и слишком сильно
-               сливались с фоном чата. Теперь — тот же плотный стиль, что
+               сливались с фоном чата. Теперь - тот же плотный стиль, что
                и у кнопок в Хабе (bg-white/90 + shadow-md + сплошная
                обводка), для всех кнопок шапки без исключения. */
             className="void-tap-target flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-white/70 dark:bg-white/10 backdrop-blur-xl shadow-sm border border-black/[0.06] dark:border-white/10 text-gray-800 dark:text-gray-100 hover:bg-white/90 dark:hover:bg-white/[0.16] transition-colors"
@@ -92,7 +92,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                             {limitExhausted && (
                                 <div className="mx-2 mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/40 rounded-2xl flex gap-2 items-start">
                                     <Icons.Info className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" style={{width:'16px',height:'16px',minWidth:'16px'}} />
-                                    <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold">Дневной лимит исчерпан. Доступна только модель Void Mini — остальные вернутся через 6 часов (см. вкладку «Лимиты»).</p>
+                                    <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold">Дневной лимит исчерпан. Доступна только модель Void Mini - остальные вернутся через 6 часов (см. вкладку «Лимиты»).</p>
                                 </div>
                             )}
                             <div className="p-2 flex flex-col gap-1 max-h-[70vh] overflow-y-auto">
@@ -110,7 +110,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                                         // никогда не сработает (disabled блокирует onClick целиком).
                                         <PressButton key={m.id} disabled={limitLocked} onClick={() => {
                                             if (planLocked) { updateState({ currentView: 'pricing' }); setShowDropdown(false); return; }
-                                            if (locked) { alert('Вы исчерпали дневной лимит. Лимиты обновятся автоматически через 6 часов — доступна модель Void Mini без ограничений.'); return; }
+                                            if (locked) { alert('Вы исчерпали дневной лимит. Лимиты обновятся автоматически через 6 часов - доступна модель Void Mini без ограничений.'); return; }
                                             updateState({selectedModelId: m.id}); setShowDropdown(false);
                                         }} className={`w-full text-left p-4 rounded-2xl transition-colors flex flex-col gap-1 ${locked ? 'opacity-40 cursor-not-allowed' : ''} ${state.selectedModelId === m.id ? 'bg-[#efecf9] dark:bg-purple-900/20' : (locked ? '' : 'hover:bg-gray-50 dark:hover:bg-gray-800')}`}>
                                             <div className="flex justify-between w-full">
@@ -124,7 +124,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                                     );
                                 })}
                             </div>
-                            {/* Уровень рассуждений — под выбором моделей */}
+                            {/* Уровень рассуждений - под выбором моделей */}
                             <div className="border-t border-gray-100 dark:border-darkBorder p-2">
                                 <PressButton onClick={() => { setShowReasoning(true); setShowDropdown(false); }} className="w-full flex items-center gap-3 p-3.5 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left">
                                     <div className="w-9 h-9 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center shrink-0"><Icons.Sparkles className="w-4 h-4" /></div>
@@ -171,7 +171,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                 )}
             </div>
             {/* Задача 8: отдельная кнопка «Уровень рассуждений» рядом с
-                моделью убрана — рассуждения теперь открываются только
+                моделью убрана - рассуждения теперь открываются только
                 через сам выбор модели (строка «Уровень рассуждений» внизу
                 выпадающего списка выше), а не отдельным чипом в шапке. */}
         </div>
@@ -190,14 +190,14 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                (from-white), поэтому текст под шапкой не было видно вовсе,
                а сам градиент без backdrop-blur давал резкий, отчётливо
                заметный край. Теперь два разных слоя:
-               1) сама полоса шапки (h-16) — постоянная лёгкая
+               1) сама полоса шапки (h-16) - постоянная лёгкая
                   полупрозрачность + blur: текст под ней виден, но
                   приглушён, ровно на всей высоте шапки, без утечки в 100%
                   непрозрачность у верхнего края;
                2) более узкая мягкая кайма под шапкой (без blur, только
-                  градиент до полной прозрачности) — сглаживает переход к
+                  градиент до полной прозрачности) - сглаживает переход к
                   обычному контенту чата, чтобы не было жёсткой границы.
-               pointer-events-none — чтобы слои не перехватывали клики и скролл. */
+               pointer-events-none - чтобы слои не перехватывали клики и скролл. */
             <div className="sticky top-0 z-30 px-3 sm:px-4 md:px-6 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <div
                     aria-hidden
@@ -208,9 +208,9 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     className="absolute inset-x-0 top-16 h-8 -z-10 pointer-events-none bg-gradient-to-b from-white/40 to-transparent dark:from-darkBg/45 dark:to-transparent"
                 />
                 <div className="flex items-center justify-self-start">
-                    {/* Задача #4 (доп.): кнопка меню (две полоски) — в ЛЕВОМ
+                    {/* Задача #4 (доп.): кнопка меню (две полоски) - в ЛЕВОМ
                         верхнем углу чата, рядом с боковым меню, которое теперь
-                        слева. На ПК меню — постоянный рельс слева, поэтому
+                        слева. На ПК меню - постоянный рельс слева, поэтому
                         кнопка только мобильная (md:hidden). */}
                     {state.user && (
                         <div className="md:hidden">
@@ -221,9 +221,9 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     )}
                 </div>
                 <div className="justify-self-center">
-                    {/* Задача 7: селектор модели убран из шапки — теперь
+                    {/* Задача 7: селектор модели убран из шапки - теперь
                         живёт прямо в поле ввода (см. ChatView.jsx).
-                        Задача 5/2: на телефоне здесь вместо селектора —
+                        Задача 5/2: на телефоне здесь вместо селектора -
                         переключатель Чат↔Изображения (одна кнопка, по
                         центру шапки, а не прижата влево). На ПК тот же
                         переход уже есть в постоянном меню (RightMenu.jsx),
@@ -238,7 +238,7 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                     )}
                 </div>
                 <div className="flex items-center gap-2 justify-self-end">
-                    {/* Троеточие (действия с чатом) — сдвинуто левее, чтобы
+                    {/* Троеточие (действия с чатом) - сдвинуто левее, чтобы
                         освободить крайнее правое место под кнопку «Меню»
                         (см. ниже), которая должна стоять там же, где и в Хабе. */}
                     {onChatMenuAction && state.user && (
@@ -257,17 +257,17 @@ export function TopHeader({ state, updateState, onChatMenuAction }) {
                         </div>
                     )}
                     {/* Колокольчик убран из шапки: почта переехала в меню
-                        (см. RightMenu.jsx). В шапке чата ему больше не место —
+                        (см. RightMenu.jsx). В шапке чата ему больше не место -
                         она и так плотно занята, а почта не то действие, ради
                         которого нужна постоянная кнопка на главном экране. */}
                     {/* Гость видит на этом месте одну кнопку «Войти» вместо
                         меню: до регистрации функции всё равно закрыты, и
-                        показывать меню с недоступными пунктами — врать о
+                        показывать меню с недоступными пунктами - врать о
                         состоянии интерфейса. После входа кнопка сменяется
                         обычным меню и всё становится доступно. */}
                     {/* Кнопка меню (две полоски) переехала в ЛЕВЫЙ верхний
                         угол (см. левый слот выше, задача #4). Справа для гостя
-                        остаётся «Войти», у вошедшего — только «⋮» действий. */}
+                        остаётся «Войти», у вошедшего - только «⋮» действий. */}
                     {!state.user && (
                         <PressButton
                             onClick={() => updateState({ showAuthModal: true })}

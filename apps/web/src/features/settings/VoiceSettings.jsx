@@ -287,10 +287,10 @@ export function VoiceSettings({ state, updateState, onClose }) {
                     )}
 
                     {/* Модель озвучки (D): компактная кнопка слева вверху, а не
-                        строка на всю ширину — открывает тот же список из двух
+                        строка на всю ширину - открывает тот же список из двух
                         моделей (Fish Audio S2.1 Pro / OpenAI TTS) по нажатию
                         с лёгкой GSAP press-анимацией. Переключение сразу
-                        меняет список голосов ниже — у каждой модели свой
+                        меняет список голосов ниже - у каждой модели свой
                         набор и свой последний выбранный голос (см. selectedVoiceId). */}
                     <div className="flex justify-start -mb-2">
                         <button
@@ -307,11 +307,11 @@ export function VoiceSettings({ state, updateState, onClose }) {
                         </button>
                     </div>
 
-                    {/* Свайпаемая карусель голоса — единая для всех языков, набор
+                    {/* Свайпаемая карусель голоса - единая для всех языков, набор
                         голосов зависит от выбранной модели озвучки (provider) выше.
-                        Свои голоса живут В ЭТОМ ЖЕ списке (см. currentList выше) —
+                        Свои голоса живут В ЭТОМ ЖЕ списке (см. currentList выше) -
                         отдельной вкладки «Мои голоса» больше нет, они выглядят так,
-                        будто были там всегда. Удалить можно только их — у стандартных
+                        будто были там всегда. Удалить можно только их - у стандартных
                         голосов Fish иконки удаления нет вовсе. */}
                     <div
                         className="select-none relative"
@@ -321,7 +321,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
                     >
                         {preset.myVoiceId && (
                             <button
-                                onClick={() => removeMyVoice(preset.myVoiceId).catch(() => { /* уже удалён — не мешаем */ })}
+                                onClick={() => removeMyVoice(preset.myVoiceId).catch(() => { /* уже удалён - не мешаем */ })}
                                 title="Удалить голос"
                                 className="void-tap-target absolute top-0 right-0 p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors z-10"
                             >
@@ -336,7 +336,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
                                     colorTo={preset.colorTo}
                                     size={128}
                                     /* speaking только когда звук РЕАЛЬНО играет;
-                                       пока идёт запрос — thinking, при ошибке
+                                       пока идёт запрос - thinking, при ошибке
                                        tts сам сбросит speaking и орб вернётся
                                        в idle, зависнуть в speaking нельзя. */
                                     state={tts.speaking ? 'speaking' : tts.loading ? 'thinking' : 'idle'}
@@ -359,7 +359,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
                     </div>
 
                     {/* Создание своего голоса: клон по записи или генерация по
-                        описанию. Доступность и суточный лимит проверяет сервер —
+                        описанию. Доступность и суточный лимит проверяет сервер -
                         здесь кнопка есть всегда, а неоплаченный тариф увидит
                         объяснение внутри. */}
                     <button onClick={() => setShowCreateVoice(true)} className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
@@ -373,7 +373,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
                     </button>
 
                     {/* Эмоции и тон голоса. Общий компонент с голосовыми
-                        настройками Voice Mode — второй реализации нет. */}
+                        настройками Voice Mode - второй реализации нет. */}
                     <button onClick={() => setShowEmotions(true)} className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                         <span className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center"><Icons.Sparkles className="w-4 h-4" /></div>
@@ -384,7 +384,7 @@ export function VoiceSettings({ state, updateState, onClose }) {
                         </span>
                     </button>
 
-                    {/* Язык — одна строка, открывает модалку со списком и поиском */}
+                    {/* Язык - одна строка, открывает модалку со списком и поиском */}
                     <button onClick={() => setShowLangModal(true)} className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                         <span className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] flex items-center justify-center"><Icons.Globe className="w-4 h-4" /></div>

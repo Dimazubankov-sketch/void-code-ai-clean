@@ -54,7 +54,7 @@ export function SkillCard({ skill, on, onToggle }) {
 
     return (
         <div className={`skill-card p-4 rounded-2xl border transition-colors ${on ? 'bg-[#efecf9] dark:bg-purple-900/20 border-[#5b32d4]/40' : 'bg-white dark:bg-darkCard border-gray-100 dark:border-darkBorder hover:border-gray-200 dark:hover:border-gray-700'}`}>
-            {/* Верхняя зона — переключение */}
+            {/* Верхняя зона - переключение */}
             <button onClick={onToggle} className="w-full text-left">
                 <div className="flex items-start justify-between mb-2">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${on ? 'bg-[#5b32d4] text-white' : 'bg-gray-100 dark:bg-gray-800 text-[#5b32d4] dark:text-purple-400'}`}>
@@ -66,7 +66,7 @@ export function SkillCard({ skill, on, onToggle }) {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{skill.desc}</p>
             </button>
 
-            {/* Панель деталей — свёрнута до раскрытия */}
+            {/* Панель деталей - свёрнута до раскрытия */}
             {skill.details && (
                 <>
                     <div

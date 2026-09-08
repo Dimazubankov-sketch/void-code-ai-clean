@@ -296,13 +296,13 @@ export function ImagesView({ state, updateState }) {
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-darkBg">
-            {/* Шапка Image Studio — единая на всех размерах (задача 1):
-                • слева — кнопка озвучки (только в режиме видео);
-                • по центру — переход обратно в «Чат» (ровно то же место, где
+            {/* Шапка Image Studio - единая на всех размерах (задача 1):
+                • слева - кнопка озвучки (только в режиме видео);
+                • по центру - переход обратно в «Чат» (ровно то же место, где
                   в шапке чата стоит кнопка «Image Studio», чтобы возврат был
-                  симметричным — раньше эта кнопка была md:hidden и на ПК
+                  симметричным - раньше эта кнопка была md:hidden и на ПК
                   вернуться в чат из Image Studio было нечем);
-                • справа — пустая колонка для симметрии сетки. */}
+                • справа - пустая колонка для симметрии сетки. */}
             <div className="shrink-0 z-30 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 sm:px-4 md:px-8 bg-white/80 dark:bg-darkBg/80 backdrop-blur-xl">
                 <div className="justify-self-start">
                     {mode === 'video' && (
@@ -324,13 +324,13 @@ export function ImagesView({ state, updateState }) {
                     </PressButton>
                 </div>
                 <div className="justify-self-end">
-                    {/* Пустая правая колонка — держит кнопку «Чат» по центру
+                    {/* Пустая правая колонка - держит кнопку «Чат» по центру
                         сетки (симметрично с левой колонкой озвучки). */}
                     <span className="w-11 h-11 block" />
                 </div>
             </div>
 
-            {/* Прокручиваемая область результатов — задача #1: медиа
+            {/* Прокручиваемая область результатов - задача #1: медиа
                 (изображения И видео) показываются ЗДЕСЬ, НАД полем ввода,
                 а не под ним. Само поле ввода закреплено в самом низу экрана
                 отдельным доком (см. ниже). */}
@@ -342,12 +342,12 @@ export function ImagesView({ state, updateState }) {
                                 Что мы будем создавать?
                             </h1>
                             <p className="text-sm text-gray-400 dark:text-gray-500">
-                                Опиши идею в поле внизу — сгенерируем изображение или видео.
+                                Опиши идею в поле внизу - сгенерируем изображение или видео.
                             </p>
                         </div>
                     )}
 
-                    {/* Пункт 4/6/7: активная/последняя генерация видео —
+                    {/* Пункт 4/6/7: активная/последняя генерация видео -
                         крупная карточка в области результатов (над полем
                         ввода, задача #1). */}
                     {activeVideo && (
@@ -403,7 +403,7 @@ export function ImagesView({ state, updateState }) {
                         </div>
                     )}
 
-                    {/* Сетка результатов — только изображения (см. items выше:
+                    {/* Сетка результатов - только изображения (см. items выше:
                         видео сюда сознательно не попадают, задача 4). */}
                     {items.length > 0 && (
                         <div ref={gridRef} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -420,11 +420,11 @@ export function ImagesView({ state, updateState }) {
                 </div>
             </div>
 
-            {/* Док композера — задача #1: поле ввода со всеми настройками
+            {/* Док композера - задача #1: поле ввода со всеми настройками
                 закреплено в НИЖНЕЙ части экрана (как в чате). */}
             <div className="shrink-0 border-t border-black/[0.06] dark:border-white/10 bg-white/85 dark:bg-darkBg/85 backdrop-blur-xl px-4 md:px-8 pt-3 pb-3 pb-safe">
               <div className="max-w-4xl mx-auto">
-                {/* Пункт 5: настройки живут ОТДЕЛЬНО, над полем ввода —
+                {/* Пункт 5: настройки живут ОТДЕЛЬНО, над полем ввода -
                     само поле ввода теперь содержит только вложение,
                     переключатель Изображение/Видео и отправку. */}
                 <div className="flex items-center justify-center flex-wrap gap-2 mb-3">
@@ -474,7 +474,7 @@ export function ImagesView({ state, updateState }) {
                     )}
                 </div>
 
-                {/* Панель голоса — открывается кнопкой в шапке (пункт 3),
+                {/* Панель голоса - открывается кнопкой в шапке (пункт 3),
                     а не встроена в тулбар композера. */}
                 {mode === 'video' && showVoicePanel && (
                     <div className="mb-3 p-3 rounded-2xl bg-gray-50 dark:bg-gray-800/50 space-y-2">
@@ -529,14 +529,14 @@ export function ImagesView({ state, updateState }) {
                         {voiceMode !== 'none' && (
                             <p className="text-[11px] text-gray-400 leading-relaxed">
                                 Свой голос доступен на тарифах Pro и Ultra. Для этого видео используется Seedance 2.0
-                                {voiceMode === 'design' ? ' — голос и реплика генерируются вместе через Fish Voice Design.' : '.'}
+                                {voiceMode === 'design' ? ' - голос и реплика генерируются вместе через Fish Voice Design.' : '.'}
                             </p>
                         )}
                     </div>
                 )}
 
                 {/* Composer: текст + вложение + режим + отправка (только
-                    самое необходимое — остальные настройки вынесены выше). */}
+                    самое необходимое - остальные настройки вынесены выше). */}
                 <div className="bg-white dark:bg-darkCard rounded-[26px] border border-gray-200 dark:border-darkBorder shadow-sm p-4">
                     <input
                         type="file"
@@ -577,13 +577,13 @@ export function ImagesView({ state, updateState }) {
                         className="w-full bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none text-[16px] mb-3"
                     />
                     {/* Пункт 5: нижний ряд теперь только +, переключатель
-                        режима и отправка — остальные настройки живут в
+                        режима и отправка - остальные настройки живут в
                         отдельном ряду над composer'ом (см. выше). */}
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                            {/* Задача 1: «+» — прикрепить референсные фото. Для
+                            {/* Задача 1: «+» - прикрепить референсные фото. Для
                                 изображений это image-to-image (уже поддержано
-                                бэкендом), для видео — первый кадр (image-to-video). */}
+                                бэкендом), для видео - первый кадр (image-to-video). */}
                             <PressButton
                                 onClick={() => refFileInputRef.current?.click()}
                                 disabled={referenceImages.length >= 4}
@@ -593,7 +593,7 @@ export function ImagesView({ state, updateState }) {
                                 <Icons.Plus className="w-[18px] h-[18px]" />
                             </PressButton>
 
-                            {/* Переключатель Изображение/Видео — «ползунок»:
+                            {/* Переключатель Изображение/Видео - «ползунок»:
                                 таблетку можно перетащить пальцем между
                                 вариантами, а не только тапнуть по одному из них. */}
                             <SegmentedSlider
@@ -617,24 +617,14 @@ export function ImagesView({ state, updateState }) {
                     </div>
                 </div>
 
-                {/* Подсказка для варианта «без озвучки» — модель придумывает
-                    реплики сама из текста промпта, отдельного параметра
-                    голоса в этом случае нет. */}
-                {mode === 'video' && voiceMode === 'none' && (
-                    <p className="text-xs text-gray-400 mt-3 text-center leading-relaxed">
-                        Голос и реплики создаёт сама модель — опишите их в тексте, например:
-                        «...тёплый женский голос за кадром говорит: "Привет!"»
-                    </p>
-                )}
-
                 {error && (
                     <p className="text-sm text-red-500 font-semibold mt-3 text-center">{error}</p>
                 )}
-                {/* Задача 6: на Free видео доступно, но с ограничениями —
+                {/* Задача 6: на Free видео доступно, но с ограничениями -
                     одно в сутки, 720p, до 6 секунд. Сообщаем это прямо в UI. */}
                 {mode === 'video' && isFree && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-3 text-center">
-                        На тарифе Free — 1 видео в сутки, до 720p и не длиннее 6 секунд. Больше и длиннее — на Plus и выше.
+                        На тарифе Free - 1 видео в сутки, до 720p и не длиннее 6 секунд. Больше и длиннее - на Plus и выше.
                     </p>
                 )}
 

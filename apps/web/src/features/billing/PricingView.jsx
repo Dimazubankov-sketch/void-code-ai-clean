@@ -137,7 +137,7 @@ export function PricingView({ state, updateState }) {
         if (state.selectedMethod === 'wallet') {
             const balance = state.walletBalance || 0;
             if (balance < price) {
-                alert(`Недостаточно средств на балансе. Не хватает ${money(price - balance)} — пополните кошелёк и попробуйте снова.`);
+                alert(`Недостаточно средств на балансе. Не хватает ${money(price - balance)} - пополните кошелёк и попробуйте снова.`);
                 return;
             }
             // Фиксируем подписку на сервере ДО обновления интерфейса:
@@ -190,7 +190,7 @@ export function PricingView({ state, updateState }) {
     //   Ultra ×10  (8000₽/мес)
     const PRICING_PLANS = [
         { id: 'free', title: 'Free', subtitle: 'Бесплатный доступ. Идеально для знакомства с Void Code AI и базовых задач.', priceMonth: 0, priceYear: 0, multiplier: 1, features: ["Умный чат с AI", "Обучающие материалы", "Генератор кода", "Генератор картинок", "Стандартная скорость", "Базовые модели AI", "Голосовой режим: быстрая модель", "Создание своего голоса: недоступно", "Агентский режим: 1 агент"] },
-        { id: 'pro', title: 'Pro', subtitle: 'Максимум возможностей для разработчиков, фрилансеров и команд.', priceMonth: 1200, oldPriceMonth: 1500, priceYear: 15000, multiplier: 5, features: ["Множитель лимитов ×5 (в 5 раз больше запросов)", "Генератор кода — увелич. лимит", "Генератор картинок — увелич. лимит", "Генератор видео", "Максимальная скорость ответов", "Приоритетная поддержка", "Доступ к самым мощным моделям", "Голосовой режим: премиальные модели повышенного качества", "Создание своего голоса: до 3 в день", "Уровень рассуждений Max", "Агентский режим: до 10 агентов и 1 оркестратор"] },
+        { id: 'pro', title: 'Pro', subtitle: 'Максимум возможностей для разработчиков, фрилансеров и команд.', priceMonth: 1200, oldPriceMonth: 1500, priceYear: 15000, multiplier: 5, features: ["Множитель лимитов ×5 (в 5 раз больше запросов)", "Генератор кода - увелич. лимит", "Генератор картинок - увелич. лимит", "Генератор видео", "Максимальная скорость ответов", "Приоритетная поддержка", "Доступ к самым мощным моделям", "Голосовой режим: премиальные модели повышенного качества", "Создание своего голоса: до 3 в день", "Уровень рассуждений Max", "Агентский режим: до 10 агентов и 1 оркестратор"] },
         { id: 'pro_plus', title: 'Ultra', subtitle: 'Максимальные мощности для компаний и масштабных проектов.', priceMonth: 8000, priceYear: 80000, multiplier: 10, features: ["Множитель лимитов ×10 (в 10 раз больше запросов)", "Всё из тарифа Pro", "Максимальные лимиты на код и картинки", "Генератор видео", "Доступ к самым мощным моделям", "Приоритетная поддержка", "Максимальная скорость", "Голосовой режим: премиальные модели, углублённые рассуждения на сложных темах", "Создание своего голоса: до 6 в день", "Уровень рассуждений Max", "Агентский режим: до 20 агентов и 3 оркестратора"] }
     ];
 
@@ -365,7 +365,7 @@ export function PricingView({ state, updateState }) {
                         </div>
                         <div onClick={() => updateState({selectedMethod: 'wallet'})} className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${state.selectedMethod === 'wallet' ? 'border-[#5b32d4] bg-[#efecf9]/50 dark:bg-purple-900/10' : 'border-gray-100 dark:border-darkBorder hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
                             <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-darkCard text-[#5b32d4] dark:text-purple-400"><Icons.Wallet /></div>
-                            <div className="flex-1"><div className="font-bold text-[15px] dark:text-white">Баланс кошелька</div><div className={`text-xs ${(state.walletBalance || 0) >= price ? 'text-gray-500' : 'text-red-500 font-semibold'}`}>Доступно: {money(state.walletBalance || 0)}{(state.walletBalance || 0) < price ? ' — не хватает средств' : ''}</div></div>
+                            <div className="flex-1"><div className="font-bold text-[15px] dark:text-white">Баланс кошелька</div><div className={`text-xs ${(state.walletBalance || 0) >= price ? 'text-gray-500' : 'text-red-500 font-semibold'}`}>Доступно: {money(state.walletBalance || 0)}{(state.walletBalance || 0) < price ? ' - не хватает средств' : ''}</div></div>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${state.selectedMethod === 'wallet' ? 'border-[#5b32d4] bg-[#5b32d4]' : 'border-gray-300 dark:border-gray-600'}`}>{state.selectedMethod === 'wallet' && <Icons.Check className="w-3 h-3 text-white" />}</div>
                         </div>
                     </div>
@@ -453,10 +453,10 @@ export function PricingView({ state, updateState }) {
     // каждой карточки — в десктопной таблице из трёх колонок это выглядело
     // бы как три одинаковых переключателя. Теперь один, в шапке.
     const BillingToggle = ({ className = '' }) => (
-        <div className={`bg-gray-100 dark:bg-darkBorder p-1 flex rounded-2xl relative w-full max-w-xs ${className}`}>
+        <div className={`bg-gray-100 dark:bg-darkBorder p-1 flex rounded-2xl relative w-[280px] max-w-full ${className}`}>
             <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-darkCard rounded-xl shadow-sm transition-transform duration-300 ease-out ${state.billingCycle === 'year' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`} />
-            <button onClick={() => updateState({ billingCycle: 'month' })} className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${state.billingCycle === 'month' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>Ежемесячно</button>
-            <button onClick={() => updateState({ billingCycle: 'year' })} className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${state.billingCycle === 'year' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>В год (−20%)</button>
+            <button onClick={() => updateState({ billingCycle: 'month' })} className={`relative z-10 flex-1 py-2 text-sm font-bold whitespace-nowrap transition-colors ${state.billingCycle === 'month' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>Ежемесячно</button>
+            <button onClick={() => updateState({ billingCycle: 'year' })} className={`relative z-10 flex-1 py-2 text-sm font-bold whitespace-nowrap transition-colors ${state.billingCycle === 'year' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>В год -20%</button>
         </div>
     );
 
@@ -541,7 +541,7 @@ export function PricingView({ state, updateState }) {
     return (
         <div ref={plansScope} className="flex flex-col h-full bg-[#f8f9fc] dark:bg-darkBg void-view-enter w-full">
             {/* Шапка: назад + заголовок + общий переключатель периода.
-                Табы Free|Pro|Ultra — только на мобильном (md:hidden), на
+                Табы Free|Pro|Ultra - только на мобильном (md:hidden), на
                 десктопе показываем все три тарифа сразу таблицей. */}
             <div className="void-pv-head shrink-0 px-4 pt-4 pb-2 w-full mx-auto max-w-2xl md:max-w-6xl">
                 <div className="flex items-center gap-3 mb-3">
@@ -553,9 +553,11 @@ export function PricingView({ state, updateState }) {
                         <Icons.ChevronLeft className="w-6 h-6" />
                     </button>
                     <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white">Тарифы</h2>
-                    <div className="ml-auto hidden md:block">
-                        <BillingToggle />
-                    </div>
+                </div>
+
+                {/* Десктоп: переключатель периода по центру над таблицей тарифов */}
+                <div className="hidden md:flex justify-center mb-1">
+                    <BillingToggle />
                 </div>
 
                 {/* Мобильные табы */}

@@ -161,7 +161,7 @@ export function LimitExceededModal({ state, updateState }) {
             aria-label="Лимит исчерпан"
         >
             <div ref={cardRef} className="relative w-full max-w-md sm:max-w-lg">
-                {/* Крестик — правый верхний угол модалки */}
+                {/* Крестик - правый верхний угол модалки */}
                 <button
                     ref={closeBtnRef}
                     onClick={handleClose}
@@ -172,7 +172,7 @@ export function LimitExceededModal({ state, updateState }) {
                 </button>
 
                 {/* Карточка (картинка заказчика, фон вырезан) + CTA прямо
-                    поверх баннера — компактно, без отдельной большой кнопки
+                    поверх баннера - компактно, без отдельной большой кнопки
                     под изображением, как и просили. */}
                 <div className="relative">
                     <img

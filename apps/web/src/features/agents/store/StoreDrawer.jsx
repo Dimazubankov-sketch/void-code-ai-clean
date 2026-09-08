@@ -31,7 +31,7 @@ export function StoreDrawer({ item, premium, mailbox, setMailbox, messenger, set
 
                     <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-6">{item.description}</p>
 
-                    {/* «Скриншоты» — плейсхолдеры-превью в фирменном градиенте */}
+                    {/* «Скриншоты» - плейсхолдеры-превью в фирменном градиенте */}
                     <div className="flex gap-3 mb-6 overflow-x-auto no-scrollbar">
                         {[0, 1, 2].map(i => (
                             <div key={i} className="w-40 h-24 rounded-2xl bg-gradient-to-br from-[#efecf9] to-[#e7defb] dark:from-purple-900/20 dark:to-indigo-900/20 flex items-center justify-center shrink-0 border border-gray-100 dark:border-darkBorder">

@@ -48,7 +48,7 @@ export function OrchestratorMessages({ thread, reports, onRespond, emptyHint, th
                                     <button onClick={() => onRespond(m.reportId, 'rejected')} className="flex-1 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors">Отказ</button>
                                 </div>
                             )}
-                            {status === 'approved' && <p className="mt-2 text-[11px] font-bold text-green-600 dark:text-green-400">✓ Одобрено — задачи разданы</p>}
+                            {status === 'approved' && <p className="mt-2 text-[11px] font-bold text-green-600 dark:text-green-400">✓ Одобрено - задачи разданы</p>}
                             {status === 'rejected' && <p className="mt-2 text-[11px] font-bold text-red-500">✕ Отклонено</p>}
                             {status === 'edited' && <p className="mt-2 text-[11px] font-bold text-amber-500">✎ Отправлено на правку</p>}
                         </div>

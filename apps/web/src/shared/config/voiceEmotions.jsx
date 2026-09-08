@@ -58,7 +58,7 @@ export function getEmotionSettings(state) {
 function level(value, low, mid, high) {
     if (value <= 25) return low;
     if (value >= 75) return high;
-    if (value >= 40 && value <= 60) return null; // середина — молчим, не засоряем инструкцию
+    if (value >= 40 && value <= 60) return null; // середина - молчим, не засоряем инструкцию
     return mid;
 }
 

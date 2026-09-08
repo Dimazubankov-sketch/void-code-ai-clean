@@ -14,7 +14,7 @@ export function WalletWithdrawModal({ state, updateState, onClose, onSuccess }) 
 
     const validate = () => {
         const e = {};
-        if (!finalAmount || finalAmount < 100) e.amount = 'Минимальная сумма вывода — 100 ₽';
+        if (!finalAmount || finalAmount < 100) e.amount = 'Минимальная сумма вывода - 100 ₽';
         else if (finalAmount > balance) e.amount = 'Сумма больше, чем есть на балансе';
         const digits = cardNumber.replace(/\s+/g, '');
         if (!/^\d{16,19}$/.test(digits)) e.cardNumber = 'Введите корректный номер карты';

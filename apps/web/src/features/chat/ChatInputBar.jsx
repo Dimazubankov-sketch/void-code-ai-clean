@@ -167,13 +167,13 @@ export function ChatInputBar({
                         {t(lang, 'chat.transcribing')}…
                     </div>
                 )}
-                {/* Анимация записи — на всё поле (GSAP-эквалайзер, см. VoiceWaveMic) */}
+                {/* Анимация записи - на всё поле (GSAP-эквалайзер, см. VoiceWaveMic) */}
                 {voice.recording && (
                     <div className="absolute inset-0 z-10 rounded-3xl bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm flex items-center justify-end pr-14 pointer-events-none fade-in">
                         <RecordingPill voice={voice} />
                     </div>
                 )}
-                {/* Задача 11: кнопка полноэкранного режима — без обводки,
+                {/* Задача 11: кнопка полноэкранного режима - без обводки,
                     появляется только когда текста от 3 строк и выше (или
                     всегда видна кнопка сворачивания, пока мы уже в
                     полноэкранном режиме). */}
@@ -186,7 +186,7 @@ export function ChatInputBar({
                         {expanded ? <Icons.Minimize className="w-4 h-4" /> : <Icons.Maximize className="w-4 h-4" />}
                     </button>
                 )}
-                {/* Задача 12: кнопка отступа (красная строка) — видна только
+                {/* Задача 12: кнопка отступа (красная строка) - видна только
                     в развёрнутом режиме, чтобы не загромождать компактную
                     строку ввода. */}
                 {expanded && (

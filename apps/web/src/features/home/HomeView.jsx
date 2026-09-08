@@ -112,7 +112,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
         const current = state.selectedImages || [];
         const roomLeft = Math.max(0, limit - current.length);
         if (roomLeft === 0) {
-            alert(`Лимит вложений на вашем тарифе — ${limit} фото за раз.`);
+            alert(`Лимит вложений на вашем тарифе - ${limit} фото за раз.`);
             return;
         }
         const toAdd = files.slice(0, roomLeft);
@@ -291,8 +291,8 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
             <div className="fixed top-5 right-4 sm:top-6 sm:right-6 z-30">
                 {state.user ? (
                     <div className="flex items-center gap-2">
-                        {/* Колокольчик — центр уведомлений (почта). Обводка круглая
-                            (rounded-full), как и кнопка меню рядом — раньше была
+                        {/* Колокольчик - центр уведомлений (почта). Обводка круглая
+                            (rounded-full), как и кнопка меню рядом - раньше была
                             квадратная rounded-xl. */}
                         <button
                             onClick={() => {
@@ -321,7 +321,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
             </div>
 
             <div className="px-6 pt-16 sm:pt-20 max-w-4xl mx-auto">
-                {/* Логотип и текст — теперь по центру, над полем ввода
+                {/* Логотип и текст - теперь по центру, над полем ввода
                     (как у Grok), а не прижаты влево. */}
                 <div className="flex flex-col items-center text-center gap-3 sm:gap-4 mb-8 sm:mb-10">
                     <Icons.VoidLogo
@@ -341,7 +341,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                 </div>
 
                 <div className="void-input-rise relative max-w-4xl mx-auto pointer-events-auto mb-6">
-                    {/* Мягкое фиолетовое сияние позади поля — включается
+                    {/* Мягкое фиолетовое сияние позади поля - включается
                         вместо анимации box-shadow (ненадёжно интерполируется
                         через GSAP как CSS-строка). */}
                     <div ref={shadowGlowRef} className="absolute -inset-3 rounded-[32px] bg-[#5b32d4]/10 blur-2xl pointer-events-none -z-10" />
@@ -367,7 +367,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                     )}
                     <div ref={homeComposerWrapRef} className="flex items-end bg-white dark:bg-darkCard rounded-[26px] border border-gray-200 dark:border-darkBorder focus-within:border-gray-300 dark:focus-within:border-gray-600 transition-colors relative">
 
-                        {/* accept="image/*" (не список конкретных MIME) — именно
+                        {/* accept="image/*" (не список конкретных MIME) - именно
                             эта маска даёт iOS Safari/WebKit сразу открыть
                             галерею, минуя системное меню «Медиатека/Снимок/
                             Файлы» (см. тот же инпут в ChatView.jsx). */}
@@ -384,7 +384,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             <Icons.Plus className={`w-6 h-6 void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
                         </button>
 
-                        {/* Анимация записи — на всё поле ввода */}
+                        {/* Анимация записи - на всё поле ввода */}
                         {voice.recording && (
                             <div className="absolute inset-0 z-10 rounded-3xl bg-white/80 dark:bg-darkCard/80 backdrop-blur-sm flex items-center justify-end pr-20 pointer-events-none fade-in">
                                 <RecordingPill voice={voice} />
@@ -432,7 +432,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                             rows={1}
                         />
                         {/* Задача 2 (повторный раунд): 57 символов ИЛИ 3
-                            отступа — не высота строки. */}
+                            отступа - не высота строки. */}
                         {composerManyChars && (
                             <button
                                 onClick={composerEnterFullscreen}
@@ -475,9 +475,9 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                         )}
                     </div>
 
-                    {/* Подсказки — как в браузере: плавающий список под
+                    {/* Подсказки - как в браузере: плавающий список под
                         полем, не раздвигает layout (position: absolute).
-                        Появление/исчезновение — stagger через GSAP (см.
+                        Появление/исчезновение - stagger через GSAP (см.
                         useEffect на [suggestions] и hideSuggestionsAnimated). */}
                     <div ref={suggestionsWrapRef} className="absolute left-0 right-0 top-full mt-2 z-30">
                         {suggestions.length > 0 && (
@@ -566,7 +566,7 @@ export function HomeView({ state, updateState, handleSendMessage, handleGenerate
                 )}
             </div>
 
-            {/* Компактная кнопка помощи — только стикер, угол экрана. */}
+            {/* Компактная кнопка помощи - только стикер, угол экрана. */}
             {state.user && (
                 <button
                     onClick={() => updateState({ currentView: 'guide' })}

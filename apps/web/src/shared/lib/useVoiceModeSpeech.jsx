@@ -88,9 +88,9 @@ export function useVoiceModeSpeech() {
     // Формат: { peaks: Float32Array (0..1), duration: seconds } | null.
     const envelopeRef = useRef(null);
     const decodeCtxRef = useRef(null);
-    const runIdRef = useRef(0);           // «поколение» запуска — защита от гонок
+    const runIdRef = useRef(0);           // «поколение» запуска - защита от гонок
     const abortRef = useRef(null);        // отмена незавершённых fetch'ей
-    const urlsRef = useRef([]);           // созданные object URL — чистим за собой
+    const urlsRef = useRef([]);           // созданные object URL - чистим за собой
     const chunkBlobsRef = useRef(new Map()); // url -> blob, чтобы посчитать огибающую
 
     // Считает огибающую (пики по ~40мс) из сырых байтов MP3. Вызывается
@@ -289,7 +289,7 @@ export function useVoiceModeSpeech() {
                 if (nextPromise) {
                     const nextUrl = await nextPromise;
                     if (runIdRef.current !== myRun) return;
-                    if (!nextUrl) break; // не смогли синтезировать хвост — заканчиваем тем, что есть
+                    if (!nextUrl) break; // не смогли синтезировать хвост - заканчиваем тем, что есть
                     currentUrl = nextUrl;
                 }
             }
@@ -334,7 +334,7 @@ export function useVoiceModeSpeech() {
                     const next = queueRef.current.shift();
                     url = await fetchChunk(next, opts, abortRef.current?.signal);
                 } else if (streamDoneRef.current) {
-                    break; // поток закончился и очередь пуста — всё сказали
+                    break; // поток закончился и очередь пуста - всё сказали
                 } else {
                     // Ждём следующее предложение от модели.
                     await new Promise((r) => setTimeout(r, 60));

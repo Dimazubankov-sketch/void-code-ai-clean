@@ -21,7 +21,7 @@ import { MessageRenderer } from '@/features/chat/MessageRenderer';
 // onDone дёргается по завершении: ChatView гасит isAnimated и рендерит
 // обычный MessageRenderer — представление ИДЕНТИЧНО, подмена незаметна.
 
-const MAX_WORDS_FOR_TYPEWRITER = 420; // выше — слишком тяжело и долго
+const MAX_WORDS_FOR_TYPEWRITER = 420; // выше - слишком тяжело и долго
 const TARGET_TOTAL_MS = 1600;         // желаемая длительность печати
 const MAX_STAGGER = 0.05;             // не медленнее этого на слово (короткие ответы)
 

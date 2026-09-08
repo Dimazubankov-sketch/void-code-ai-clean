@@ -66,9 +66,9 @@ export function ThinkingIndicator({ lang = 'ru', level = 'medium' }) {
                 </div>
                 {longWait && (
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 pl-6.5 fade-in">
-                        {lang === 'en' ? 'Still working — the task is complex, this may take a bit longer.'
-                            : lang === 'zh' ? '仍在处理——问题较复杂，可能需要更长时间。'
-                            : 'Ещё думаю — задача непростая, это может занять чуть больше времени.'}
+                        {lang === 'en' ? 'Still working - the task is complex, this may take a bit longer.'
+                            : lang === 'zh' ? '仍在处理--问题较复杂，可能需要更长时间。'
+                            : 'Ещё думаю - задача непростая, это может занять чуть больше времени.'}
                     </p>
                 )}
             </div>

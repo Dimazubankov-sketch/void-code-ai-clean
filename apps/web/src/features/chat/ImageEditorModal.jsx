@@ -309,7 +309,7 @@ export function ImageEditorModal({ image, onClose, onApply }) {
                     >
                         <Icons.X className="w-5 h-5" />
                     </button>
-                    {/* Стрелка «назад» — отменить последнее действие */}
+                    {/* Стрелка «назад» - отменить последнее действие */}
                     <button
                         onClick={undo}
                         disabled={!canUndo}
@@ -318,7 +318,7 @@ export function ImageEditorModal({ image, onClose, onApply }) {
                     >
                         <Icons.Undo className="w-5 h-5" />
                     </button>
-                    {/* Стрелка «вперёд» — вернуть отменённое действие */}
+                    {/* Стрелка «вперёд» - вернуть отменённое действие */}
                     <button
                         onClick={redo}
                         disabled={!canRedo}
@@ -337,7 +337,7 @@ export function ImageEditorModal({ image, onClose, onApply }) {
                 </button>
             </div>
 
-            {/* Палитра цветов — только в режиме «Рисовать» */}
+            {/* Палитра цветов - только в режиме «Рисовать» */}
             {tool === 'draw' && (
                 <div className="flex items-center justify-center gap-2 px-4 pb-3 shrink-0 fade-in">
                     {COLORS.map((c) => (

@@ -218,7 +218,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
     useEffect(() => {
         fetchMailAddress()
             .then(({ address }) => setMailAddress(address))
-            .catch(() => { /* не критично — просто не покажем адрес в шапке */ });
+            .catch(() => { /* не критично - просто не покажем адрес в шапке */ });
     }, []);
 
     const refreshFolder = async (folderId) => {
@@ -481,7 +481,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
             // Письмо НЕ отмечаем отправленным и не закрываем композер —
             // черновик остаётся на экране, чтобы не потерять текст при
             // сетевой ошибке/лимите/недоступности почтового сервера.
-            setSendError(e instanceof ApiError ? e.message : 'Не удалось отправить письмо — проверьте соединение и попробуйте ещё раз');
+            setSendError(e instanceof ApiError ? e.message : 'Не удалось отправить письмо - проверьте соединение и попробуйте ещё раз');
         } finally {
             setSending(false);
         }
@@ -741,7 +741,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                     <SettingsToggleRow label="Уведомления об обновлениях" value={state.notifyUpdates !== false} onToggle={() => toggleNotify('notifyUpdates')} />
                     <SettingsToggleRow label="Уведомления о личной почте" value={state.notifyPersonal !== false} onToggle={() => toggleNotify('notifyPersonal')} />
                     <div className="pt-2 border-t border-gray-100 dark:border-darkBorder">
-                        <p className="text-xs text-gray-400 leading-relaxed">Звук для каждого оркестратора настраивается отдельно во вкладке «Оповещения агентов» — рядом с именем оркестратора есть значок динамика.</p>
+                        <p className="text-xs text-gray-400 leading-relaxed">Звук для каждого оркестратора настраивается отдельно во вкладке «Оповещения агентов» - рядом с именем оркестратора есть значок динамика.</p>
                     </div>
                 </div>
             );
@@ -839,7 +839,7 @@ export function NotificationCenter({ state, updateState, onClose }) {
                 {sidebarOpen && (
                     <div className="absolute inset-0 z-20 flex" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
                         <div className={`w-72 max-w-[80%] h-full bg-white dark:bg-darkCard shadow-2xl flex flex-col ${sidebarClosing ? 'slide-out-left' : 'slide-in-left'}`}>
-                            {/* Логотип + Voidops — клик открывает переключатель аккаунтов */}
+                            {/* Логотип + Voidops - клик открывает переключатель аккаунтов */}
                             <button onClick={() => { setShowAccountSwitcher(true); }} className="flex items-center gap-2.5 px-5 py-5 border-b border-gray-100 dark:border-darkBorder hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors text-left">
                                 <Icons.MailLogo className="w-8 h-8" />
                                 <span className="font-extrabold text-lg dark:text-white">Voidops</span>

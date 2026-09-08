@@ -84,12 +84,11 @@ export function AccountsPanel({ state, updateState, onClose, onNavigateAway }) {
     };
 
     return (
-        <div data-modal-overlay className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center p-4 fade-in" onClick={onClose}>
-            {/* Ограниченная высота + скролл ТОЛЬКО внутри списка: раньше на
-                телефоне панель занимала всю высоту, и при длинном списке
-                аккаунтов шапка с кнопкой закрытия уезжала за верхний край
-                без возможности прокрутить обратно. */}
-            <div className="w-full sm:w-[420px] max-h-[85vh] max-h-[85dvh] bg-white dark:bg-darkCard shadow-2xl modal-in-center rounded-3xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div data-modal-overlay className="fixed inset-0 z-[100] bg-black/40 flex justify-end sm:items-center sm:justify-center fade-in" onClick={onClose}>
+            {/* Задача #6: та же анимация, что и у окна «Лимиты» - на телефоне
+                панель выезжает справа на всю высоту, на ПК - центрированная
+                карточка. Скролл только внутри списка (шапка всегда видна). */}
+            <div className="w-full sm:w-[420px] h-full sm:h-auto sm:max-h-[85vh] bg-white dark:bg-darkCard shadow-2xl slide-in-right sm:rounded-3xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100 dark:border-darkBorder shrink-0">
                     <button onClick={onClose} className="p-1.5 -ml-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.ChevronLeft /></button>
                     <h4 className="font-extrabold text-lg dark:text-white">Аккаунты Voidops</h4>

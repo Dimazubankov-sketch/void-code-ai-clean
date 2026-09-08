@@ -21,7 +21,7 @@ import { VoiceModeSettings } from '@/features/chat/VoiceModeSettings';
 // пользоваться им не обязательно.
 
 const PHASE_LABELS = {
-    [VOICE_MODE_PHASE.IDLE]: 'Говори — я слушаю…',
+    [VOICE_MODE_PHASE.IDLE]: 'Говори - я слушаю…',
     [VOICE_MODE_PHASE.LISTENING]: 'Слушаю…',
     [VOICE_MODE_PHASE.THINKING]: 'Думаю…',
     [VOICE_MODE_PHASE.SPEAKING]: 'Сара говорит… (заговори, чтобы перебить)',
@@ -76,7 +76,7 @@ function LimitModal({ onClose }) {
                 </div>
                 <h4 className="font-extrabold text-gray-900 dark:text-white mb-2">Лимит озвучки исчерпан</h4>
                 <p className="text-sm text-gray-500 dark:text-white/60 mb-6 leading-relaxed">
-                    Дневной лимит символов озвучки закончился. Попробуй снова чуть позже — лимит обновляется автоматически.
+                    Дневной лимит символов озвучки закончился. Попробуй снова чуть позже - лимит обновляется автоматически.
                 </p>
                 <button
                     onClick={onClose}
@@ -148,7 +148,7 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
         if (!el) return;
         if (stream && !minimized) {
             el.srcObject = stream;
-            el.play?.().catch(() => { /* автоплей может отклониться — не критично */ });
+            el.play?.().catch(() => { /* автоплей может отклониться - не критично */ });
         } else {
             el.srcObject = null;
         }
@@ -211,7 +211,7 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
         <div className={`fixed inset-0 z-[220] flex flex-col ${minimized ? 'pointer-events-none' : ''}`}>
             <div ref={backdropRef} className="absolute inset-0 bg-white dark:bg-gradient-to-b dark:from-[#1a1030] dark:to-[#0d0819]" />
 
-            {/* Голосовые настройки — в правом верхнем углу, ровно там же,
+            {/* Голосовые настройки - в правом верхнем углу, ровно там же,
                 где в хабе и в чате стоит кнопка меню (fixed top-5 right-4).
                 Самой кнопки меню здесь нет: в разговоре она не нужна, а
                 занимала единственное удобное место. */}
@@ -225,10 +225,10 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                 </PressIconButton>
             </div>
 
-            {/* Орб. В свёрнутом виде уезжает вниз и остаётся кликабельным —
+            {/* Орб. В свёрнутом виде уезжает вниз и остаётся кликабельным -
                 повторный тап разворачивает режим обратно. */}
             {/* Индикатор передачи видео. Показывается и на телефоне, и на
-                десктопе, в том числе в свёрнутом режиме — иначе непонятно,
+                десктопе, в том числе в свёрнутом режиме - иначе непонятно,
                 что камера/экран всё ещё передаются ИИ. */}
             {videoSource && (
                 <div className={`relative z-20 flex justify-center pointer-events-none ${minimized ? 'pt-3' : ''}`}>
@@ -239,7 +239,7 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                 </div>
             )}
 
-            {/* Небольшое окно демонстрации экрана — вместо полноэкранного,
+            {/* Небольшое окно демонстрации экрана - вместо полноэкранного,
                 см. комментарий выше про зеркальную рекурсию. */}
             {videoSource === 'screen' && !minimized && (
                 <div className="absolute top-20 left-4 sm:left-6 z-20 w-40 sm:w-56 rounded-2xl overflow-hidden border border-white/25 shadow-2xl pointer-events-none">
@@ -284,7 +284,7 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                 </p>
             </div>
 
-            {/* Кнопки камеры (G3/G4): переключение фронт/тыл + выключение —
+            {/* Кнопки камеры (G3/G4): переключение фронт/тыл + выключение -
                 отдельной строкой НАД полем ввода, а не внутри меню «+» и не
                 внутри самого поля, чтобы не лезть в меню на каждое действие. */}
             {videoSource === 'camera' && !minimized && (
@@ -312,11 +312,11 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
 
             {/* Нижняя полоса: сжатое поле ввода слева + камера, микрофон и
                 выход справа. В голосовом режиме поле не исчезает, а именно
-                сжимается — можно и говорить, и дописать текстом. */}
+                сжимается - можно и говорить, и дописать текстом. */}
             {/* В свёрнутом режиме полоса ввода нужна только в чате: на
                 других экранах (настройки, тарифы, почта) она перекрывала бы
                 их собственный интерфейс. Орб при этом остаётся плавать
-                поверх всего — разговор можно вести, гуляя по приложению. */}
+                поверх всего - разговор можно вести, гуляя по приложению. */}
             <div
                 ref={stripRef}
                 className={`relative w-full px-4 pb-6 sm:pb-8 pointer-events-auto ${minimized && state.currentView !== 'chat' ? 'hidden' : ''}`}
@@ -339,7 +339,7 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                             >
                                 {/* Иконка кнопки теперь отражает активный источник
                                     (раньше всегда оставался «+», из-за чего казалось,
-                                    что состояние не поменялось — только фон). */}
+                                    что состояние не поменялось - только фон). */}
                                 {videoSource === 'screen' ? <Icons.Monitor className="w-4 h-4" /> : videoSource === 'camera' ? <Icons.Camera className="w-4 h-4" /> : <Icons.Plus className="w-5 h-5" />}
                             </PressIconButton>
                             <div
@@ -359,7 +359,7 @@ export function VoiceModeOverlay({ state, updateState, voiceMode, onClose, onSen
                                 </PressIconButton>
                             </div>
                         </div>
-                        {/* Кнопка переключения камеры отсюда убрана — теперь
+                        {/* Кнопка переключения камеры отсюда убрана - теперь
                             она вместе с кнопкой выключения камеры показана
                             отдельной строкой НАД полем ввода (см. ниже),
                             а не внутри самого поля. */}

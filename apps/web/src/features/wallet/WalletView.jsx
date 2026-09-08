@@ -49,7 +49,7 @@ export function WalletView({ state, updateState }) {
                 {balance < LOW_BALANCE_THRESHOLD && (
                     <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-900/40 flex gap-3 items-start mb-6">
                         <Icons.Alert className="w-5 h-5 shrink-0 text-amber-500 mt-0.5" style={{width:'20px',height:'20px',minWidth:'20px'}} />
-                        <p className="text-sm text-amber-700 dark:text-amber-400 font-semibold leading-relaxed flex-1 min-w-0">Низкий баланс. Активным агентам может не хватить средств на оплату токенов — их работа автоматически приостановится до пополнения.</p>
+                        <p className="text-sm text-amber-700 dark:text-amber-400 font-semibold leading-relaxed flex-1 min-w-0">Низкий баланс. Активным агентам может не хватить средств на оплату токенов - их работа автоматически приостановится до пополнения.</p>
                     </div>
                 )}
 

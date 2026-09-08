@@ -117,7 +117,7 @@ export function AddToProjectModal({ chat, projects, onPick, onCreate, onClose })
             {creating ? (
                 <>
                     {/* Задача 5: те же поля (название + описание) и та же
-                        вёрстка, что и при создании из вкладки «Проекты» —
+                        вёрстка, что и при создании из вкладки «Проекты» -
                         см. ProjectFormFields. */}
                     <ProjectFormFields
                         name={name} setName={setName}

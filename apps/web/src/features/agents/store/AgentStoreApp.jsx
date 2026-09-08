@@ -35,7 +35,7 @@ export function AgentStoreApp({ state, updateState }) {
     const [drawerItem, setDrawerItem] = useState(null);
     const [drawerPremium, setDrawerPremium] = useState(false);
     const [showTopUp, setShowTopUp] = useState(false);
-    const [limitNotice, setLimitNotice] = useState(null);   // { title, text } — предложение обновить тариф
+    const [limitNotice, setLimitNotice] = useState(null);   // { title, text } - предложение обновить тариф
 
     const balance = state.walletBalance || 0;
     const agents = state.aiAgents || [];
@@ -98,7 +98,7 @@ export function AgentStoreApp({ state, updateState }) {
             setLimitNotice({
                 title: 'Достигнут лимит оркестраторов',
                 text: plan === 'pro'
-                    ? 'На тарифе «Pro» можно приобрести ровно одного оркестратора — он у вас уже есть. Чтобы добавить больше, обновите тариф до Ultra.'
+                    ? 'На тарифе «Pro» можно приобрести ровно одного оркестратора - он у вас уже есть. Чтобы добавить больше, обновите тариф до Ultra.'
                     : `На тарифе «${planTitle(plan)}» доступно оркестраторов: ${limit}. Чтобы добавить больше, обновите тариф.`,
             });
             return;
@@ -129,7 +129,7 @@ export function AgentStoreApp({ state, updateState }) {
             <StoreSidebar active={nav} onSelect={setNav} />
 
             <div className="flex-1 flex flex-col min-w-0">
-                {/* Шапка: поле поиска агентов — наверху вкладки «Агенты» */}
+                {/* Шапка: поле поиска агентов - наверху вкладки «Агенты» */}
                 <div className="flex items-center gap-3 px-4 sm:px-6 py-3.5 border-b border-gray-100 dark:border-darkBorder bg-white dark:bg-darkCard shrink-0">
                     <button onClick={() => goBack(state, updateState, 'home')} className="p-2 -ml-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors shrink-0" title="Назад в Хаб"><Icons.ChevronLeft /></button>
                     <div className="relative flex-1 min-w-0 max-w-xl">
@@ -140,7 +140,7 @@ export function AgentStoreApp({ state, updateState }) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto pb-20 sm:pb-6">
-                    {/* ЛЕНДИНГ вкладки «Агенты» — Cockpit (бывшее управление агентами) */}
+                    {/* ЛЕНДИНГ вкладки «Агенты» - Cockpit (бывшее управление агентами) */}
                     {nav === 'my' && (
                         <CockpitView
                             state={state}
@@ -151,7 +151,7 @@ export function AgentStoreApp({ state, updateState }) {
                         />
                     )}
 
-                    {/* МАГАЗИН: строго два вида — Оркестраторы и Агенты */}
+                    {/* МАГАЗИН: строго два вида - Оркестраторы и Агенты */}
                     {nav === 'store' && (
                         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
                             {/* Оркестраторы */}

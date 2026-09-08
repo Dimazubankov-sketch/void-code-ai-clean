@@ -19,7 +19,7 @@ export function SecurityView({ state, updateState }) {
         setError('');
         setSuccess(false);
         if (!current || !next) { setError('Заполните оба поля пароля'); return; }
-        if (next.length < 8) { setError('Новый пароль — минимум 8 символов'); return; }
+        if (next.length < 8) { setError('Новый пароль - минимум 8 символов'); return; }
         if (next !== confirm) { setError('Пароли не совпадают'); return; }
         setLoading(true);
         try {

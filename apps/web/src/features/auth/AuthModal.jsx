@@ -56,7 +56,7 @@ export function AuthModal({ state, updateState }) {
         }
         if (isRegister && password.trim().length < 8) {
             setHasError(true);
-            setErrorMsg('Пароль — минимум 8 символов');
+            setErrorMsg('Пароль - минимум 8 символов');
             return;
         }
         setHasError(false);
@@ -89,7 +89,7 @@ export function AuthModal({ state, updateState }) {
                 <div className="flex justify-center mb-6"><div className="flex items-center gap-2.5 font-extrabold text-2xl dark:text-white"><Icons.VoidLogo /><span><span className="void-grad-text">VOID</span> CODE AI</span></div></div>
                 {state.sessionExpiredNotice ? (
                     <div className="mb-6 px-4 py-3 rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm text-center">
-                        Сессия истекла — войдите заново, чтобы продолжить работу.
+                        Сессия истекла - войдите заново, чтобы продолжить работу.
                     </div>
                 ) : (
                     <h2 className="text-2xl font-extrabold text-center mb-2 dark:text-white">Регистрация / Вход</h2>

@@ -47,11 +47,11 @@ export function ChatToolbar({ text, onShare, onFeedback, onSpeak, onRetry, speak
             <ToolbarButton icon={Icons.ThumbsUp} label="Хороший ответ" onClick={() => onFeedback('like')} active={feedbackValue === 'like'} activeColor="text-green-600 bg-green-50 dark:bg-green-900/20" />
             <ToolbarButton icon={Icons.ThumbsDown} label="Плохой ответ" onClick={() => onFeedback('dislike')} active={feedbackValue === 'dislike'} activeColor="text-red-500 bg-red-50 dark:bg-red-900/20" />
             {/* В голосовом режиме кнопка озвучки выглядит как сам режим
-                (волна), а не как динамик — так понятнее, что читать будет
+                (волна), а не как динамик - так понятнее, что читать будет
                 тот же голос, которым идёт разговор. */}
             <ToolbarButton icon={voiceStyle ? Icons.Waveform : Icons.Volume2} label={speakLoading ? 'Генерирую озвучку…' : 'Озвучить'} onClick={onSpeak} active={speaking} activeColor="text-[#5b32d4] bg-[#efecf9] dark:bg-purple-900/20" loading={speakLoading} />
             {/* Повторить: тот же вопрос уходит ИИ заново, старый ответ
-                (и всё, что шло после него) удаляется — задача 2. */}
+                (и всё, что шло после него) удаляется - задача 2. */}
             {onRetry && <ToolbarButton icon={Icons.Refresh} label="Повторить" onClick={onRetry} />}
 
             {copied && (

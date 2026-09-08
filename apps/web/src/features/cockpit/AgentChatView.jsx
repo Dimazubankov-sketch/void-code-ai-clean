@@ -194,13 +194,13 @@ export function AgentChatView({ state, updateState }) {
                     <div ref={endRef} />
                 </div>
 
-                {/* Скрытые инпуты для камеры/фото/файлов — тот же паттерн,
+                {/* Скрытые инпуты для камеры/фото/файлов - тот же паттерн,
                     что и в основном чате. */}
                 <input type="file" ref={chatFileInputRef} accept="image/jpeg, image/png, image/webp, image/heic" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
                 <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
                 <input type="file" ref={anyFileInputRef} accept=".pdf,.doc,.docx,.txt,.csv,.json" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
 
-                {/* Поле ввода — точная копия основного чата по размеру и
+                {/* Поле ввода - точная копия основного чата по размеру и
                     поведению (AgentComposer, см. файл), без Voice Mode.
                     Разделительная полоса над полем убрана: border-t
                     только визуально дублировал границу самого поля ввода

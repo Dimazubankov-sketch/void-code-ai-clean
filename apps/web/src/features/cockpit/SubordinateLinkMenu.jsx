@@ -66,7 +66,7 @@ export function SubordinateLinkMenu({ orchestrator, state, updateState, onClose 
                 className="ml-auto w-full max-w-3xl h-full bg-white dark:bg-darkCard shadow-2xl flex slide-in-right"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* ЛЕВАЯ ПАНЕЛЬ — оркестратор */}
+                {/* ЛЕВАЯ ПАНЕЛЬ - оркестратор */}
                 <div className="hidden sm:flex flex-col w-56 border-r border-gray-100 dark:border-darkBorder p-5 shrink-0 bg-gray-50/50 dark:bg-gray-900/20">
                     <div className="w-14 h-14 rounded-2xl bg-[#efecf9] dark:bg-purple-900/20 flex items-center justify-center mb-3">
                         <Icons.Robot className="w-7 h-7 text-[#5b32d4]" />
@@ -79,7 +79,7 @@ export function SubordinateLinkMenu({ orchestrator, state, updateState, onClose 
                     </div>
                 </div>
 
-                {/* ПРАВАЯ ПАНЕЛЬ — список агентов */}
+                {/* ПРАВАЯ ПАНЕЛЬ - список агентов */}
                 <div className="flex-1 flex flex-col min-w-0">
                     <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-darkBorder">
                         <h3 className="font-extrabold text-lg dark:text-white">Привязка агентов</h3>

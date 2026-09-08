@@ -40,7 +40,7 @@ function notifySessionExpired() {
   clearToken();
   try {
     window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
-  } catch { /* noop — например, вызов не в браузерном окружении */ }
+  } catch { /* noop - например, вызов не в браузерном окружении */ }
 }
 
 export function onSessionExpired(handler) {

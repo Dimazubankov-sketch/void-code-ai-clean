@@ -162,7 +162,7 @@ export const COUNTRIES = [
     { iso: 'PW', dial: '680', name: 'Палау' },
     { iso: 'PS', dial: '970', name: 'Палестина' },
     { iso: 'PA', dial: '507', name: 'Панама' },
-    { iso: 'PG', dial: '675', name: 'Папуа — Новая Гвинея' },
+    { iso: 'PG', dial: '675', name: 'Папуа - Новая Гвинея' },
     { iso: 'PY', dial: '595', name: 'Парагвай' },
     { iso: 'PE', dial: '51', name: 'Перу' },
     { iso: 'PN', dial: '64', name: 'Питкэрн' },
