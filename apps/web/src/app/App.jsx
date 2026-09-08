@@ -340,7 +340,7 @@ export function App() {
         state.user, state.userPlan, state.usedDailyLimits, state.usedWeeklyLimits, state.dailyLimitExceededAt, state.isDarkMode,
         state.notificationsEnabled, state.chatSessions, state.activeChatId,
         state.selectedModelId, state.lang,
-        state.generatedImages, state.generatedDocuments, state.aiAgents, state.activeAgentId, state.walletBalance, state.walletTransactions,
+        state.generatedImages, state.generatedVideos, state.generatedDocuments, state.aiAgents, state.activeAgentId, state.walletBalance, state.walletTransactions,
         state.projects, state.connectedPlugins
     ]);
 

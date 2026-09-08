@@ -6,15 +6,21 @@ import { VideoService, VIDEO_MODELS } from './video.service';
 
 // Лимиты генерации видео в сутки. Видео заметно дороже картинок
 // ($0.05–0.14/сек у провайдера), поэтому лимиты строже — по аналогии с
-// IMAGE_DAILY_LIMITS, но без бесплатного доступа на Free (задача 6:
-// видео — новая, дорогая функция, Free её не получает вовсе, чтобы не
-// повторить историю с Fable, см. предыдущий финансовый риск).
+// IMAGE_DAILY_LIMITS. На Free доступно ОДНО видео в сутки, но только в
+// «облегчённом» формате: не длиннее FREE_MAX_VIDEO_DURATION секунд и не
+// выше FREE_MAX_VIDEO_RESOLUTION (см. enforceFreeVideoConstraints ниже).
+// Так функция становится доступна для ознакомления, но её стоимость на
+// бесплатном тарифе остаётся под жёстким контролем.
 export const VIDEO_DAILY_LIMITS: Record<string, number> = {
-  FREE:  0,
+  FREE:  1,
   PLUS:  2,
   PRO:   5,
   ULTRA: 12,
 };
+
+// Ограничения бесплатного тарифа на видео (задача 6): 720p и не длиннее 6с.
+const FREE_MAX_VIDEO_DURATION = 6;
+const FREE_MAX_VIDEO_RESOLUTION = '720p';
 
 class GenerateVideoDto {
   @IsString()
@@ -81,6 +87,10 @@ export class VideoController {
 
   @Post('generate')
   async generate(@Req() req: any, @Body() dto: GenerateVideoDto) {
+    // Ограничения бесплатного тарифа проверяем ДО списания кредита, чтобы
+    // не «сжечь» единственную дневную попытку на заведомо отклонённом
+    // запросе (слишком длинное видео/высокое разрешение на Free).
+    await this.enforceFreeVideoConstraints(req.user.userId, dto);
     await this.consumeVideoLimit(req.user.userId);
     if (dto.voiceMode && dto.voiceMode !== 'none') {
       await this.requireVoicePlan(req.user.userId);
@@ -129,6 +139,24 @@ export class VideoController {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     if (user.plan !== 'PRO' && user.plan !== 'ULTRA') {
       throw new ForbiddenException('Свой голос в видео доступен на тарифах Pro и Ultra.');
+    }
+  }
+
+  // Задача 6: на Free видео разрешено, но строго 720p и ≤6с. Платные
+  // тарифы этих ограничений не имеют.
+  private async enforceFreeVideoConstraints(userId: string, dto: GenerateVideoDto) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.plan !== 'FREE') return;
+    if ((dto.duration ?? FREE_MAX_VIDEO_DURATION) > FREE_MAX_VIDEO_DURATION) {
+      throw new BadRequestException(
+        `На тарифе Free длительность видео — не более ${FREE_MAX_VIDEO_DURATION} секунд. Перейдите на Plus для длинных роликов.`,
+      );
+    }
+    if (dto.resolution && dto.resolution !== FREE_MAX_VIDEO_RESOLUTION && dto.resolution !== '480p') {
+      throw new BadRequestException('На тарифе Free доступно качество до 720p.');
+    }
+    if (dto.voiceMode && dto.voiceMode !== 'none') {
+      throw new ForbiddenException('Своя озвучка видео недоступна на тарифе Free.');
     }
   }
 

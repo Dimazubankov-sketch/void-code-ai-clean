@@ -157,7 +157,7 @@ export function ChatInputBar({
                             title="Прикрепить фото или документ"
                             className="void-tap-target flex-shrink-0 ml-1.5 mb-2 p-2 text-[#5b32d4] dark:text-purple-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-full transition-colors flex items-center justify-center z-20"
                         >
-                            <Icons.Plus className="w-5 h-5" />
+                            <Icons.Plus className="w-[18px] h-[18px]" />
                         </button>
                     </>
                 )}
@@ -231,7 +231,7 @@ export function ChatInputBar({
                     // обычная стрелка отправки.
                     className="void-tap-target absolute right-1.5 bottom-1.5 w-10 h-10 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full border-2 border-white/30 disabled:border-transparent flex items-center justify-center transition-all shadow-sm z-20"
                 >
-                    {showVoiceModeButton ? <Icons.Waveform className="w-4 h-4" /> : <Icons.ArrowUp className="w-4 h-4" />}
+                    {showVoiceModeButton ? <Icons.Waveform className="w-[18px] h-[18px]" /> : <Icons.ArrowUp className="w-[18px] h-[18px]" />}
                 </button>
             </div>
         </div>

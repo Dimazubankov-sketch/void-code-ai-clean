@@ -91,9 +91,16 @@ export function ImagesView({ state, updateState }) {
         setShowVideoModel(false);
         setShowVoicePicker(false);
         if (next !== 'video') setShowVoicePanel(false);
+        // Free: длинные ролики недоступны — подрезаем длительность до 6с.
+        if (next === 'video' && isFree && duration > FREE_MAX_DURATION) setDuration(FREE_MAX_DURATION);
     };
 
     const images = state.generatedImages || [];
+    // Задача 6: на Free видео доступно, но строго 720p и не длиннее 6с
+    // (одно в сутки — лимит следит бэкенд). Ограничиваем и UI, чтобы
+    // пользователь не выбирал недоступные параметры.
+    const isFree = (state.userPlan || 'free').toLowerCase() === 'free';
+    const FREE_MAX_DURATION = 6;
     // stateRef держит АКТУАЛЬНЫЙ state для отложенного опроса статуса
     // видео (pollVideo ниже) — сам tick() живёт в setTimeout и может
     // сработать через много секунд, к тому моменту state как параметр
@@ -288,7 +295,7 @@ export function ImagesView({ state, updateState }) {
     };
 
     return (
-        <div className="flex-1 overflow-y-auto h-full bg-white dark:bg-darkBg">
+        <div className="flex flex-col h-full bg-white dark:bg-darkBg">
             {/* Шапка Image Studio — единая на всех размерах (задача 1):
                 • слева — кнопка озвучки (только в режиме видео);
                 • по центру — переход обратно в «Чат» (ровно то же место, где
@@ -296,7 +303,7 @@ export function ImagesView({ state, updateState }) {
                   симметричным — раньше эта кнопка была md:hidden и на ПК
                   вернуться в чат из Image Studio было нечем);
                 • справа — пустая колонка для симметрии сетки. */}
-            <div className="sticky top-0 z-30 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 sm:px-4 md:px-8 bg-white/80 dark:bg-darkBg/80 backdrop-blur-xl">
+            <div className="shrink-0 z-30 h-16 grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 sm:px-4 md:px-8 bg-white/80 dark:bg-darkBg/80 backdrop-blur-xl">
                 <div className="justify-self-start">
                     {mode === 'video' && (
                         <PressButton
@@ -323,11 +330,100 @@ export function ImagesView({ state, updateState }) {
                 </div>
             </div>
 
-            <div className="max-w-4xl mx-auto px-4 md:px-8 py-8 md:py-12">
-                <h1 className="text-2xl md:text-3xl font-extrabold text-center mb-8 dark:text-white">
-                    Что мы будем создавать?
-                </h1>
+            {/* Прокручиваемая область результатов — задача #1: медиа
+                (изображения И видео) показываются ЗДЕСЬ, НАД полем ввода,
+                а не под ним. Само поле ввода закреплено в самом низу экрана
+                отдельным доком (см. ниже). */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+                <div className="max-w-4xl mx-auto px-4 md:px-8 py-6">
+                    {items.length === 0 && !activeVideo && (
+                        <div className="text-center pt-10 md:pt-16 pb-4">
+                            <h1 className="text-2xl md:text-3xl font-extrabold dark:text-white mb-2">
+                                Что мы будем создавать?
+                            </h1>
+                            <p className="text-sm text-gray-400 dark:text-gray-500">
+                                Опиши идею в поле внизу — сгенерируем изображение или видео.
+                            </p>
+                        </div>
+                    )}
 
+                    {/* Пункт 4/6/7: активная/последняя генерация видео —
+                        крупная карточка в области результатов (над полем
+                        ввода, задача #1). */}
+                    {activeVideo && (
+                        <div className="relative rounded-2xl overflow-hidden bg-gray-900 mb-4 aspect-video">
+                            <PressButton
+                                onClick={() => setActiveVideoId(null)}
+                                className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center"
+                                title="Скрыть"
+                            >
+                                <Icons.X className="w-3.5 h-3.5" />
+                            </PressButton>
+                            {activeVideo.status === 'completed' ? (
+                                <>
+                                    <video src={activeVideo.url} controls autoPlay className="w-full h-full object-contain bg-black" />
+                                    {activeVideo.dubbed && (
+                                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">
+                                            Озвучка наложена после генерации
+                                        </div>
+                                    )}
+                                    <a
+                                        href={activeVideo.url}
+                                        download={`void-video-${activeVideo.id}.mp4`}
+                                        className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-900 flex items-center justify-center shadow-lg transition-colors"
+                                        title="Скачать"
+                                    >
+                                        <Icons.Download className="w-4 h-4" />
+                                    </a>
+                                    <PressButton
+                                        onClick={() => editVideo(activeVideo)}
+                                        className="absolute bottom-3 left-3 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-900 flex items-center justify-center shadow-lg transition-colors"
+                                        title="Редактировать"
+                                    >
+                                        <Icons.Pencil className="w-4 h-4" />
+                                    </PressButton>
+                                </>
+                            ) : activeVideo.status === 'failed' ? (
+                                <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                                    <Icons.Alert className="w-6 h-6 text-red-400 mb-2" />
+                                    <p className="text-sm text-red-300 font-semibold">{activeVideo.error || 'Ошибка генерации'}</p>
+                                </div>
+                            ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+                                    <div className="relative w-16 h-16">
+                                        <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                            <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="5" />
+                                            <circle cx="32" cy="32" r="28" fill="none" stroke="#8b5cf6" strokeWidth="5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - videoProgress / 100)} style={{ transition: 'stroke-dashoffset 0.6s linear' }} />
+                                        </svg>
+                                        <span className="absolute inset-0 flex items-center justify-center text-white text-sm font-bold">{videoProgress}%</span>
+                                    </div>
+                                    <p className="text-xs text-gray-300 font-semibold">Генерируется видео…</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Сетка результатов — только изображения (см. items выше:
+                        видео сюда сознательно не попадают, задача 4). */}
+                    {items.length > 0 && (
+                        <div ref={gridRef} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {items.map((it) => (
+                                <div key={it.id} className="void-img-card relative rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 aspect-square group">
+                                    <img src={it.url} alt={it.prompt} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <p className="text-[11px] text-white font-semibold truncate">{it.prompt}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Док композера — задача #1: поле ввода со всеми настройками
+                закреплено в НИЖНЕЙ части экрана (как в чате). */}
+            <div className="shrink-0 border-t border-black/[0.06] dark:border-white/10 bg-white/85 dark:bg-darkBg/85 backdrop-blur-xl px-4 md:px-8 pt-3 pb-3 pb-safe">
+              <div className="max-w-4xl mx-auto">
                 {/* Пункт 5: настройки живут ОТДЕЛЬНО, над полем ввода —
                     само поле ввода теперь содержит только вложение,
                     переключатель Изображение/Видео и отправку. */}
@@ -370,7 +466,9 @@ export function ImagesView({ state, updateState }) {
                                 className="shrink-0"
                                 value={duration}
                                 onChange={setDuration}
-                                options={currentVideoModel.durations.map(d => ({ value: d, label: `${d}s` }))}
+                                options={currentVideoModel.durations
+                                    .filter(d => !isFree || d <= FREE_MAX_DURATION)
+                                    .map(d => ({ value: d, label: `${d}s` }))}
                             />
                         </>
                     )}
@@ -437,66 +535,6 @@ export function ImagesView({ state, updateState }) {
                     </div>
                 )}
 
-                {/* Пункт 4/6/7: активная/последняя генерация видео — крупная
-                    карточка НАД полем ввода. Поле ввода естественным
-                    образом уезжает вниз экрана, т.к. эта карточка занимает
-                    место в потоке документа перед ним (без position:fixed
-                    и подобных трюков). */}
-                {activeVideo && (
-                    <div className="relative rounded-2xl overflow-hidden bg-gray-900 mb-4 aspect-video">
-                        <PressButton
-                            onClick={() => setActiveVideoId(null)}
-                            className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center"
-                            title="Скрыть"
-                        >
-                            <Icons.X className="w-3.5 h-3.5" />
-                        </PressButton>
-                        {activeVideo.status === 'completed' ? (
-                            <>
-                                <video src={activeVideo.url} controls autoPlay className="w-full h-full object-contain bg-black" />
-                                {activeVideo.dubbed && (
-                                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">
-                                        Озвучка наложена после генерации
-                                    </div>
-                                )}
-                                {/* Пункт 7: скачать — справа снизу, редактировать — слева снизу. */}
-                                <a
-                                    href={activeVideo.url}
-                                    download={`void-video-${activeVideo.id}.mp4`}
-                                    className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-900 flex items-center justify-center shadow-lg transition-colors"
-                                    title="Скачать"
-                                >
-                                    <Icons.Download className="w-4 h-4" />
-                                </a>
-                                <PressButton
-                                    onClick={() => editVideo(activeVideo)}
-                                    className="absolute bottom-3 left-3 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-900 flex items-center justify-center shadow-lg transition-colors"
-                                    title="Редактировать"
-                                >
-                                    <Icons.Pencil className="w-4 h-4" />
-                                </PressButton>
-                            </>
-                        ) : activeVideo.status === 'failed' ? (
-                            <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-                                <Icons.Alert className="w-6 h-6 text-red-400 mb-2" />
-                                <p className="text-sm text-red-300 font-semibold">{activeVideo.error || 'Ошибка генерации'}</p>
-                            </div>
-                        ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center gap-3">
-                                {/* Пункт 6: прогресс в процентах вместо простого спиннера. */}
-                                <div className="relative w-16 h-16">
-                                    <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                                        <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="5" />
-                                        <circle cx="32" cy="32" r="28" fill="none" stroke="#8b5cf6" strokeWidth="5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - videoProgress / 100)} style={{ transition: 'stroke-dashoffset 0.6s linear' }} />
-                                    </svg>
-                                    <span className="absolute inset-0 flex items-center justify-center text-white text-sm font-bold">{videoProgress}%</span>
-                                </div>
-                                <p className="text-xs text-gray-300 font-semibold">Генерируется видео…</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
                 {/* Composer: текст + вложение + режим + отправка (только
                     самое необходимое — остальные настройки вынесены выше). */}
                 <div className="bg-white dark:bg-darkCard rounded-[26px] border border-gray-200 dark:border-darkBorder shadow-sm p-4">
@@ -552,7 +590,7 @@ export function ImagesView({ state, updateState }) {
                                 title="Прикрепить референс"
                                 className="void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors"
                             >
-                                <Icons.Plus className="w-5 h-5" />
+                                <Icons.Plus className="w-[18px] h-[18px]" />
                             </PressButton>
 
                             {/* Переключатель Изображение/Видео — «ползунок»:
@@ -574,7 +612,7 @@ export function ImagesView({ state, updateState }) {
                             disabled={!prompt.trim() || busy}
                             className="void-tap-target w-10 h-10 shrink-0 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full flex items-center justify-center transition-colors"
                         >
-                            {busy ? <Icons.Spinner className="w-4 h-4" /> : <Icons.ArrowUp className="w-4 h-4" />}
+                            {busy ? <Icons.Spinner className="w-[18px] h-[18px] animate-spin" /> : <Icons.ArrowUp className="w-[18px] h-[18px]" />}
                         </PressButton>
                     </div>
                 </div>
@@ -592,28 +630,15 @@ export function ImagesView({ state, updateState }) {
                 {error && (
                     <p className="text-sm text-red-500 font-semibold mt-3 text-center">{error}</p>
                 )}
-                {/* Задача 6: видео недоступно на Free — предупреждаем сразу в
-                    интерфейсе, а не только после отказа сервера. */}
-                {mode === 'video' && (state.userPlan || 'FREE').toUpperCase() === 'FREE' && (
+                {/* Задача 6: на Free видео доступно, но с ограничениями —
+                    одно в сутки, 720p, до 6 секунд. Сообщаем это прямо в UI. */}
+                {mode === 'video' && isFree && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-3 text-center">
-                        Генерация видео недоступна на тарифе Free — перейдите на Pro или Ultra.
+                        На тарифе Free — 1 видео в сутки, до 720p и не длиннее 6 секунд. Больше и длиннее — на Plus и выше.
                     </p>
                 )}
 
-                {/* Сетка результатов — только изображения (см. items выше:
-                    видео сюда сознательно не попадают, задача 4). */}
-                {items.length > 0 && (
-                    <div ref={gridRef} className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-10">
-                        {items.map((it) => (
-                            <div key={it.id} className="void-img-card relative rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 aspect-square group">
-                                <img src={it.url} alt={it.prompt} className="w-full h-full object-cover" />
-                                <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <p className="text-[11px] text-white font-semibold truncate">{it.prompt}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+              </div>
             </div>
         </div>
     );

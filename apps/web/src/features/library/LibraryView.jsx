@@ -31,6 +31,15 @@ export function LibraryView({ state, updateState }) {
 
     const formatDate = (ts) => new Date(ts).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
+    // Расширение файла для скачивания: видео — всегда mp4; для картинок
+    // выводим реальный формат из URL (DALL-E/DeepInfra отдают png/jpg/webp),
+    // а не хардкодим .svg, как было в старой версии с локальными арт-заглушками.
+    const mediaExt = (item) => {
+        if (item.kind === 'video') return 'mp4';
+        const m = /\.(png|jpe?g|webp|gif|svg)(?:[?#]|$)/i.exec(item.url || '');
+        return m ? m[1].toLowerCase().replace('jpeg', 'jpg') : 'png';
+    };
+
     const openChat = (chatId) => {
         const exists = state.chatSessions.some(c => c.id === chatId);
         if (exists) updateState({ activeChatId: chatId, currentView: 'chat' });
@@ -123,7 +132,7 @@ export function LibraryView({ state, updateState }) {
                                                 <button onClick={(e) => { e.stopPropagation(); handleShare(item); }} className="p-1.5 rounded-lg text-gray-400 hover:text-[#5b32d4] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Поделиться ссылкой">
                                                     {shareCopiedId === item.id ? <Icons.Check className="w-3.5 h-3.5 text-green-500" /> : <Icons.Share className="w-3.5 h-3.5" />}
                                                 </button>
-                                                <a onClick={(e) => e.stopPropagation()} href={item.url} download={`void-${item.kind}-${item.id}.${item.kind === 'image' ? 'svg' : 'mp4'}`} className="p-1.5 rounded-lg text-[#5b32d4] dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Скачать"><Icons.Download className="w-3.5 h-3.5" /></a>
+                                                <a onClick={(e) => e.stopPropagation()} href={item.url} download={`void-${item.kind}-${item.id}.${mediaExt(item)}`} className="p-1.5 rounded-lg text-[#5b32d4] dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Скачать"><Icons.Download className="w-3.5 h-3.5" /></a>
                                             </div>
                                         </div>
                                     </div>
@@ -192,7 +201,7 @@ export function LibraryView({ state, updateState }) {
                         <div className="flex items-center gap-3">
                             <a
                                 href={viewerItem.url}
-                                download={`void-${viewerItem.kind}-${viewerItem.id}.${viewerItem.kind === 'image' ? 'svg' : 'mp4'}`}
+                                download={`void-${viewerItem.kind}-${viewerItem.id}.${mediaExt(viewerItem)}`}
                                 className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white text-gray-900 font-bold text-sm hover:bg-gray-100 transition-colors"
                             >
                                 <Icons.Download className="w-4 h-4" /> Скачать

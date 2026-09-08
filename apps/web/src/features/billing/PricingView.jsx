@@ -390,23 +390,25 @@ export function PricingView({ state, updateState }) {
     // Ранги для логики доступности: понизиться нельзя.
     const rank = { free: 0, pro: 2, pro_plus: 3 };
     const currentRank = rank[state.userPlan] ?? 0;
-    const isCurrent = viewed.id === state.userPlan;
-    const isLower = (rank[viewed.id] ?? 0) < currentRank; // тариф ниже текущего
-    const isFree = viewed.id === 'free';
 
-    const price = state.billingCycle === 'month' ? viewed.priceMonth : viewed.priceYear;
+    // Метаданные конкретного тарифа (цена, состояние CTA) — вычисляются
+    // на лету для КАЖДОЙ карточки, чтобы один и тот же рендер работал и
+    // в мобильном одиночном виде, и в десктопной таблице из трёх колонок.
+    const planMeta = (plan) => {
+        const price = state.billingCycle === 'month' ? plan.priceMonth : plan.priceYear;
+        const isCurrent = plan.id === state.userPlan;
+        const isLower = (rank[plan.id] ?? 0) < currentRank;
+        const isFree = plan.id === 'free';
+        let ctaLabel, ctaDisabled, ctaKind;
+        if (isCurrent) { ctaLabel = '✓ Текущий тариф'; ctaDisabled = true; ctaKind = 'current'; }
+        else if (isLower || isFree) { ctaLabel = 'Недоступно'; ctaDisabled = true; ctaKind = 'muted'; }
+        else { ctaLabel = `Перейти на ${plan.title}`; ctaDisabled = false; ctaKind = 'primary'; }
+        return { price, isCurrent, isLower, isFree, ctaLabel, ctaDisabled, ctaKind };
+    };
 
-    // Текст и состояние главной CTA под смысл ТЗ.
-    let ctaLabel, ctaDisabled, ctaKind;
-    if (isCurrent) { ctaLabel = '✓ Текущий тариф'; ctaDisabled = true; ctaKind = 'current'; }
-    else if (isLower) { ctaLabel = 'Недоступно'; ctaDisabled = true; ctaKind = 'muted'; }
-    else if (isFree) { ctaLabel = 'Недоступно'; ctaDisabled = true; ctaKind = 'muted'; }
-    else { ctaLabel = `Перейти на ${viewed.title}`; ctaDisabled = false; ctaKind = 'primary'; }
-
-    const handleCta = () => {
-        if (ctaDisabled) return;
+    const startCheckout = (plan) => {
         if (!state.user) { updateState({ showAuthModal: true, authTab: 'register' }); return; }
-        updateState({ checkoutPlan: viewed, paymentStep: 'select', selectedMethod: 'card', selectedBank: 'sber' });
+        updateState({ checkoutPlan: plan, paymentStep: 'select', selectedMethod: 'card', selectedBank: 'sber' });
     };
 
     // Иконка-стикер слева от каждого пункта. Требование: в пределах ОДНОЙ
@@ -418,8 +420,6 @@ export function PricingView({ state, updateState }) {
     // (задаётся в разметке), меняется только сам глиф.
     const buildFeatureIcons = (features) => {
         const used = new Set();
-        // Запасной пул нейтральных, но разных глифов — на случай пунктов
-        // без явного ключевого слова или коллизий по смыслу.
         const pool = [Icons.Check, Icons.Star, Icons.Sparkles, Icons.Bolt, Icons.TrendingUp, Icons.Grip, Icons.LayoutDashboard, Icons.Compass, Icons.Flask, Icons.Tag, Icons.Palette, Icons.Send, Icons.Eye, Icons.Clock, Icons.Card];
         const pick = (preferred) => {
             for (const ic of preferred) {
@@ -448,17 +448,103 @@ export function PricingView({ state, updateState }) {
             return pick([]);
         });
     };
-    const featureIcons = buildFeatureIcons(viewed.features);
+
+    // Единый общий переключатель периода (месяц/год). Раньше он жил внутри
+    // каждой карточки — в десктопной таблице из трёх колонок это выглядело
+    // бы как три одинаковых переключателя. Теперь один, в шапке.
+    const BillingToggle = ({ className = '' }) => (
+        <div className={`bg-gray-100 dark:bg-darkBorder p-1 flex rounded-2xl relative w-full max-w-xs ${className}`}>
+            <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white dark:bg-darkCard rounded-xl shadow-sm transition-transform duration-300 ease-out ${state.billingCycle === 'year' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`} />
+            <button onClick={() => updateState({ billingCycle: 'month' })} className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${state.billingCycle === 'month' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>Ежемесячно</button>
+            <button onClick={() => updateState({ billingCycle: 'year' })} className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${state.billingCycle === 'year' ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}>В год (−20%)</button>
+        </div>
+    );
+
+    // Единая карточка тарифа — используется и на мобильном (одна, по табам),
+    // и на десктопе (три в ряд). featured подсвечивает рекомендуемый тариф.
+    const PlanCard = ({ plan, featured = false }) => {
+        const { price, ctaLabel, ctaDisabled, ctaKind } = planMeta(plan);
+        const icons = buildFeatureIcons(plan.features);
+        return (
+            <ShaderCard
+                light
+                bgColor="#ffffff"
+                color="#7c4dff"
+                color2="#5b32d4"
+                opacity={featured ? 0.6 : 0.4}
+                className={`h-full flex flex-col p-5 sm:p-6 ${featured ? 'ring-2 ring-[#5b32d4] shadow-xl' : ''}`}
+            >
+                <div className="flex items-center justify-between gap-3 mb-4">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#5b32d4]/20 bg-[#5b32d4]/[0.08] text-[#5b32d4] text-[11px] font-extrabold tracking-wide uppercase">
+                        <Icons.Sparkles className="w-3.5 h-3.5" /> Void Code AI
+                    </span>
+                    {featured && (
+                        <span className="bg-[#5b32d4] text-white text-[10px] font-extrabold px-2 py-1 rounded-md uppercase tracking-wide">Популярный</span>
+                    )}
+                </div>
+
+                <h3 className="text-2xl font-extrabold text-gray-900">{plan.title}</h3>
+                <p className="text-xs text-gray-500 mt-1 leading-snug">{plan.subtitle}</p>
+
+                <div className="h-px bg-[#5b32d4]/12 my-5" />
+
+                <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-4xl font-extrabold text-gray-900">{money(price)}</span>
+                    {state.billingCycle === 'month' && plan.oldPriceMonth && (
+                        <span className="text-xl font-bold text-gray-400 line-through">{money(plan.oldPriceMonth)}</span>
+                    )}
+                    {price > 0 && (
+                        <span className="text-sm text-gray-500 self-end mb-1.5">/ {state.billingCycle === 'month' ? 'мес' : 'год'}</span>
+                    )}
+                </div>
+                {plan.multiplier > 1 && (
+                    <div className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#5b32d4]/10 border border-[#5b32d4]/20 text-[#5b32d4] text-xs font-extrabold w-fit">
+                        ×{plan.multiplier} лимитов
+                    </div>
+                )}
+
+                <h4 className="text-sm font-bold mt-6 mb-4 text-gray-900">Что входит:</h4>
+                <div className="space-y-3">
+                    {plan.features.map((f, i) => {
+                        const IconComp = icons[i] || Icons.Check;
+                        return (
+                            <div key={i} className="void-pv-feat flex items-start gap-3">
+                                <div className="mt-0.5 w-7 h-7 rounded-xl bg-[#5b32d4]/10 text-[#5b32d4] flex items-center justify-center flex-shrink-0">
+                                    <IconComp className="w-4 h-4" />
+                                </div>
+                                <div className="text-sm font-medium text-gray-700 leading-snug pt-1">{f}</div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="mt-auto pt-6">
+                    <button
+                        onClick={() => !ctaDisabled && startCheckout(plan)}
+                        disabled={ctaDisabled}
+                        onMouseDown={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 0.97, duration: 0.12 })}
+                        onMouseUp={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 1, duration: 0.18 })}
+                        onMouseLeave={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 1, duration: 0.18 })}
+                        className={`w-full py-3.5 rounded-2xl font-bold text-sm transition-colors ${
+                            ctaKind === 'primary' ? 'bg-[#5b32d4] text-white hover:bg-[#4a26b0] shadow-lg'
+                            : ctaKind === 'current' ? 'bg-green-50 text-green-600 cursor-default'
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        }`}
+                    >
+                        {ctaLabel}
+                    </button>
+                </div>
+            </ShaderCard>
+        );
+    };
 
     return (
         <div ref={plansScope} className="flex flex-col h-full bg-[#f8f9fc] dark:bg-darkBg void-view-enter w-full">
-            {/* Задача 2 (переработка): шапки «Void Code» с подзаголовком больше
-                нет — только компактная строка «назад + табы». Раньше заголовок,
-                описание тарифа, нижний CTA и ссылка «Условия использования»
-                занимали место и мешали карточке; теперь карточка на весь экран,
-                а кнопка оформления живёт прямо на ней. */}
-            <div className="void-pv-head shrink-0 px-4 pt-4 pb-2 max-w-2xl w-full mx-auto">
-                <div className="flex items-center gap-1 h-10">
+            {/* Шапка: назад + заголовок + общий переключатель периода.
+                Табы Free|Pro|Ultra — только на мобильном (md:hidden), на
+                десктопе показываем все три тарифа сразу таблицей. */}
+            <div className="void-pv-head shrink-0 px-4 pt-4 pb-2 w-full mx-auto max-w-2xl md:max-w-6xl">
+                <div className="flex items-center gap-3 mb-3">
                     <button
                         onClick={() => goBack(state, updateState, 'settings')}
                         aria-label="Назад"
@@ -466,105 +552,44 @@ export function PricingView({ state, updateState }) {
                     >
                         <Icons.ChevronLeft className="w-6 h-6" />
                     </button>
-                    {/* Табы Free | Pro | Ultra */}
-                    <div className="flex-1 bg-gray-100 dark:bg-darkBorder p-1 flex rounded-2xl relative">
-                        <div
-                            className="absolute top-1 bottom-1 bg-white dark:bg-darkCard rounded-xl shadow-sm transition-transform duration-300 ease-out"
-                            style={{ width: 'calc(33.333% - 3px)', transform: `translateX(calc(${TAB_ORDER.indexOf(viewedId)} * (100% + 4px)))` }}
-                        />
-                        {[{ id: 'free', label: 'Free' }, { id: 'pro', label: 'Pro' }, { id: 'pro_plus', label: 'Ultra' }].map(tb => (
-                            <button
-                                key={tb.id}
-                                onClick={() => updateState({ viewedPlan: tb.id })}
-                                className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${viewedId === tb.id ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}
-                            >
-                                {tb.label}
-                            </button>
-                        ))}
+                    <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white">Тарифы</h2>
+                    <div className="ml-auto hidden md:block">
+                        <BillingToggle />
                     </div>
+                </div>
+
+                {/* Мобильные табы */}
+                <div className="md:hidden flex bg-gray-100 dark:bg-darkBorder p-1 rounded-2xl relative">
+                    <div
+                        className="absolute top-1 bottom-1 bg-white dark:bg-darkCard rounded-xl shadow-sm transition-transform duration-300 ease-out"
+                        style={{ width: 'calc(33.333% - 3px)', transform: `translateX(calc(${TAB_ORDER.indexOf(viewedId)} * (100% + 4px)))` }}
+                    />
+                    {[{ id: 'free', label: 'Free' }, { id: 'pro', label: 'Pro' }, { id: 'pro_plus', label: 'Ultra' }].map(tb => (
+                        <button
+                            key={tb.id}
+                            onClick={() => updateState({ viewedPlan: tb.id })}
+                            className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${viewedId === tb.id ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}
+                        >
+                            {tb.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            {/* ── Карточка тарифа на весь экран ── */}
-            <div className="flex-1 overflow-y-auto void-no-scrollbar px-4 pb-5 max-w-2xl w-full mx-auto">
-                <div key={`${viewedId}-${state.billingCycle}`} className="void-pv-body h-full">
-                    {/* Задача 2: ShaderCard в СВЕТЛОМ варианте (белый фон +
-                        анимированное фиолетовое свечение), на всю доступную
-                        высоту. Кнопка оформления — внизу карточки. */}
-                    <ShaderCard light bgColor="#ffffff" color="#7c4dff" color2="#5b32d4" opacity={0.5} className="min-h-full flex flex-col p-5 sm:p-6">
-                        {/* Бейдж бренда + версия тарифа */}
-                        <div className="flex items-center justify-between gap-3 mb-4">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#5b32d4]/20 bg-[#5b32d4]/8 text-[#5b32d4] text-[11px] font-extrabold tracking-wide uppercase">
-                                <Icons.Sparkles className="w-3.5 h-3.5" /> Void Code AI
-                            </span>
-                            <span className="text-gray-400 text-xs font-bold tracking-widest uppercase">{viewed.title}</span>
-                        </div>
+            {/* ── Мобильный вид: одна карточка по выбранному табу ── */}
+            <div className="md:hidden flex-1 overflow-y-auto void-no-scrollbar px-4 pb-5 max-w-2xl w-full mx-auto">
+                <div key={`${viewedId}-${state.billingCycle}`} className="void-pv-body h-full flex flex-col gap-4">
+                    {!viewed.id.includes('free') && <BillingToggle className="mx-auto" />}
+                    <div className="flex-1"><PlanCard plan={viewed} featured={viewed.id === 'pro'} /></div>
+                </div>
+            </div>
 
-                        <h3 className="text-2xl font-extrabold text-gray-900">{viewed.title}</h3>
-
-                        <div className="h-px bg-[#5b32d4]/12 my-5" />
-
-                        {/* Цена + множитель */}
-                        <div className="flex items-center gap-3 flex-wrap">
-                            <span className="text-4xl font-extrabold text-gray-900">{money(price)}</span>
-                            {state.billingCycle === 'month' && viewed.oldPriceMonth && (
-                                <span className="text-xl font-bold text-gray-400 line-through">{money(viewed.oldPriceMonth)}</span>
-                            )}
-                            {price > 0 && (
-                                <span className="text-sm text-gray-500 self-end mb-1.5">/ {state.billingCycle === 'month' ? 'мес' : 'год'}</span>
-                            )}
-                        </div>
-                        {viewed.multiplier > 1 && (
-                            <div className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#5b32d4]/10 border border-[#5b32d4]/20 text-[#5b32d4] text-xs font-extrabold">
-                                ×{viewed.multiplier} лимитов
-                            </div>
-                        )}
-
-                        {/* Переключатель периода — на карточке, скрыт на Free */}
-                        {!isFree && (
-                            <div className="mt-5 bg-gray-100/80 p-1 flex rounded-2xl relative w-full max-w-xs">
-                                <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-xl shadow-sm transition-transform duration-300 ease-out ${state.billingCycle === 'year' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`} />
-                                <button onClick={() => updateState({ billingCycle: 'month' })} className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${state.billingCycle === 'month' ? 'text-gray-900' : 'text-gray-500'}`}>Ежемесячно</button>
-                                <button onClick={() => updateState({ billingCycle: 'year' })} className={`relative z-10 flex-1 py-2 text-sm font-bold transition-colors ${state.billingCycle === 'year' ? 'text-gray-900' : 'text-gray-500'}`}>В год (-20%)</button>
-                            </div>
-                        )}
-
-                        <h4 className="text-sm font-bold mt-6 mb-4 text-gray-900">Что входит:</h4>
-                        <div className="space-y-3.5">
-                            {viewed.features.map((f, i) => {
-                                const IconComp = featureIcons[i] || Icons.Check;
-                                return (
-                                    <div key={i} className="void-pv-feat flex items-start gap-3">
-                                        {/* Задача 2: у всех стикеров карточки ОДИН цвет
-                                            (фиолетовый бренда), но РАЗНЫЙ глиф — см.
-                                            buildFeatureIcons (без повторов в карточке). */}
-                                        <div className="mt-0.5 w-7 h-7 rounded-xl bg-[#5b32d4]/10 text-[#5b32d4] flex items-center justify-center flex-shrink-0">
-                                            <IconComp className="w-4 h-4" />
-                                        </div>
-                                        <div className="text-sm font-medium text-gray-700 leading-snug pt-1">{f}</div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* CTA — прямо на карточке, прижат книзу */}
-                        <div className="mt-auto pt-6">
-                            <button
-                                onClick={handleCta}
-                                disabled={ctaDisabled}
-                                onMouseDown={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 0.97, duration: 0.12 })}
-                                onMouseUp={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 1, duration: 0.18 })}
-                                onMouseLeave={(e) => !ctaDisabled && gsap.to(e.currentTarget, { scale: 1, duration: 0.18 })}
-                                className={`w-full py-3.5 rounded-2xl font-bold text-sm transition-colors ${
-                                    ctaKind === 'primary' ? 'bg-[#5b32d4] text-white hover:bg-[#4a26b0] shadow-lg'
-                                    : ctaKind === 'current' ? 'bg-green-50 text-green-600 cursor-default'
-                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                }`}
-                            >
-                                {ctaLabel}
-                            </button>
-                        </div>
-                    </ShaderCard>
+            {/* ── Десктопный вид: три тарифа в ряд ── */}
+            <div className="hidden md:block flex-1 overflow-y-auto void-no-scrollbar px-4 pb-8 max-w-6xl w-full mx-auto">
+                <div className="void-pv-body grid grid-cols-3 gap-5 items-stretch pt-2">
+                    {PRICING_PLANS.map(plan => (
+                        <PlanCard key={plan.id} plan={plan} featured={plan.id === 'pro'} />
+                    ))}
                 </div>
             </div>
         </div>

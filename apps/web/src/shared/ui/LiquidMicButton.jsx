@@ -31,7 +31,7 @@ export function LiquidMicButton({ voice, size = 'md', bordered = false, onStart,
     // смотрелась бы грубо), а квадрат «стоп» — самый заметный элемент во
     // время записи, его увеличиваем: так по нему проще попасть и сразу
     // видно, что запись идёт.
-    const iconSize = { sm: 'w-4 h-4', md: 'w-4 h-4', lg: 'w-5 h-5' }[size] || 'w-4 h-4';
+    const iconSize = { sm: 'w-[18px] h-[18px]', md: 'w-[18px] h-[18px]', lg: 'w-5 h-5' }[size] || 'w-[18px] h-[18px]';
     const stopIconSize = { sm: 'w-[18px] h-[18px]', md: 'w-5 h-5', lg: 'w-6 h-6' }[size] || 'w-5 h-5';
 
     // Форма кнопки — плавный переход круг ↔ мягкий сквир. Цвет фона НЕ

@@ -829,7 +829,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
                                 className="void-tap-target w-9 h-9 shrink-0 rounded-full border border-gray-200 dark:border-darkBorder flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                             >
-                                <Icons.Plus className={`w-5 h-5 void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
+                                <Icons.Plus className={`w-[18px] h-[18px] void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
                             </button>
 
                             {/* Выбор модели — прямо в поле ввода. При записи скрываем
@@ -861,13 +861,13 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                     disabled={state.isGenerating || voice.busy}
                                     title="Отправить"
                                     className="void-tap-target w-9 h-9 shrink-0 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full flex items-center justify-center transition-colors"
-                                ><Icons.ArrowUp className="w-4 h-4" /></button>
+                                ><Icons.ArrowUp className="w-[18px] h-[18px]" /></button>
                             ) : state.imageGenMode ? (
                                 <button
                                     disabled
                                     title="Отправить"
                                     className="void-tap-target w-9 h-9 shrink-0 bg-gray-200 dark:bg-gray-800 text-gray-400 rounded-full flex items-center justify-center"
-                                ><Icons.ArrowUp className="w-4 h-4" /></button>
+                                ><Icons.ArrowUp className="w-[18px] h-[18px]" /></button>
                             ) : (
                                 <button
                                     ref={voiceBtnRef}
@@ -878,7 +878,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                     disabled={state.isGenerating || voice.busy}
                                     title="Voice Mode"
                                     className="void-voice-btn void-tap-target w-9 h-9 shrink-0 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-full flex items-center justify-center transition-colors"
-                                ><Icons.Waveform className="w-4 h-4" /></button>
+                                ><Icons.Waveform className="w-[18px] h-[18px]" /></button>
                             )}
                         </div>
                     </div>
