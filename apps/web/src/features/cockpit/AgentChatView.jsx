@@ -8,6 +8,7 @@ import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { createBackendChat, sendBackendMessage } from '@/shared/api/chat';
 import { buildAgentSystemPrompt } from '@/shared/lib/agentPrompt';
 import { buildAgentSkillsInstruction } from '@/features/cockpit/AgentSkillsPanel';
+import { CallAgentSettings } from '@/features/cockpit/CallAgentSettings';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -37,6 +38,7 @@ export function AgentChatView({ state, updateState }) {
     const [image, setImage] = useState(null);
     const [thinking, setThinking] = useState(false);
     const [showPlusMenu, setShowPlusMenu] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     const endRef = useRef(null);
     const chatFileInputRef = useRef(null);
     const cameraInputRef = useRef(null);
@@ -162,9 +164,17 @@ export function AgentChatView({ state, updateState }) {
                     </div>
                     <div className="min-w-0 flex-1">
                         <p className="font-bold text-sm dark:text-white truncate">{agent.name}</p>
-                        <p className="text-[11px] text-gray-400 truncate">Работает по промту в этом чате</p>
+                        <p className="text-[11px] text-gray-400 truncate">{agent.profession === 'calls' ? 'Агент звонков' : 'Работает по промту в этом чате'}</p>
                     </div>
+                    {/* #4: у агента-профессии «Звонки» — кнопка «⋮» с настройками
+                        (номер, модель, голос, инструкции, коннекторы). */}
+                    {agent.profession === 'calls' && (
+                        <button onClick={() => setShowSettings(true)} title="Настройки агента" className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0">
+                            <Icons.Dots className="w-5 h-5" />
+                        </button>
+                    )}
                 </div>
+                {showSettings && <CallAgentSettings agent={agent} state={state} updateState={updateState} onClose={() => setShowSettings(false)} />}
 
                 {/* История */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">

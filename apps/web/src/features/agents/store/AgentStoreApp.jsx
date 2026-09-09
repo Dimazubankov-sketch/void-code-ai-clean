@@ -66,11 +66,17 @@ export function AgentStoreApp({ state, updateState }) {
         const now = Date.now();
         const newAgent = {
             id: `agent_${now}`,
-            name: generateUniqueAgentName(agents),
+            name: agent.name || generateUniqueAgentName(agents),
             kind: 'worker',
             storeId: agent.id,
+            profession: agent.profession || null,
+            // Настройки профессии «Звонки»: номер, модель-«мозг», голос,
+            // список инструкций и СВОИ коннекторы (отдельно от профильных).
+            callSettings: agent.profession === 'calls'
+                ? { phone: '', modelId: 'flash_ext', voiceURI: null, voicePresetFish: null, instructions: [], connectors: [] }
+                : null,
             activePresets: [],
-            color: '#5b32d4',                  // единый фирменный фиолетовый по умолчанию
+            color: agent.profession === 'calls' ? '#10b981' : '#5b32d4',
             nodes: [], edges: [], isPaid: true, status: 'active',
             mailboxes: [], mailbox: null, messenger: null,
             createdAt: now, updatedAt: now,
