@@ -475,6 +475,17 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 style={{ paddingBottom: bottomPad }}
             >
                 <div className="max-w-3xl mx-auto space-y-6">
+                    {/* #1: мобильный приветственный экран — по центру области
+                        сообщений; поле ввода при этом закреплено внизу (на ПК
+                        приветствие идёт вместе с центрированным полем — см. док). */}
+                    {messages.length === 0 && (
+                        <div className="md:hidden flex flex-col items-center justify-center text-center min-h-[58vh] fade-in">
+                            <Icons.VoidLogo className="w-16 h-16 mb-4" />
+                            <h2 className="text-[26px] font-bold tracking-tight text-gray-900 dark:text-white">
+                                {lang === 'en' ? 'What can I help with?' : lang === 'zh' ? '有什么可以帮您？' : 'Чем могу помочь?'}
+                            </h2>
+                        </div>
+                    )}
                     {messages.map((msg, idx) => (
                         <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-3xl transition-colors rounded-2xl min-w-0 ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
                             {msg.role === 'user' ? (
@@ -589,15 +600,16 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 title={t(lang, 'chat.scrollToBottom')}
             />
 
-            <div ref={inputWrapRef} className={`absolute left-0 right-0 px-3 sm:px-4 md:px-8 z-20 pointer-events-none ${messages.length === 0 ? 'top-1/2 -translate-y-1/2' : 'bottom-0 pt-14 pb-safe bg-gradient-to-t from-white dark:from-darkBg via-white dark:via-darkBg to-transparent'}`}>
+            <div ref={inputWrapRef} className={`absolute left-0 right-0 px-3 sm:px-4 md:px-8 z-20 pointer-events-none ${messages.length === 0 ? 'bottom-0 pb-safe md:bottom-auto md:top-1/2 md:-translate-y-1/2' : 'bottom-0 pt-14 pb-safe bg-gradient-to-t from-white dark:from-darkBg via-white dark:via-darkBg to-transparent'}`}>
                 <div className="relative max-w-3xl mx-auto pointer-events-auto">
-                    {/* #5: в пустом чате логотип + приветствие стоят прямо над
-                        полем ввода, и весь блок отцентрован по вертикали.
-                        После первого сообщения поле уезжает вниз (bottom-0). */}
+                    {/* #5/#1: в пустом чате приветствие над полем ввода — но так
+                        оно центрируется вместе с полем только на ПК. На телефоне
+                        поле всегда внизу, а приветствие показывается по центру
+                        области сообщений (см. мобильный hero выше). */}
                     {messages.length === 0 && (
-                        <div className="flex flex-col items-center text-center mb-6 fade-in">
+                        <div className="hidden md:flex flex-col items-center text-center mb-6 fade-in">
                             <Icons.VoidLogo className="w-16 h-16 mb-4" />
-                            <h2 className="text-[26px] md:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+                            <h2 className="text-[26px] md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
                                 {lang === 'en' ? 'What can I help with?' : lang === 'zh' ? '有什么可以帮您？' : 'Чем могу помочь?'}
                             </h2>
                         </div>
