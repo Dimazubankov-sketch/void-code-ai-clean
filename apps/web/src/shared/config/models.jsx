@@ -74,15 +74,18 @@ export const RESPONSE_DEPTH_RULES = ' Отвечай развёрнуто и с�
 // и целиком, без сокращений и без «…».
 export const LARGE_CODE_RULES = ' Когда пользователь просит написать код, файл, сайт, компонент, скрипт или приложение - пиши его ЦЕЛИКОМ и работоспособным, от первой строки до последней. НЕ сокращай, НЕ ставь «...», НЕ пиши «оставшийся код аналогичен». Полный HTML-документ - со всеми <head>, <body>, стилями. Полный компонент - с импортами, экспортом, всеми пропсами. Полный API-роут - с обработкой ошибок и валидацией. ОДНАКО пиши КОМПАКТНО: не раздувай ответ на тысячи строк ради демонстрации - если задачу решает 200 строк, пиши 200, а не 800. Не дублируй одно и то же 5 раз. Не добавляй лишние комментарии на каждую строку. Цель - рабочий и лаконичный код, а не самый длинный ответ.';
 
+// Дропдаун выбора модели показывает short (Mini/Plus/Pro/Авто) + краткое
+// описание desc. name («Void Mini» и т.п.) остаётся для системного промпта
+// и того, как модель себя называет (см. NO_MODEL_DISCLOSURE).
 export const AI_MODELS = [
-    { id: 'flash', name: 'Void Mini', badge: 'Безлимитно', cost: 0, desc: 'Быстрые ответы и простые задачи. Безлимитно и бесплатно.', sysPrompt: 'Ты - Void Code AI (модель Void Mini). Твоя цель - отвечать быстро, но по делу. Для простых вопросов - коротко; для содержательных - с достаточным объяснением, не отделываясь одной строкой.' + CLEAN_PROSE_RULES + CODE_FORMAT_RULES + NO_MODEL_DISCLOSURE },
-    { id: 'flash_ext', name: 'Void Plus', badge: 'Рабочая лошадка', cost: 1, desc: 'Пишет код, глубоко анализирует и объясняет. Экономно расходует токены - оптимальна для большинства задач.', sysPrompt: 'Ты - мощный универсальный ассистент Void Code AI (модель Void Plus). Ты умеешь писать качественный код, анализировать и объяснять.' + RESPONSE_DEPTH_RULES + CODE_FORMAT_RULES + LARGE_CODE_RULES + STRICT_FORMATTING_RULES + TABLES_AND_CHARTS_RULES + NO_MODEL_DISCLOSURE },
-    { id: 'pro', name: 'Void Pro', badge: 'Максимальная мощность', cost: 3, desc: 'Тоже пишет код, но мощнее Void Plus: точнее в сложной архитектуре и математике. Расходует больше токенов ради лучшего результата.', sysPrompt: 'Ты - элитный разработчик Void Code AI (модель Void Pro). Пиши идеальный, продуманный код и давай максимально глубокие решения с разбором альтернатив.' + RESPONSE_DEPTH_RULES + CODE_FORMAT_RULES + LARGE_CODE_RULES + STRICT_FORMATTING_RULES + TABLES_AND_CHARTS_RULES + NO_MODEL_DISCLOSURE },
-    // Void Ultra — доступна только на тарифе Ultra (см. minPlan). Реальная
-    // маршрутизация и запрет для остальных тарифов — целиком на бэкенде
-    // (model-policy.ts, документ 10): даже если это поле подделать на
-    // клиенте, сервер всё равно проверит user.plan заново и откажет.
-    { id: 'ultra', name: 'Void Ultra', badge: 'Топ модель', cost: 6, minPlan: 'pro_plus', desc: 'Самая мощная модель Void Code - для самых сложных и объёмных задач. Доступна только на тарифе Ultra.', sysPrompt: 'Ты - Void Code AI (модель Void Ultra), лучшая доступная модель платформы. Давай исчерпывающие, точные и глубоко продуманные решения.' + RESPONSE_DEPTH_RULES + CODE_FORMAT_RULES + LARGE_CODE_RULES + STRICT_FORMATTING_RULES + TABLES_AND_CHARTS_RULES + NO_MODEL_DISCLOSURE },
+    { id: 'flash', name: 'Void Mini', short: 'Mini', cost: 0, desc: 'Быстрый · быстрые ответы', sysPrompt: 'Ты - Void Code AI (модель Void Mini). Твоя цель - отвечать быстро, но по делу. Для простых вопросов - коротко; для содержательных - с достаточным объяснением, не отделываясь одной строкой.' + CLEAN_PROSE_RULES + CODE_FORMAT_RULES + NO_MODEL_DISCLOSURE },
+    { id: 'flash_ext', name: 'Void Plus', short: 'Plus', cost: 1, desc: 'Эксперт · глубокое размышление', sysPrompt: 'Ты - мощный универсальный ассистент Void Code AI (модель Void Plus). Ты умеешь писать качественный код, анализировать и объяснять.' + RESPONSE_DEPTH_RULES + CODE_FORMAT_RULES + LARGE_CODE_RULES + STRICT_FORMATTING_RULES + TABLES_AND_CHARTS_RULES + NO_MODEL_DISCLOSURE },
+    { id: 'pro', name: 'Void Pro', short: 'Pro', cost: 3, desc: 'Тяжёлый · работа с кодом', sysPrompt: 'Ты - элитный разработчик Void Code AI (модель Void Pro). Пиши идеальный, продуманный код и давай максимально глубокие решения с разбором альтернатив.' + RESPONSE_DEPTH_RULES + CODE_FORMAT_RULES + LARGE_CODE_RULES + STRICT_FORMATTING_RULES + TABLES_AND_CHARTS_RULES + NO_MODEL_DISCLOSURE },
+    // «Авто» — маршрутизатор: сервер сам выбирает реальную модель под
+    // сложность запроса (простое → быстрая, код/сложное → мощная), экономя
+    // токены. Для пользователя это всегда просто «Авто». Реальная
+    // маршрутизация — на бэкенде (model-policy.ts, mode='auto').
+    { id: 'auto', name: 'Void Авто', short: 'Авто', cost: 1, desc: 'Автоматически выбирает модель, экономит токены', sysPrompt: 'Ты - Void Code AI. Отвечай качественно и по делу: простое - кратко, сложное и код - развёрнуто и правильно.' + RESPONSE_DEPTH_RULES + CODE_FORMAT_RULES + LARGE_CODE_RULES + STRICT_FORMATTING_RULES + TABLES_AND_CHARTS_RULES + NO_MODEL_DISCLOSURE },
 ];
 
 
@@ -132,7 +135,7 @@ export const getMaxLimits = (plan) => getPlanLimits(plan).daily;
 // не гадаем заранее) — поэтому чем длиннее/сложнее оказался ответ, тем
 // больше реально спишется, а не фиксированная плата за сам факт отправки.
 const REASONING_WEIGHT_MULTIPLIER = { low: 1, medium: 1.15, high: 1.4, max: 1.8 };
-const MODEL_WEIGHT_MULTIPLIER = { flash: 0, flash_ext: 1, pro: 1.6 }; // flash = 0: безлимитна, вес не считаем
+const MODEL_WEIGHT_MULTIPLIER = { flash: 0, flash_ext: 1, pro: 1.6, auto: 0.9 }; // flash = 0: безлимитна; auto экономит, потому легче Plus
 const IMAGE_ATTACHMENT_TOKENS = 700; // грубая оценка vision-токенов на одно вложенное фото
 
 export const estimateRequestWeight = ({ inputText = '', responseText = '', imagesCount = 0, reasoningLevel = 'medium', modelId = 'flash_ext' }) => {
@@ -174,6 +177,7 @@ export const REASONING_LEVELS = [
 // фронтенде пока нет.
 export const isModelAllowedForPlan = (modelId, userPlan) => {
     if (modelId === 'flash') return true; // Void Mini - всем
+    if (modelId === 'auto') return true;  // Авто - всем (внутри сам подбирает доступную модель)
     if (modelId === 'ultra') return userPlan === 'pro_plus';
     return userPlan === 'pro' || userPlan === 'pro_plus'; // flash_ext / pro
 };

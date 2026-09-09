@@ -133,6 +133,30 @@ function limitExceededError(status: number, code: string, message: string, upgra
 // против тарифа и намерения (код/сайт), а не доверяется напрямую.
 export function resolveModel(planRaw: string | undefined, modeRaw: string | undefined, userText: string): { model: string; mode: ModeId; plan: PlanName } {
   const plan = normalizePlan(planRaw);
+
+  // ==========================================
+  // Режим «Авто» — сервер сам выбирает реальную модель под сложность
+  // ==========================================
+  // Экономия токенов: простые сообщения уходят на быструю (дешёвую) модель,
+  // код/сложные — на мощную. Пользователь всегда видит просто «Авто».
+  // Выбор всегда в рамках whitelist тарифа (на Free доступна только flash,
+  // поэтому auto там всегда = flash — никаких платных моделей бесплатно).
+  if (String(modeRaw) === 'auto') {
+    const code = isCodeIntent(userText);
+    const heavy = code || String(userText || '').length > 320;
+    const order: ModeId[] = heavy ? ['pro', 'flash_ext', 'flash'] : ['flash', 'flash_ext', 'pro'];
+    for (const cand of order) {
+      const slug = MODEL_WHITELIST[plan][cand];
+      if (!slug) continue;
+      // Явное намерение по коду на мощном режиме — спец-модель для кода.
+      if (code && (cand === 'pro' || cand === 'flash_ext')) {
+        return { model: CODE_INTENT_MODEL, mode: cand, plan };
+      }
+      return { model: slug, mode: cand, plan };
+    }
+    return { model: MODEL_WHITELIST[plan].flash as string, mode: 'flash', plan };
+  }
+
   const mode: ModeId = (['flash', 'flash_ext', 'pro', 'ultra'].includes(String(modeRaw)) ? modeRaw : 'flash') as ModeId;
 
   const whitelisted = MODEL_WHITELIST[plan][mode];
