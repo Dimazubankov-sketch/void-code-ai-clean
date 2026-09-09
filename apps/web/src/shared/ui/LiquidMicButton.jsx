@@ -86,7 +86,10 @@ export function LiquidMicButton({ voice, size = 'md', bordered = false, onStart,
         : '';
 
     return (
-        <div className={`${dims} shrink-0 ${className}`}>
+        // #10: обёртка тоже растягивается до зоны нажатия (void-tap-target,
+        // 44px на телефоне) — иначе внутренняя кнопка вылезала за пределы
+        // обёртки w-9 (36px) и наслаивалась на кнопку отправки/Voice Mode.
+        <div className={`void-tap-target ${dims} shrink-0 flex items-center justify-center ${className}`}>
             <button
                 ref={btnRef}
                 onClick={handleClick}

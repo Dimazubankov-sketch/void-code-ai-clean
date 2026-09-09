@@ -8,7 +8,6 @@ import { useOpenAiTts } from '@/shared/lib/useOpenAiTts';
 import { createBackendChat, sendBackendMessage } from '@/shared/api/chat';
 import { buildAgentSystemPrompt } from '@/shared/lib/agentPrompt';
 import { buildAgentSkillsInstruction } from '@/features/cockpit/AgentSkillsPanel';
-import { CallAgentSettings } from '@/features/cockpit/CallAgentSettings';
 import { Icons } from '@/shared/ui/Icons';
 
 // ==========================================
@@ -38,7 +37,6 @@ export function AgentChatView({ state, updateState }) {
     const [image, setImage] = useState(null);
     const [thinking, setThinking] = useState(false);
     const [showPlusMenu, setShowPlusMenu] = useState(false);
-    const [showSettings, setShowSettings] = useState(false);
     const endRef = useRef(null);
     const chatFileInputRef = useRef(null);
     const cameraInputRef = useRef(null);
@@ -153,33 +151,27 @@ export function AgentChatView({ state, updateState }) {
         })();
     };
 
+    // #5: чат агента на ПК выглядит как обычный чат (полноэкранный, фон
+    // приложения, контент по центру колонкой), а не как модальное окно.
     return (
-        <div className="fixed inset-x-0 top-0 h-app-screen z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm fade-in p-0 sm:p-4" onClick={close}>
-            <div className="bg-white dark:bg-darkCard w-full h-full sm:h-[80vh] sm:max-w-md sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                {/* Шапка */}
-                <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-darkBorder shrink-0">
-                    <button onClick={close} className="p-1.5 -ml-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.ChevronLeft /></button>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: color + '22', color }}>
-                        <Icons.Robot className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="font-bold text-sm dark:text-white truncate">{agent.name}</p>
-                        <p className="text-[11px] text-gray-400 truncate">{agent.profession === 'calls' ? 'Агент звонков' : 'Работает по промту в этом чате'}</p>
-                    </div>
-                    {/* #4: у агента-профессии «Звонки» — кнопка «⋮» с настройками
-                        (номер, модель, голос, инструкции, коннекторы). */}
-                    {agent.profession === 'calls' && (
-                        <button onClick={() => setShowSettings(true)} title="Настройки агента" className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0">
-                            <Icons.Dots className="w-5 h-5" />
-                        </button>
-                    )}
+        <div className="fixed inset-0 z-[70] flex flex-col bg-[#f8f9fc] dark:bg-darkBg fade-in">
+            {/* Шапка — как у обычного чата */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-darkBorder shrink-0 bg-white/70 dark:bg-darkCard/60 backdrop-blur-xl">
+                <button onClick={close} className="p-1.5 -ml-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.ChevronLeft /></button>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: color + '22', color }}>
+                    <Icons.Robot className="w-5 h-5" />
                 </div>
-                {showSettings && <CallAgentSettings agent={agent} state={state} updateState={updateState} onClose={() => setShowSettings(false)} />}
+                <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm dark:text-white truncate">{agent.name}</p>
+                    <p className="text-[11px] text-gray-400 truncate">{agent.profession === 'calls' ? 'Агент звонков' : 'Работает по промту в этом чате'}</p>
+                </div>
+            </div>
 
-                {/* История */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* История — центрированная колонка, как в основном чате */}
+            <div className="flex-1 overflow-y-auto">
+                <div className="max-w-3xl mx-auto w-full p-4 space-y-3">
                     {thread.length === 0 && (
-                        <div className="text-center text-gray-300 dark:text-gray-600 py-12">
+                        <div className="text-center text-gray-300 dark:text-gray-600 py-16">
                             <Icons.MessageSquare className="w-10 h-10 mx-auto mb-2" />
                             <p className="text-sm">Напишите агенту задачу или вопрос</p>
                         </div>
@@ -203,19 +195,17 @@ export function AgentChatView({ state, updateState }) {
                     {thinking && <ThinkingIndicator lang={state.lang || 'ru'} level="medium" />}
                     <div ref={endRef} />
                 </div>
+            </div>
 
-                {/* Скрытые инпуты для камеры/фото/файлов - тот же паттерн,
-                    что и в основном чате. */}
-                <input type="file" ref={chatFileInputRef} accept="image/jpeg, image/png, image/webp, image/heic" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
-                <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
-                <input type="file" ref={anyFileInputRef} accept=".pdf,.doc,.docx,.txt,.csv,.json" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
+            {/* Скрытые инпуты для камеры/фото/файлов - тот же паттерн,
+                что и в основном чате. */}
+            <input type="file" ref={chatFileInputRef} accept="image/jpeg, image/png, image/webp, image/heic" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
+            <input type="file" ref={cameraInputRef} accept="image/*" capture="environment" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
+            <input type="file" ref={anyFileInputRef} accept=".pdf,.doc,.docx,.txt,.csv,.json" className="hidden" onChange={(e) => { addImageFile(e.target.files); e.target.value = ''; }} />
 
-                {/* Поле ввода - точная копия основного чата по размеру и
-                    поведению (AgentComposer, см. файл), без Voice Mode.
-                    Разделительная полоса над полем убрана: border-t
-                    только визуально дублировал границу самого поля ввода
-                    и смотрелся лишней линией на скриншотах. */}
-                <div className="p-3 shrink-0 relative">
+            {/* Поле ввода — центрированная колонка, как в основном чате */}
+            <div className="shrink-0 relative">
+                <div className="max-w-3xl mx-auto w-full p-3 relative">
                     {image && (
                         <div className="absolute -top-16 left-4 bg-white dark:bg-darkCard p-1 rounded-xl shadow-lg border border-gray-200 dark:border-darkBorder group fade-in">
                             <img src={image} className="h-14 w-14 object-cover rounded-lg" alt="" />

@@ -34,7 +34,7 @@ export function ModelSelector({ state, updateState, compact = false }) {
             <PressButton
                 onClick={() => setShowDropdown(!showDropdown)}
                 className={compact
-                    ? "void-tap-target flex items-center justify-center h-9 px-4 min-w-[76px] rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-center"
+                    ? "void-tap-target flex items-center justify-center h-9 px-6 min-w-[108px] rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-center"
                     : "void-tap-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/70 dark:bg-white/10 backdrop-blur-xl border border-black/[0.06] dark:border-white/10 shadow-sm hover:bg-white/90 dark:hover:bg-white/[0.16] transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none"}
             >
                 <div className={`flex items-center gap-1 font-bold dark:text-white leading-tight min-w-0 ${compact ? 'text-[13px]' : 'text-[13px] sm:text-[15px] md:text-lg'}`}>

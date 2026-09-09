@@ -603,9 +603,16 @@ export function ImagesView({ state, updateState }) {
                 const url = isVid ? activeVideo.url : imgFs.url;
                 const err = isVid ? activeVideo.error : imgFs.error;
                 const closeFs = () => { setActiveVideoId(null); setImgFs(null); };
+                // #1: у видео фон остаётся чёрным (это видеоплеер), а у КАРТИНОК
+                // окно теперь в тон приложения (светлое/тёмное по теме) — раньше
+                // всё было чёрным и выглядело сломанным.
+                const overlayBg = isVid ? 'bg-black' : 'bg-[#f8f9fc] dark:bg-darkBg';
+                const closeBtnCls = isVid
+                    ? 'bg-white/10 hover:bg-white/20 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200';
                 return (
-                    <div className="fixed inset-0 z-[80] bg-black flex flex-col items-center justify-center p-4 fade-in">
-                        <PressButton onClick={closeFs} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center" title="Закрыть"><Icons.X className="w-5 h-5" /></PressButton>
+                    <div className={`fixed inset-0 z-[80] ${overlayBg} flex flex-col items-center justify-center p-4 fade-in`}>
+                        <PressButton onClick={closeFs} className={`absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${closeBtnCls}`} title="Закрыть"><Icons.X className="w-5 h-5" /></PressButton>
                         {status === 'completed' ? (
                             isVid ? (
                                 <div className="flex flex-col items-center gap-5 max-w-3xl w-full">
@@ -620,7 +627,7 @@ export function ImagesView({ state, updateState }) {
                                 // панель редактирования справа (на телефоне — снизу).
                                 <div className="w-full max-w-5xl flex flex-col md:flex-row items-stretch gap-4 md:gap-6">
                                     <div className="flex-1 min-w-0 flex items-center justify-center">
-                                        <div className={`relative rounded-2xl overflow-hidden ${imgFs?.bgRemoved ? 'void-checkerboard' : ''}`}>
+                                        <div className={`relative rounded-2xl overflow-hidden shadow-lg ${imgFs?.bgRemoved ? 'void-checkerboard' : ''}`}>
                                             <img src={url} alt={imgFs?.prompt || ''} className="max-w-full max-h-[74vh] object-contain" />
                                             {editBusy && (
                                                 <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-3">
@@ -631,21 +638,21 @@ export function ImagesView({ state, updateState }) {
                                         </div>
                                     </div>
                                     {/* Правая панель редактирования — реальные действия */}
-                                    <div className="w-full md:w-64 shrink-0 flex flex-col gap-2.5 bg-white/[0.06] border border-white/10 rounded-2xl p-3.5 backdrop-blur-xl self-start">
-                                        <p className="text-white/50 text-[11px] font-bold uppercase tracking-wide px-1 mb-0.5">Редактирование</p>
-                                        <a href={url} download={`void-image-${Date.now()}.png`} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white text-gray-900 font-bold text-sm hover:bg-gray-100 transition-colors"><Icons.Download className="w-4 h-4" /> Скачать PNG</a>
-                                        <PressButton disabled={!!editBusy} onClick={removeBgFromFs} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/15 transition-colors disabled:opacity-50 text-left"><Icons.Sparkles className="w-4 h-4 shrink-0" /> {imgFs?.bgRemoved ? 'Фон удалён' : 'Удалить фон'}</PressButton>
-                                        <PressButton disabled={!!editBusy} onClick={regenerateFromFs} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/15 transition-colors disabled:opacity-50 text-left"><Icons.Refresh className="w-4 h-4 shrink-0" /> Вариация</PressButton>
-                                        <PressButton disabled={!!editBusy} onClick={editImageFromFs} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/15 transition-colors disabled:opacity-50 text-left"><Icons.Pencil className="w-4 h-4 shrink-0" /> Изменить запрос</PressButton>
-                                        {editErr && <p className="text-red-300 text-xs font-semibold px-1 pt-1">{editErr}</p>}
+                                    <div className="w-full md:w-64 shrink-0 flex flex-col gap-2.5 bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder rounded-2xl p-3.5 self-start shadow-sm">
+                                        <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wide px-1 mb-0.5">Редактирование</p>
+                                        <a href={url} download={`void-image-${Date.now()}.png`} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold text-sm transition-colors"><Icons.Download className="w-4 h-4" /> Скачать PNG</a>
+                                        <PressButton disabled={!!editBusy} onClick={removeBgFromFs} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 font-bold text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-left"><Icons.Sparkles className="w-4 h-4 shrink-0" /> {imgFs?.bgRemoved ? 'Фон удалён' : 'Удалить фон'}</PressButton>
+                                        <PressButton disabled={!!editBusy} onClick={regenerateFromFs} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 font-bold text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-left"><Icons.Refresh className="w-4 h-4 shrink-0" /> Вариация</PressButton>
+                                        <PressButton disabled={!!editBusy} onClick={editImageFromFs} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 font-bold text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 text-left"><Icons.Pencil className="w-4 h-4 shrink-0" /> Изменить запрос</PressButton>
+                                        {editErr && <p className="text-red-500 text-xs font-semibold px-1 pt-1">{editErr}</p>}
                                     </div>
                                 </div>
                             )
                         ) : status === 'failed' ? (
                             <div className="flex flex-col items-center gap-3 text-center">
                                 <Icons.Alert className="w-8 h-8 text-red-400" />
-                                <p className="text-red-300 font-semibold max-w-sm">{err || 'Ошибка генерации'}</p>
-                                <PressButton onClick={closeFs} className="mt-2 px-5 py-2.5 rounded-full bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/20 transition-colors">Закрыть</PressButton>
+                                <p className={`font-semibold max-w-sm ${isVid ? 'text-red-300' : 'text-red-500'}`}>{err || 'Ошибка генерации'}</p>
+                                <PressButton onClick={closeFs} className={`mt-2 px-5 py-2.5 rounded-full font-bold text-sm transition-colors ${isVid ? 'bg-white/10 text-white hover:bg-white/20 border border-white/20' : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>Закрыть</PressButton>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center gap-6">
@@ -658,8 +665,8 @@ export function ImagesView({ state, updateState }) {
                                         <span className="text-white/80 text-sm font-bold tabular-nums">{videoProgress}%</span>
                                     </div>
                                 )}
-                                <p className="text-white/70 text-sm font-semibold">{isVid ? 'Генерируется видео…' : 'Генерируется изображение…'}</p>
-                                <PressButton onClick={closeFs} className="px-5 py-2 rounded-full bg-white/10 text-white/90 text-sm font-bold hover:bg-white/20 border border-white/15 transition-colors">{isVid ? 'Свернуть' : 'Отмена'}</PressButton>
+                                <p className={`text-sm font-semibold ${isVid ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>{isVid ? 'Генерируется видео…' : 'Генерируется изображение…'}</p>
+                                <PressButton onClick={closeFs} className={`px-5 py-2 rounded-full text-sm font-bold transition-colors ${isVid ? 'bg-white/10 text-white/90 hover:bg-white/20 border border-white/15' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>{isVid ? 'Свернуть' : 'Отмена'}</PressButton>
                             </div>
                         )}
                     </div>

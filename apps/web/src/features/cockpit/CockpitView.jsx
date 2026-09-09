@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { SubordinateLinkMenu } from '@/features/cockpit/SubordinateLinkMenu';
+import { CallAgentSettings } from '@/features/cockpit/CallAgentSettings';
 import { MAIL_PROVIDERS, MESSENGERS } from '@/shared/config/agents';
 import { canUseOrchestrators } from '@/shared/config/orchestrator';
 import { validateAgentName } from '@/shared/lib/agent-naming';
@@ -16,8 +18,6 @@ import { Icons } from '@/shared/ui/Icons';
 // магазине под фиксированную специализацию — профессия не меняется. Клик по
 // карточке раскрывает пресеты-действия; чат вынесен отдельной иконкой.
 
-// Палитра ручной смены цвета агента
-const AGENT_COLORS = ['#5b32d4', '#e11d48', '#f59e0b', '#22c55e', '#3b82f6', '#a52fe0', '#0ea5e9', '#64748b'];
 
 const statusColor = (agent) => {
     if (agent.isPaid === false) return '#ef4444';
@@ -79,61 +79,73 @@ function GiftAgentModal({ agent, onClaim }) {
 // Раскрытый блок управления агентом. С этого момента агент не настраивается
 // тумблерами-пресетами — он выполняет задачи только по промту: либо в личном
 // чате с ним, либо получая их от привязанного оркестратора.
-function AgentControls({ agent, onUpdate, allAgents }) {
-    const [renaming, setRenaming] = useState(false);
-    const [nameVal, setNameVal] = useState(agent.name);
-    const [nameErr, setNameErr] = useState('');
-
-    const saveName = () => {
-        const check = validateAgentName(nameVal, allAgents, agent.id);
-        if (!check.ok) { setNameErr(check.reason); return; }
-        onUpdate({ name: nameVal.trim() });
-        setRenaming(false); setNameErr('');
-    };
-
+function AgentControls({ agent }) {
+    // #3: смена цвета убрана; переименование теперь по правому клику /
+    // долгому нажатию на карточку (см. AgentCard → onRename). Здесь остаётся
+    // только подключённый сервис и подсказка.
     return (
         <div className="px-4 pb-4 pt-1 space-y-4 border-t border-gray-100 dark:border-darkBorder mt-1">
-            {/* Переименование с проверкой уникальности */}
-            {renaming ? (
-                <div>
-                    <div className="flex items-center gap-2">
-                        <input autoFocus value={nameVal} onChange={e => { setNameVal(e.target.value); setNameErr(''); }} onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setRenaming(false); setNameErr(''); } }} className={`flex-1 min-w-0 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border text-sm font-bold dark:text-white outline-none ${nameErr ? 'border-red-400 focus:border-red-500' : 'border-gray-200 dark:border-darkBorder focus:border-[#5b32d4]'}`} />
-                        <button onClick={saveName} className="p-2 rounded-lg text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 shrink-0"><Icons.Check className="w-4 h-4" /></button>
-                    </div>
-                    {nameErr && <p className="text-xs text-red-500 mt-1.5 px-1 fade-in">{nameErr}</p>}
-                </div>
-            ) : (
-                <button onClick={() => { setNameVal(agent.name); setRenaming(true); }} className="text-xs font-bold text-[#5b32d4] flex items-center gap-1.5"><Icons.Pencil className="w-3.5 h-3.5" /> Переименовать</button>
-            )}
-
             {/* Подключённый сервис */}
             <ConnectedService agent={agent} />
-
-            {/* Ручная смена цвета агента */}
-            <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">Цвет агента</p>
-                <div className="flex flex-wrap gap-2">
-                    {AGENT_COLORS.map(c => (
-                        <button key={c} onClick={() => onUpdate({ color: c })} className={`w-7 h-7 rounded-full transition-transform ${(agent.color || '#5b32d4') === c ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-darkCard scale-110' : ''}`} style={{ backgroundColor: c }} />
-                    ))}
-                </div>
-            </div>
 
             {/* Подсказка: агент теперь работает только по промту */}
             <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 <Icons.Info className="w-4 h-4 shrink-0 mt-0.5 text-gray-400" />
-                Агент выполняет задачи по промту: напишите ему напрямую в чате или привяжите к оркестратору, чтобы он получал задачи автоматически.
+                Агент выполняет задачи по промту: напишите ему напрямую в чате или привяжите к оркестратору, чтобы он получал задачи автоматически. Чтобы переименовать — нажмите правой кнопкой мыши или удерживайте карточку.
             </div>
         </div>
     );
 }
 
-function AgentCard({ agent, expanded, onToggle, onUpdate, onChat, allAgents, index = 0, orchestratorsCount = 0 }) {
+// #3: всплывающее окно переименования (по правому клику / долгому нажатию).
+// Для агента-профессии «Звонки» здесь же — вход в настройки звонков (номер,
+// модель, голос, инструкции, коннекторы), т.к. кнопку «⋮» в чате убрали (#4).
+function RenameModal({ agent, allAgents, onSave, onClose, onOpenCallSettings }) {
+    const [nameVal, setNameVal] = useState(agent.name);
+    const [nameErr, setNameErr] = useState('');
+    const save = () => {
+        const check = validateAgentName(nameVal, allAgents, agent.id);
+        if (!check.ok) { setNameErr(check.reason); return; }
+        onSave(nameVal.trim());
+    };
+    return createPortal(
+        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in" onClick={onClose}>
+            <div className="bg-white dark:bg-darkCard w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+                <h4 className="font-extrabold text-lg dark:text-white mb-4">Переименовать агента</h4>
+                <input autoFocus value={nameVal} onChange={e => { setNameVal(e.target.value); setNameErr(''); }}
+                    onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onClose(); }}
+                    className={`w-full px-4 py-3 rounded-2xl bg-gray-50 dark:bg-gray-800 border text-sm font-bold dark:text-white outline-none mb-1 ${nameErr ? 'border-red-400 focus:border-red-500' : 'border-gray-200 dark:border-darkBorder focus:border-[#5b32d4]'}`} />
+                {nameErr && <p className="text-xs text-red-500 mb-2 px-1 fade-in">{nameErr}</p>}
+                <div className="flex gap-2 mt-4">
+                    <button onClick={onClose} className="flex-1 py-3 rounded-2xl bg-gray-100 dark:bg-gray-800 font-bold text-sm dark:text-white">Отмена</button>
+                    <button onClick={save} className="flex-1 py-3 rounded-2xl bg-[#5b32d4] hover:bg-[#4c28b8] text-white font-bold text-sm transition-colors">Сохранить</button>
+                </div>
+                {agent.profession === 'calls' && (
+                    <button onClick={onOpenCallSettings} className="w-full mt-2 py-3 rounded-2xl bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold text-sm transition-colors flex items-center justify-center gap-2">
+                        <Icons.Phone className="w-4 h-4" /> Настройки звонков
+                    </button>
+                )}
+            </div>
+        </div>, document.body);
+}
+
+function AgentCard({ agent, expanded, onToggle, onChat, onRename, allAgents, index = 0, orchestratorsCount = 0 }) {
     const managingOrchestrator = (allAgents || []).find(a => a.kind === 'orchestrator' && (a.orchestration?.subordinateIds || []).includes(agent.id));
     const label = managingOrchestrator ? `Подчинён «${managingOrchestrator.name}»` : 'Ждёт задачи в чате';
     const color = agent.color || '#5b32d4';
+    // #3: правый клик (ПК) / долгое удержание (телефон) → окно переименования.
+    const pressTimer = useRef(null);
+    const startPress = () => { pressTimer.current = setTimeout(() => onRename?.(agent), 480); };
+    const cancelPress = () => { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } };
     return (
-        <div style={{ animationDelay: `${(orchestratorsCount + index) * 70}ms` }} className="void-pop-up bg-white dark:bg-darkCard rounded-2xl border border-gray-100 dark:border-darkBorder overflow-hidden transition-shadow hover:shadow-sm">
+        <div
+            style={{ animationDelay: `${(orchestratorsCount + index) * 70}ms` }}
+            className="void-pop-up bg-white dark:bg-darkCard rounded-2xl border border-gray-100 dark:border-darkBorder overflow-hidden transition-shadow hover:shadow-sm"
+            onContextMenu={(e) => { e.preventDefault(); onRename?.(agent); }}
+            onTouchStart={startPress}
+            onTouchEnd={cancelPress}
+            onTouchMove={cancelPress}
+        >
             <div className="flex items-center gap-3 p-4">
                 <button onClick={onToggle} className="flex items-center gap-3 flex-1 min-w-0 text-left">
                     <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: color + '22', color }}>
@@ -153,7 +165,7 @@ function AgentCard({ agent, expanded, onToggle, onUpdate, onChat, allAgents, ind
                 <button onClick={() => onChat(agent)} className="p-2 rounded-xl text-gray-400 hover:text-[#5b32d4] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0" title="Чат с агентом"><Icons.MessageSquare className="w-4.5 h-4.5 w-5 h-5" /></button>
                 <button onClick={onToggle} className="p-1 text-gray-300 shrink-0"><Icons.ChevronLeft className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : '-rotate-90'}`} /></button>
             </div>
-            {expanded && <AgentControls agent={agent} onUpdate={onUpdate} allAgents={allAgents} />}
+            {expanded && <AgentControls agent={agent} />}
         </div>
     );
 }
@@ -165,6 +177,8 @@ function AgentCard({ agent, expanded, onToggle, onUpdate, onChat, allAgents, ind
 export function CockpitView({ state, updateState, embedded = false, searchQuery = '', onGoStore = null }) {
     const [expandedId, setExpandedId] = useState(null);
     const [linkOrchestrator, setLinkOrchestrator] = useState(null);
+    const [renameAgent, setRenameAgent] = useState(null); // #3
+    const [callSettingsAgent, setCallSettingsAgent] = useState(null); // #4
 
     const agents = state.aiAgents || [];
     const q = (searchQuery || '').trim().toLowerCase();
@@ -272,8 +286,8 @@ export function CockpitView({ state, updateState, embedded = false, searchQuery 
                                 allAgents={agents}
                                 expanded={expandedId === agent.id}
                                 onToggle={() => setExpandedId(expandedId === agent.id ? null : agent.id)}
-                                onUpdate={(patch) => updateAgent(agent.id, patch)}
                                 onChat={openChat}
+                                onRename={setRenameAgent}
                             />
                         ))}
                     </div>
@@ -291,6 +305,24 @@ export function CockpitView({ state, updateState, embedded = false, searchQuery 
 
             {showGiftModal && pendingGiftAgent && (
                 <GiftAgentModal agent={pendingGiftAgent} onClaim={claimGiftAgent} />
+            )}
+
+            {renameAgent && (
+                <RenameModal
+                    agent={renameAgent}
+                    allAgents={agents}
+                    onSave={(name) => { updateAgent(renameAgent.id, { name }); setRenameAgent(null); }}
+                    onClose={() => setRenameAgent(null)}
+                    onOpenCallSettings={() => { setCallSettingsAgent(renameAgent); setRenameAgent(null); }}
+                />
+            )}
+            {callSettingsAgent && (
+                <CallAgentSettings
+                    agent={(state.aiAgents || []).find(a => a.id === callSettingsAgent.id) || callSettingsAgent}
+                    state={state}
+                    updateState={updateState}
+                    onClose={() => setCallSettingsAgent(null)}
+                />
             )}
         </div>
     );

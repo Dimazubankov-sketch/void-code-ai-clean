@@ -9,10 +9,11 @@ export function StoreDrawer({ item, premium, mailbox, setMailbox, messenger, set
     if (!item) return null;
     const IconC = Icons[item.icon] || Icons.Robot;
     const insufficient = balance < (item.price || 0);
+    // #2: детали агента открываются по центру экрана (модалка), а не сбоку.
     return (
-        <div className="fixed inset-0 z-[80] flex justify-end" onClick={onClose}>
-            <div className="absolute inset-0 bg-black/40 fade-in" />
-            <div className="relative w-full sm:max-w-md h-full bg-white dark:bg-darkCard shadow-2xl slide-in-right flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm fade-in" />
+            <div className="relative w-full sm:max-w-md max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-darkCard shadow-2xl rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden fade-in" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-darkBorder shrink-0">
                     <span className="font-bold text-sm text-gray-400">Детали агента</span>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><Icons.X /></button>
