@@ -68,6 +68,9 @@ export function ImagesView({ state, updateState }) {
     // и кнопками «Скачать»/«Редактировать» после готовности.
     const [activeVideoId, setActiveVideoId] = useState(null);
     const [videoProgress, setVideoProgress] = useState(0);
+    // #8: полноэкранное окно генерации фото (как у видео — activeVideo).
+    // { status:'pending'|'completed'|'failed', url, prompt, error } | null
+    const [imgFs, setImgFs] = useState(null);
     // Задача 1: референсные фото — как в чате, до 4 штук, используются
     // и для image-to-image (обычная генерация картинок уже поддерживает
     // это на бэкенде), и для image-to-video (первое фото уходит как
@@ -145,17 +148,21 @@ export function ImagesView({ state, updateState }) {
 
     const generateImage = async () => {
         if (!gate() || !prompt.trim() || busy) return;
+        const thePrompt = prompt.trim();
         setBusy(true);
         setError(null);
+        // #8: показываем отдельное полноэкранное окно генерации.
+        setImgFs({ status: 'pending', prompt: thePrompt });
         try {
-            const url = await generateBackendImage(prompt.trim(), referenceImages);
+            const url = await generateBackendImage(thePrompt, referenceImages);
             updateState({
-                generatedImages: [{ id: Date.now() + Math.random(), prompt: prompt.trim(), url, timestamp: Date.now(), chatId: null }, ...(stateRef.current.generatedImages || [])],
+                generatedImages: [{ id: Date.now() + Math.random(), prompt: thePrompt, url, timestamp: Date.now(), chatId: null }, ...(stateRef.current.generatedImages || [])],
             });
+            setImgFs({ status: 'completed', url, prompt: thePrompt });
             setPrompt('');
             setReferenceImages([]);
         } catch (e) {
-            setError(e?.message || 'Не удалось сгенерировать изображение');
+            setImgFs({ status: 'failed', prompt: thePrompt, error: e?.message || 'Не удалось сгенерировать изображение' });
         } finally {
             setBusy(false);
         }
@@ -336,7 +343,7 @@ export function ImagesView({ state, updateState }) {
                 отдельным доком (см. ниже). */}
             <div className="flex-1 overflow-y-auto min-h-0">
                 <div className="max-w-3xl mx-auto px-4 md:px-8 py-6">
-                    {items.length === 0 && !activeVideo && (
+                    {items.length === 0 && (
                         <div className="text-center pt-10 md:pt-16 pb-4">
                             <h1 className="text-2xl md:text-3xl font-extrabold dark:text-white mb-2">
                                 Что мы будем создавать?
@@ -344,62 +351,6 @@ export function ImagesView({ state, updateState }) {
                             <p className="text-sm text-gray-400 dark:text-gray-500">
                                 Опиши идею в поле внизу - сгенерируем изображение или видео.
                             </p>
-                        </div>
-                    )}
-
-                    {/* Пункт 4/6/7: активная/последняя генерация видео -
-                        крупная карточка в области результатов (над полем
-                        ввода, задача #1). */}
-                    {activeVideo && (
-                        <div className="relative rounded-2xl overflow-hidden bg-gray-900 mb-4 aspect-video">
-                            <PressButton
-                                onClick={() => setActiveVideoId(null)}
-                                className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center"
-                                title="Скрыть"
-                            >
-                                <Icons.X className="w-3.5 h-3.5" />
-                            </PressButton>
-                            {activeVideo.status === 'completed' ? (
-                                <>
-                                    <video src={activeVideo.url} controls autoPlay className="w-full h-full object-contain bg-black" />
-                                    {activeVideo.dubbed && (
-                                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">
-                                            Озвучка наложена после генерации
-                                        </div>
-                                    )}
-                                    <a
-                                        href={activeVideo.url}
-                                        download={`void-video-${activeVideo.id}.mp4`}
-                                        className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-900 flex items-center justify-center shadow-lg transition-colors"
-                                        title="Скачать"
-                                    >
-                                        <Icons.Download className="w-4 h-4" />
-                                    </a>
-                                    <PressButton
-                                        onClick={() => editVideo(activeVideo)}
-                                        className="absolute bottom-3 left-3 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-900 flex items-center justify-center shadow-lg transition-colors"
-                                        title="Редактировать"
-                                    >
-                                        <Icons.Pencil className="w-4 h-4" />
-                                    </PressButton>
-                                </>
-                            ) : activeVideo.status === 'failed' ? (
-                                <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-                                    <Icons.Alert className="w-6 h-6 text-red-400 mb-2" />
-                                    <p className="text-sm text-red-300 font-semibold">{activeVideo.error || 'Ошибка генерации'}</p>
-                                </div>
-                            ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center gap-3">
-                                    <div className="relative w-16 h-16">
-                                        <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                                            <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="5" />
-                                            <circle cx="32" cy="32" r="28" fill="none" stroke="#8b5cf6" strokeWidth="5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 * (1 - videoProgress / 100)} style={{ transition: 'stroke-dashoffset 0.6s linear' }} />
-                                        </svg>
-                                        <span className="absolute inset-0 flex items-center justify-center text-white text-sm font-bold">{videoProgress}%</span>
-                                    </div>
-                                    <p className="text-xs text-gray-300 font-semibold">Генерируется видео…</p>
-                                </div>
-                            )}
                         </div>
                     )}
 
@@ -625,6 +576,53 @@ export function ImagesView({ state, updateState }) {
 
               </div>
             </div>
+
+            {/* #8: полноэкранное окно генерации (как Grok) — для фото и видео.
+                Пока идёт генерация — пульсирующий логотип + прогресс; по
+                готовности — сам результат со «Скачать»/«Редактировать». */}
+            {(activeVideo || imgFs) && (() => {
+                const isVid = !!activeVideo;
+                const status = isVid ? activeVideo.status : imgFs.status;
+                const url = isVid ? activeVideo.url : imgFs.url;
+                const err = isVid ? activeVideo.error : imgFs.error;
+                const closeFs = () => { setActiveVideoId(null); setImgFs(null); };
+                return (
+                    <div className="fixed inset-0 z-[80] bg-black flex flex-col items-center justify-center p-4 fade-in">
+                        <PressButton onClick={closeFs} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center" title="Закрыть"><Icons.X className="w-5 h-5" /></PressButton>
+                        {status === 'completed' ? (
+                            <div className="flex flex-col items-center gap-5 max-w-3xl w-full">
+                                {isVid
+                                    ? <video src={url} controls autoPlay playsInline className="max-w-full max-h-[72vh] rounded-2xl bg-black" />
+                                    : <img src={url} alt={imgFs?.prompt || ''} className="max-w-full max-h-[72vh] rounded-2xl object-contain" />}
+                                <div className="flex items-center gap-3">
+                                    <a href={url} download={`void-${isVid ? 'video' : 'image'}-${Date.now()}.${isVid ? 'mp4' : 'png'}`} className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-gray-900 font-bold text-sm hover:bg-gray-100 transition-colors"><Icons.Download className="w-4 h-4" /> Скачать</a>
+                                    {isVid && <PressButton onClick={() => editVideo(activeVideo)} className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/20 transition-colors"><Icons.Pencil className="w-4 h-4" /> Редактировать</PressButton>}
+                                </div>
+                            </div>
+                        ) : status === 'failed' ? (
+                            <div className="flex flex-col items-center gap-3 text-center">
+                                <Icons.Alert className="w-8 h-8 text-red-400" />
+                                <p className="text-red-300 font-semibold max-w-sm">{err || 'Ошибка генерации'}</p>
+                                <PressButton onClick={closeFs} className="mt-2 px-5 py-2.5 rounded-full bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/20 transition-colors">Закрыть</PressButton>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center gap-6">
+                                <div className="void-gen-pulse"><Icons.VoidLogo className="w-24 h-24" /></div>
+                                {isVid && (
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="w-56 h-1.5 rounded-full bg-white/15 overflow-hidden">
+                                            <div className="h-full bg-[#7c4dff] rounded-full" style={{ width: `${videoProgress}%`, transition: 'width 0.6s linear' }} />
+                                        </div>
+                                        <span className="text-white/80 text-sm font-bold tabular-nums">{videoProgress}%</span>
+                                    </div>
+                                )}
+                                <p className="text-white/70 text-sm font-semibold">{isVid ? 'Генерируется видео…' : 'Генерируется изображение…'}</p>
+                                <PressButton onClick={closeFs} className="px-5 py-2 rounded-full bg-white/10 text-white/90 text-sm font-bold hover:bg-white/20 border border-white/15 transition-colors">{isVid ? 'Свернуть' : 'Отмена'}</PressButton>
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
         </div>
     );
 }

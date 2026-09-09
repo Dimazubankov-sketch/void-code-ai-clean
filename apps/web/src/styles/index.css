@@ -501,6 +501,14 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
     .t-stream-in { transition: none !important; filter: none !important; opacity: 1 !important; }
 }
 
+/* Пульсирующий логотип в полноэкранном окне генерации (Image Studio, #8) */
+@keyframes void-gen-pulse {
+    0%, 100% { transform: scale(0.9); filter: drop-shadow(0 0 6px rgba(124,77,255,0.45)); }
+    50% { transform: scale(1.08); filter: drop-shadow(0 0 30px rgba(124,77,255,0.95)); }
+}
+.void-gen-pulse { animation: void-gen-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .void-gen-pulse { animation: none; } }
+
 /* Каретка «печати» ответа ИИ (StreamingMessage, задача 12) */
 .void-type-caret {
     display: inline-block;
