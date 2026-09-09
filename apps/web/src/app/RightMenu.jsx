@@ -95,15 +95,21 @@ export function RightMenu({ state, updateState, showRail = true }) {
     // сначала гаснет, ТОЛЬКО ПОСЛЕ этого меняется collapsed (React
     // перерисовывает нужный вариант), и уже новый контент проявляется —
     // визуально это одна плавная смена, а не два случайных кадра подряд.
-    const [collapsed, setCollapsed] = useState(true);
+    // Задача (#4): состояние «развёрнуто/свёрнуто» на ПК теперь живёт в
+    // App (state.menuExpanded) — чтобы основной контент резервировал под
+    // меню место и НЕ перекрывался им, а поле ввода оставалось по центру
+    // свободной области. Меню на ПК остаётся в выбранном состоянии, пока
+    // пользователь сам не свернёт его (никакого авто-сворачивания по клику).
+    const collapsed = !state.menuExpanded;
+    const setCollapsed = (next) => updateState({ menuExpanded: !next });
     const panelInnerRef = useRef(null);
     const isFirstCollapseRenderRef = useRef(true);
     const setCollapsedAnimated = (next) => {
         if (next === collapsed) return;
-        if (prefersReducedMotion() || !panelInnerRef.current) { setCollapsed(next); return; }
+        if (prefersReducedMotion() || !panelInnerRef.current) { updateState({ menuExpanded: !next }); return; }
         gsap.to(panelInnerRef.current, {
             opacity: 0, duration: 0.14, ease: EASE.out,
-            onComplete: () => setCollapsed(next),
+            onComplete: () => updateState({ menuExpanded: !next }),
         });
     };
     useEffect(() => {
@@ -220,12 +226,12 @@ export function RightMenu({ state, updateState, showRail = true }) {
                     // блокирует long-press.
                     role="button"
                     tabIndex={0}
-                    onClick={() => { updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false }); setCollapsed(true); }}
+                    onClick={() => { updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false }); }}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             updateState({ activeChatId: chat.id, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false });
-                            setCollapsed(true);
+                           
                         }
                     }}
                     className={`group w-full flex items-center gap-3 p-2 rounded-xl text-left transition-colors cursor-pointer ${state.activeChatId === chat.id ? 'bg-[#efecf9] dark:bg-purple-900/30 text-[#5b32d4] dark:text-purple-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'} touch-manipulation`}
@@ -258,16 +264,12 @@ export function RightMenu({ state, updateState, showRail = true }) {
 
     return (
         <>
-            {/* Задача 2: размытие фона убрано - остаётся только затемнение
-                (bg-black/40), без backdrop-blur, и на ПК, и на мобильном.
-                Задача 1: на ПК затемнение теперь появляется только когда
-                панель РАЗВЁРНУТА на полную ширину (!collapsed) - узкая
-                постоянная полоска ничего не блокирует и не требует фона.
-                На мобильном логика прежняя: показывается вместе с
-                выезжающей панелью (state.isRightMenuOpen). */}
+            {/* #3: затемнения при открытии меню больше НЕТ. На мобильном —
+                прозрачный слой-ловушка клика (тап вне меню закрывает шторку),
+                на ПК фон не нужен вовсе (меню часть layout, резервирует место). */}
             <div
-                className={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-300 ${state.isRightMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'} ${!collapsed ? 'md:opacity-100 md:pointer-events-auto' : 'md:opacity-0 md:pointer-events-none'}`}
-                onClick={() => { updateState({ isRightMenuOpen: false }); setCollapsedAnimated(true); }}
+                className={`fixed inset-0 z-40 md:hidden ${state.isRightMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                onClick={() => updateState({ isRightMenuOpen: false })}
             />
             {/* Задача 1: на ПК панель больше не открывается/закрывается -
                 она ПОСТОЯННО на экране (md:translate-x-0 без условий), в
@@ -275,7 +277,7 @@ export function RightMenu({ state, updateState, showRail = true }) {
                 референсе), а разворачивается в полный список тем же
                 «Свернуть»/«Развернуть». На мобильном ничего не изменилось:
                 обычная выезжающая по isRightMenuOpen панель. */}
-            <div className={`fixed top-0 left-0 h-full ${collapsed ? 'w-[82vw] md:w-16' : 'w-[82vw] md:w-80'} bg-white dark:bg-darkCard shadow-2xl z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : '-translate-x-full'} ${showRail ? 'md:translate-x-0' : 'md:-translate-x-full'}`}>
+            <div className={`fixed top-0 left-0 h-full ${collapsed ? 'w-[80vw] md:w-16' : 'w-[80vw] md:w-72'} bg-white dark:bg-darkCard border-r border-gray-200 dark:border-darkBorder z-50 transform transition-[width,transform] duration-300 flex flex-col ${state.isRightMenuOpen ? 'translate-x-0' : '-translate-x-full'} ${showRail ? 'md:translate-x-0' : 'md:-translate-x-full'}`}>
                 <div ref={panelInnerRef} className={`p-6 flex-1 min-h-0 flex flex-col relative overflow-hidden ${collapsed ? 'md:px-3' : ''}`}>
                     {/* Шапка: на мобильном - всегда обычный вид (лупа слева,
                         «Меню» по центру, крестик справа), collapsed её не
@@ -387,17 +389,17 @@ export function RightMenu({ state, updateState, showRail = true }) {
                             <NavButton primary icon={Icons.Plus} label={t(lang, 'menu.createChat')} onClick={() => {
                                 const nid = Date.now();
                                 updateState({ chatSessions: [{ id: nid, title: t(lang, 'menu.newChat'), messages: [] }, ...state.chatSessions], activeChatId: nid, currentView: 'chat', isRightMenuOpen: false, imageGenMode: false });
-                                setCollapsed(true);
+                               
                             }} />
                             {/* Задача 5: «Изображения» - отдельный инструмент
                                 (как Imagine у Grok), не привязанный к истории
                                 чата. На ПК живёт здесь, в меню; на телефоне -
                                 переключателем в шапке чата (см. TopHeader.jsx). */}
-                            <NavButton icon={Icons.Image} label="Изображения" onClick={() => { updateState({ currentView: 'images', isRightMenuOpen: false }); setCollapsed(true); }} />
-                            <NavButton icon={Icons.Folder} label={t(lang, 'menu.projects')} onClick={() => { updateState({ currentView: 'projects', isRightMenuOpen: false }); setCollapsed(true); }} />
-                            <NavButton icon={Icons.Skills} label={t(lang, 'menu.skills')} onClick={() => { updateState({ currentView: 'skills', isRightMenuOpen: false }); setCollapsed(true); }} />
-                            <NavButton icon={Icons.Plug} label={t(lang, 'menu.plugins')} onClick={() => { updateState({ currentView: 'plugins', isRightMenuOpen: false }); setCollapsed(true); }} />
-                            <NavButton icon={Icons.Library} label={t(lang, 'menu.library')} onClick={() => { updateState({ currentView: 'library', isRightMenuOpen: false }); setCollapsed(true); }} />
+                            <NavButton icon={Icons.Image} label="Изображения" onClick={() => { updateState({ currentView: 'images', isRightMenuOpen: false }); }} />
+                            <NavButton icon={Icons.Folder} label={t(lang, 'menu.projects')} onClick={() => { updateState({ currentView: 'projects', isRightMenuOpen: false }); }} />
+                            <NavButton icon={Icons.Skills} label={t(lang, 'menu.skills')} onClick={() => { updateState({ currentView: 'skills', isRightMenuOpen: false }); }} />
+                            <NavButton icon={Icons.Plug} label={t(lang, 'menu.plugins')} onClick={() => { updateState({ currentView: 'plugins', isRightMenuOpen: false }); }} />
+                            <NavButton icon={Icons.Library} label={t(lang, 'menu.library')} onClick={() => { updateState({ currentView: 'library', isRightMenuOpen: false }); }} />
                             {/* Задача 3: на месте прежней постоянной кнопки
                                 «Агенты» теперь «Больше» (…) - реже нужные
                                 пункты (Агенты, Почта) спрятаны за одним
@@ -413,12 +415,12 @@ export function RightMenu({ state, updateState, showRail = true }) {
                                 />
                             ) : (
                                 <div ref={moreRevealRef} className="space-y-1">
-                                    <NavButton icon={Icons.Robot} label="Агенты" onClick={() => { updateState({ currentView: 'agent-store', isRightMenuOpen: false }); setCollapsed(true); }} />
+                                    <NavButton icon={Icons.Robot} label="Агенты" onClick={() => { updateState({ currentView: 'agent-store', isRightMenuOpen: false }); }} />
                                     {/* Почта вынесена сюда из шапки чата: там она
                                         занимала постоянное место ради нечастого
                                         действия. Показываем счётчик непрочитанного,
                                         чтобы вынос в меню не «спрятал» новые письма. */}
-                                    <NavButton icon={Icons.Mail} label="Почта" onClick={() => { updateState({ showNotifications: true, isRightMenuOpen: false }); setCollapsed(true); }} right={
+                                    <NavButton icon={Icons.Mail} label="Почта" onClick={() => { updateState({ showNotifications: true, isRightMenuOpen: false }); }} right={
                                         <InlineNotificationBadge count={unreadMailCount} />
                                     } />
                                 </div>
@@ -439,7 +441,7 @@ export function RightMenu({ state, updateState, showRail = true }) {
                         В свёрнутом рельсе (задача 1) заменяется отдельной
                         центрированной версией ниже, эта скрыта на md+. */}
                     <div className={`absolute bottom-6 left-6 ${collapsed ? 'md:hidden' : ''}`}>
-                        <button onClick={() => { updateState({ currentView: 'settings', isRightMenuOpen: false }); setCollapsed(true); }} className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm text-gray-700 dark:text-gray-300">
+                        <button onClick={() => { updateState({ currentView: 'settings', isRightMenuOpen: false }); }} className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm text-gray-700 dark:text-gray-300">
                             <Icons.Settings className="w-6 h-6" />
                         </button>
                     </div>

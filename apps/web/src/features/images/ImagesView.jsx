@@ -335,7 +335,7 @@ export function ImagesView({ state, updateState }) {
                 а не под ним. Само поле ввода закреплено в самом низу экрана
                 отдельным доком (см. ниже). */}
             <div className="flex-1 overflow-y-auto min-h-0">
-                <div className="max-w-4xl mx-auto px-4 md:px-8 py-6">
+                <div className="max-w-3xl mx-auto px-4 md:px-8 py-6">
                     {items.length === 0 && !activeVideo && (
                         <div className="text-center pt-10 md:pt-16 pb-4">
                             <h1 className="text-2xl md:text-3xl font-extrabold dark:text-white mb-2">
@@ -423,7 +423,7 @@ export function ImagesView({ state, updateState }) {
             {/* Док композера - задача #1: поле ввода со всеми настройками
                 закреплено в НИЖНЕЙ части экрана (как в чате). */}
             <div className="shrink-0 border-t border-black/[0.06] dark:border-white/10 bg-white/85 dark:bg-darkBg/85 backdrop-blur-xl px-4 md:px-8 pt-3 pb-3 pb-safe">
-              <div className="max-w-4xl mx-auto">
+              <div className="max-w-3xl mx-auto">
                 {/* Пункт 5: настройки живут ОТДЕЛЬНО, над полем ввода -
                     само поле ввода теперь содержит только вложение,
                     переключатель Изображение/Видео и отправку. */}

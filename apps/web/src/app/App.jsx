@@ -58,6 +58,8 @@ const makeChatTitle = (text) => {
 // для App (резерв места под рельс), и для RightMenu (рисовать ли рельс).
 export const RAIL_VIEWS = new Set([
     'chat',
+    // #5: боковое меню теперь и в Image Studio, как в обычном чате.
+    'images',
 ]);
 export const isRailView = (view) => RAIL_VIEWS.has(view);
 
@@ -88,6 +90,10 @@ export function App() {
             ttsProvider: 'fish',               // 'fish' (Fish Audio S2.1 Pro, по умолчанию) | 'openai'
             voicePresetFish: null,             // выбранный голос Fish Audio (reference_id), null = голос по умолчанию
             isRightMenuOpen: false,
+            // #4: на ПК меню остаётся развёрнутым/свёрнутым по выбору
+            // пользователя (не сворачивается само). Хранится здесь, чтобы
+            // основной контент резервировал под меню место (см. App main).
+            menuExpanded: false,
             showAuthModal: false,
             checkoutPlan: null,
             billingCycle: 'month',
@@ -339,7 +345,7 @@ export function App() {
     }, [
         state.user, state.userPlan, state.usedDailyLimits, state.usedWeeklyLimits, state.dailyLimitExceededAt, state.isDarkMode,
         state.notificationsEnabled, state.chatSessions, state.activeChatId,
-        state.selectedModelId, state.lang,
+        state.selectedModelId, state.lang, state.menuExpanded,
         state.generatedImages, state.generatedVideos, state.generatedDocuments, state.aiAgents, state.activeAgentId, state.walletBalance, state.walletTransactions,
         state.projects, state.connectedPlugins
     ]);
@@ -893,7 +899,7 @@ export function App() {
                 Задача 3: место под рельс резервируем только на корневых
                 экранах (isRailView) - на вложенных (Настройки и т.д.)
                 рельса нет, поэтому и отступ не нужен. */}
-            <main className={`flex-1 flex flex-col h-full w-full relative z-10 transition-transform ${state.user && isRailView(state.currentView) ? 'md:ml-16' : ''}`}>
+            <main className={`flex-1 flex flex-col h-full w-full relative z-10 transition-[margin] duration-300 ${state.user && isRailView(state.currentView) ? (state.menuExpanded ? 'md:ml-72' : 'md:ml-16') : ''}`}>
                 {state.currentView === 'chat' && <ChatView state={state} updateState={updateState} handleSendMessage={handleSendMessage} handleGenerateImage={handleGenerateImage} messagesEndRef={messagesEndRef} chatFileInputRef={chatFileInputRef} voiceMode={voiceMode} />}
                 {state.currentView === 'settings' && <SettingsView state={state} updateState={updateState} />}
                 {state.currentView === 'pricing' && <PricingView state={state} updateState={updateState} />}

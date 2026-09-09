@@ -474,7 +474,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth"
                 style={{ paddingBottom: bottomPad }}
             >
-                <div className="max-w-4xl mx-auto space-y-6">
+                <div className="max-w-3xl mx-auto space-y-6">
                     {messages.length === 0 && (
                         <div className="flex flex-col items-center text-center mt-16 md:mt-24 fade-in">
                             <Icons.VoidLogo className="w-16 h-16 mx-auto mb-5" />
@@ -503,7 +503,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                     )}
                     
                     {messages.map((msg, idx) => (
-                        <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-4xl transition-colors rounded-2xl min-w-0 ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
+                        <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-3xl transition-colors rounded-2xl min-w-0 ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
                             {msg.role === 'user' ? (
                                 <UserMessageBubble msg={msg} onCopied={setShareToast} onEdit={(content) => handleEditMessage(idx, content)} />
                             ) : (
@@ -617,7 +617,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
             />
 
             <div ref={inputWrapRef} className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white dark:from-darkBg via-white dark:via-darkBg to-transparent pt-14 px-3 sm:px-4 md:px-8 z-20 pointer-events-none pb-safe">
-                <div className="relative max-w-4xl mx-auto pointer-events-auto">
+                <div className="relative max-w-3xl mx-auto pointer-events-auto">
                     {/* Warning-баннер: показывается когда дневной лимит чата
                         превышает 90%. Пользователь может закрыть крестиком -
                         тогда баннер не появится до следующего дня (сброс по
