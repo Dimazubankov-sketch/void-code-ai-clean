@@ -35,6 +35,7 @@ function logEnvChecklist() {
     { name: 'NOTION_CLIENT_SECRET', required: false, note: 'секрет интеграции Notion (пара к CLIENT_ID)' },
     { name: 'VOXIMPLANT_ACCOUNT_ID', required: false, note: 'коннектор «Звонки» — без него привязка номера/звонки недоступны' },
     { name: 'VOXIMPLANT_API_KEY', required: false, note: 'API-ключ Voximplant (пара к ACCOUNT_ID)' },
+    { name: 'PHOTOROOM_API_KEY', required: false, note: 'удаление фона у картинок (#8) — без него кнопка «Удалить фон» недоступна' },
   ];
   // eslint-disable-next-line no-console
   console.log('\n[ENV CHECK] ================================================');

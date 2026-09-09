@@ -27,6 +27,14 @@ class GenerateImageDto {
   images?: string[];
 }
 
+// #8: удаление фона у сгенерированного/загруженного изображения (Photoroom).
+// image — data-URL base64 ИЛИ http(s)-ссылка на картинку.
+class RemoveBgDto {
+  @IsString()
+  @MinLength(1)
+  image!: string;
+}
+
 @Controller('images')
 @UseGuards(JwtAuthGuard)
 export class ImageController {
@@ -39,6 +47,14 @@ export class ImageController {
   async generate(@Req() req: any, @Body() dto: GenerateImageDto) {
     await this.consumeImageLimit(req.user.userId);
     const url = await this.image.generate(dto.prompt, dto.images);
+    return { url };
+  }
+
+  // #8: удаление фона (Photoroom). Не расходует дневной лимит генерации —
+  // это редактирование уже готового изображения, а не новая генерация.
+  @Post('remove-bg')
+  async removeBg(@Body() dto: RemoveBgDto) {
+    const url = await this.image.removeBackground(dto.image);
     return { url };
   }
 

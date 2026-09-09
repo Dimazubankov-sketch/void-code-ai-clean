@@ -94,6 +94,17 @@ export async function generateBackendImage(prompt, images = []) {
   return data.url;
 }
 
+// #8: удаление фона у готового изображения (Photoroom на бэкенде).
+// image — data-URL или ссылка на картинку. Возвращает data-URL PNG с
+// прозрачным фоном. Не расходует дневной лимит генерации.
+export async function removeImageBackground(image) {
+  const data = await apiFetch('/images/remove-bg', {
+    method: 'POST',
+    body: { image },
+  });
+  return data.url;
+}
+
 // ==========================================
 // Генерация видео (OpenRouter Seedance 2.0/2.5) — задача 6 + свой голос
 // ==========================================

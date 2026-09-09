@@ -509,6 +509,19 @@ html, body { overscroll-behavior-y: none; height: 100%; overflow: hidden; positi
 .void-gen-pulse { animation: void-gen-pulse 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .void-gen-pulse { animation: none; } }
 
+/* Шахматная подложка под картинкой с удалённым фоном (#8) — показывает
+   прозрачность PNG, как в графических редакторах. */
+.void-checkerboard {
+    background-color: #fff;
+    background-image:
+        linear-gradient(45deg, #d0d0d8 25%, transparent 25%),
+        linear-gradient(-45deg, #d0d0d8 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #d0d0d8 75%),
+        linear-gradient(-45deg, transparent 75%, #d0d0d8 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+}
+
 /* Каретка «печати» ответа ИИ (StreamingMessage, задача 12) */
 .void-type-caret {
     display: inline-block;

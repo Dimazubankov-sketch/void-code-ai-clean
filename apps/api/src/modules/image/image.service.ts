@@ -305,6 +305,63 @@ export class ImageService {
     return { mediaType: match[1], buffer: Buffer.from(match[2], 'base64') };
   }
 
+  // ==========================================
+  // Удаление фона (#8) — Photoroom
+  // ==========================================
+  // Реальное (не заглушка) удаление фона через Photoroom Segment API.
+  // На вход — data-URL ИЛИ обычная http(s)-ссылка на картинку (то, что
+  // вернул генератор). На выход — data-URL PNG с прозрачным фоном.
+  // Ключ PHOTOROOM_API_KEY читается из .env; без него — понятный 503.
+  async removeBackground(image: string): Promise<string> {
+    const key = process.env.PHOTOROOM_API_KEY;
+    if (!key) {
+      throw new ServiceUnavailableException('Удаление фона не настроено на сервере (нет PHOTOROOM_API_KEY).');
+    }
+    // Приводим вход к Buffer: либо data-URL, либо скачиваем по ссылке.
+    let buffer: Buffer;
+    let mediaType = 'image/png';
+    if (typeof image === 'string' && image.startsWith('data:image/')) {
+      const parsed = this.parseDataUrl(image);
+      buffer = parsed.buffer;
+      mediaType = parsed.mediaType;
+    } else if (typeof image === 'string' && /^https?:\/\//.test(image)) {
+      const src = await fetch(image);
+      if (!src.ok) throw new ServiceUnavailableException('Не удалось загрузить исходное изображение для удаления фона.');
+      mediaType = src.headers.get('content-type') || 'image/png';
+      buffer = Buffer.from(await src.arrayBuffer());
+    } else {
+      throw new ServiceUnavailableException('Неверный формат изображения для удаления фона.');
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const form = new FormData();
+      const ext = (mediaType.split('/')[1] || 'png').split(';')[0];
+      form.append('image_file', new Blob([Uint8Array.from(buffer)], { type: mediaType }), `input.${ext}`);
+      form.append('format', 'png'); // PNG сохраняет прозрачность
+      const res = await fetch('https://sdk.photoroom.com/v1/segment', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'x-api-key': key, Accept: 'image/png, application/json' },
+        body: form as any,
+      });
+      if (!res.ok) {
+        let msg = `Photoroom вернул ошибку (HTTP ${res.status})`;
+        try { const j = await res.json(); if (j?.detail || j?.error) msg = j.detail || j.error; } catch { /* тело не json */ }
+        throw new ServiceUnavailableException(msg);
+      }
+      const out = Buffer.from(await res.arrayBuffer());
+      return `data:image/png;base64,${out.toString('base64')}`;
+    } catch (e: any) {
+      if (e instanceof ServiceUnavailableException) throw e;
+      if (e?.name === 'AbortError') throw new ServiceUnavailableException('Удаление фона заняло слишком долго. Попробуйте ещё раз.');
+      throw new ServiceUnavailableException('Не удалось удалить фон. Попробуйте позже.');
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private async callOpenAiOnce(key: string, body: Record<string, any>, attempt: number, refs: string[] = []): Promise<string> {
     const started = Date.now();
     const controller = new AbortController();

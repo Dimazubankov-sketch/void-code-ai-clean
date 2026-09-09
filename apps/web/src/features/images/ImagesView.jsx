@@ -4,7 +4,7 @@ import { Icons } from '@/shared/ui/Icons';
 import { PressButton } from '@/shared/ui/PressButton';
 import { SegmentedSlider } from '@/shared/ui/SegmentedSlider';
 import { AnchoredMenu } from '@/shared/ui/AnchoredMenu';
-import { generateBackendImage, submitBackendVideo, pollBackendVideo, listFishVoices } from '@/shared/api/chat';
+import { generateBackendImage, submitBackendVideo, pollBackendVideo, listFishVoices, removeImageBackground } from '@/shared/api/chat';
 import { compressImageFiles } from '@/shared/lib/imageCompress';
 import { EASE, DUR, prefersReducedMotion } from '@/shared/lib/motion';
 
@@ -71,6 +71,11 @@ export function ImagesView({ state, updateState }) {
     // #8: полноэкранное окно генерации фото (как у видео — activeVideo).
     // { status:'pending'|'completed'|'failed', url, prompt, error } | null
     const [imgFs, setImgFs] = useState(null);
+    // #8: состояние действий панели редактирования в окне генерации фото
+    // (удаление фона через Photoroom и т.п.). editBusy — идёт действие;
+    // editErr — текст ошибки под панелью.
+    const [editBusy, setEditBusy] = useState('');
+    const [editErr, setEditErr] = useState('');
     // Задача 1: референсные фото — как в чате, до 4 штук, используются
     // и для image-to-image (обычная генерация картинок уже поддерживает
     // это на бэкенде), и для image-to-video (первое фото уходит как
@@ -239,6 +244,51 @@ export function ImagesView({ state, updateState }) {
         if (item.imageUrl) setReferenceImages([item.imageUrl]);
         setActiveVideoId(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // #8: «Редактировать» в окне генерации фото — вернуть промпт в форму
+    // для правки/повтора и закрыть полноэкранный просмотр.
+    const editImageFromFs = () => {
+        if (!imgFs) return;
+        setMode('image');
+        setPrompt(imgFs.prompt || '');
+        setImgFs(null);
+        setEditErr('');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // #8: удалить фон у текущего изображения (Photoroom). Результат
+    // подменяет картинку прямо в окне (можно тут же скачать PNG).
+    const removeBgFromFs = async () => {
+        if (!imgFs?.url || editBusy) return;
+        setEditErr('');
+        setEditBusy('bg');
+        try {
+            const newUrl = await removeImageBackground(imgFs.url);
+            setImgFs(prev => prev ? { ...prev, url: newUrl, bgRemoved: true } : prev);
+        } catch (e) {
+            setEditErr(e?.message || 'Не удалось удалить фон.');
+        } finally {
+            setEditBusy('');
+        }
+    };
+
+    // #8: вариация — сгенерировать заново по тому же промпту (новый кадр).
+    const regenerateFromFs = async () => {
+        if (!imgFs?.prompt || editBusy) return;
+        setEditErr('');
+        setEditBusy('vary');
+        setImgFs(prev => prev ? { ...prev, status: 'pending' } : prev);
+        try {
+            const url = await generateBackendImage(imgFs.prompt, []);
+            setImgFs(prev => prev ? { ...prev, url, status: 'completed', bgRemoved: false } : prev);
+            updateState({ generatedImages: [{ id: Date.now() + Math.random(), url, prompt: imgFs.prompt, timestamp: Date.now() }, ...(stateRef.current.generatedImages || [])] });
+        } catch (e) {
+            setEditErr(e?.message || 'Не удалось создать вариацию.');
+            setImgFs(prev => prev ? { ...prev, status: 'completed' } : prev);
+        } finally {
+            setEditBusy('');
+        }
     };
 
     const generateVideo = async () => {
@@ -557,15 +607,40 @@ export function ImagesView({ state, updateState }) {
                     <div className="fixed inset-0 z-[80] bg-black flex flex-col items-center justify-center p-4 fade-in">
                         <PressButton onClick={closeFs} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center" title="Закрыть"><Icons.X className="w-5 h-5" /></PressButton>
                         {status === 'completed' ? (
-                            <div className="flex flex-col items-center gap-5 max-w-3xl w-full">
-                                {isVid
-                                    ? <video src={url} controls autoPlay playsInline className="max-w-full max-h-[72vh] rounded-2xl bg-black" />
-                                    : <img src={url} alt={imgFs?.prompt || ''} className="max-w-full max-h-[72vh] rounded-2xl object-contain" />}
-                                <div className="flex items-center gap-3">
-                                    <a href={url} download={`void-${isVid ? 'video' : 'image'}-${Date.now()}.${isVid ? 'mp4' : 'png'}`} className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-gray-900 font-bold text-sm hover:bg-gray-100 transition-colors"><Icons.Download className="w-4 h-4" /> Скачать</a>
-                                    {isVid && <PressButton onClick={() => editVideo(activeVideo)} className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/20 transition-colors"><Icons.Pencil className="w-4 h-4" /> Редактировать</PressButton>}
+                            isVid ? (
+                                <div className="flex flex-col items-center gap-5 max-w-3xl w-full">
+                                    <video src={url} controls autoPlay playsInline className="max-w-full max-h-[72vh] rounded-2xl bg-black" />
+                                    <div className="flex items-center gap-3">
+                                        <a href={url} download={`void-video-${Date.now()}.mp4`} className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-gray-900 font-bold text-sm hover:bg-gray-100 transition-colors"><Icons.Download className="w-4 h-4" /> Скачать</a>
+                                        <PressButton onClick={() => editVideo(activeVideo)} className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/20 transition-colors"><Icons.Pencil className="w-4 h-4" /> Редактировать</PressButton>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                // #8: окно генерации фото в стиле Grok — картинка слева,
+                                // панель редактирования справа (на телефоне — снизу).
+                                <div className="w-full max-w-5xl flex flex-col md:flex-row items-stretch gap-4 md:gap-6">
+                                    <div className="flex-1 min-w-0 flex items-center justify-center">
+                                        <div className={`relative rounded-2xl overflow-hidden ${imgFs?.bgRemoved ? 'void-checkerboard' : ''}`}>
+                                            <img src={url} alt={imgFs?.prompt || ''} className="max-w-full max-h-[74vh] object-contain" />
+                                            {editBusy && (
+                                                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-3">
+                                                    <div className="void-gen-pulse"><Icons.VoidLogo className="w-16 h-16" /></div>
+                                                    <p className="text-white/80 text-xs font-bold">{editBusy === 'bg' ? 'Удаляем фон…' : 'Создаём вариацию…'}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {/* Правая панель редактирования — реальные действия */}
+                                    <div className="w-full md:w-64 shrink-0 flex flex-col gap-2.5 bg-white/[0.06] border border-white/10 rounded-2xl p-3.5 backdrop-blur-xl self-start">
+                                        <p className="text-white/50 text-[11px] font-bold uppercase tracking-wide px-1 mb-0.5">Редактирование</p>
+                                        <a href={url} download={`void-image-${Date.now()}.png`} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white text-gray-900 font-bold text-sm hover:bg-gray-100 transition-colors"><Icons.Download className="w-4 h-4" /> Скачать PNG</a>
+                                        <PressButton disabled={!!editBusy} onClick={removeBgFromFs} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/15 transition-colors disabled:opacity-50 text-left"><Icons.Sparkles className="w-4 h-4 shrink-0" /> {imgFs?.bgRemoved ? 'Фон удалён' : 'Удалить фон'}</PressButton>
+                                        <PressButton disabled={!!editBusy} onClick={regenerateFromFs} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/15 transition-colors disabled:opacity-50 text-left"><Icons.Refresh className="w-4 h-4 shrink-0" /> Вариация</PressButton>
+                                        <PressButton disabled={!!editBusy} onClick={editImageFromFs} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/20 border border-white/15 transition-colors disabled:opacity-50 text-left"><Icons.Pencil className="w-4 h-4 shrink-0" /> Изменить запрос</PressButton>
+                                        {editErr && <p className="text-red-300 text-xs font-semibold px-1 pt-1">{editErr}</p>}
+                                    </div>
+                                </div>
+                            )
                         ) : status === 'failed' ? (
                             <div className="flex flex-col items-center gap-3 text-center">
                                 <Icons.Alert className="w-8 h-8 text-red-400" />
