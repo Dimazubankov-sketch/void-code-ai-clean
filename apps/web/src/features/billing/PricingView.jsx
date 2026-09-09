@@ -4,7 +4,7 @@ import { useGSAP } from '@gsap/react';
 import { BANKS, getBanks, getCurrency, formatCurrency, convertPrice } from '@/shared/config/banks';
 import { formatMoney, formatPrice } from '@/shared/lib/format';
 import { goBack } from '@/shared/lib/navigation';
-import { subscribeBackend } from '@/shared/api/billing';
+import { createBackendPayment } from '@/shared/api/billing';
 import { Icons } from '@/shared/ui/Icons';
 import { ShaderCard } from '@/shared/ui/ShaderCard';
 
@@ -51,6 +51,9 @@ export function PricingView({ state, updateState }) {
     const [cardExpiry, setCardExpiry] = useState('');
     const [cardCvc, setCardCvc] = useState('');
     const [paymentErrors, setPaymentErrors] = useState({});
+    // Состояние создания платежа ЮKassa (редирект на страницу оплаты).
+    const [payBusy, setPayBusy] = useState(false);
+    const [payError, setPayError] = useState(null);
 
     // ==========================================
     // СКАНЕР КАРТЫ ЧЕРЕЗ КАМЕРУ
@@ -124,63 +127,32 @@ export function PricingView({ state, updateState }) {
         return errors;
     };
 
-    const handleConfirmPayment = async () => {
-        // Защита: неавторизованный пользователь не может оформить подписку.
-        // Просто на случай, если он как-то попал на этот экран без входа.
-        if (!state.user) {
-            updateState({ showAuthModal: true, authTab: 'register' });
-            return;
-        }
-
-        const price = state.billingCycle === 'month' ? state.checkoutPlan.priceMonth : state.checkoutPlan.priceYear;
-
-        if (state.selectedMethod === 'wallet') {
-            const balance = state.walletBalance || 0;
-            if (balance < price) {
-                alert(`Недостаточно средств на балансе. Не хватает ${money(price - balance)} - пополните кошелёк и попробуйте снова.`);
-                return;
-            }
-            // Фиксируем подписку на сервере ДО обновления интерфейса:
-            // именно серверный user.plan открывает платные зоны.
-            try {
-                await subscribeBackend(state.checkoutPlan.id, state.billingCycle === 'year' ? 'YEAR' : 'MONTH');
-            } catch (e) {
-                alert(e?.message || 'Не удалось оформить подписку. Попробуйте ещё раз.');
-                return;
-            }
-            const now = Date.now();
-            const acctKey = (state.user?.email || '').trim().toLowerCase();
-            updateState({
-                walletBalance: balance - price,
-                walletTransactions: [{ id: 'tx' + now, type: 'subscription', amount: -price, description: `Подписка ${state.checkoutPlan.title} (${state.billingCycle === 'month' ? 'месяц' : 'год'})`, timestamp: now }, ...(state.walletTransactions || [])],
-                userPlan: state.checkoutPlan.id, checkoutPlan: null, currentView: 'settings', usedDailyLimits: 0,
-                accountPlans: acctKey ? { ...(state.accountPlans || {}), [acctKey]: state.checkoutPlan.id } : state.accountPlans
-            });
-            alert('Подписка успешно оформлена и оплачена с баланса кошелька!');
-            return;
-        }
-
-        let errors = {};
-        if (state.selectedMethod === 'card') errors = validateCard();
-        // Для СБП дополнительных полей не требуется — банк уже выбран заранее
-
-        if (Object.keys(errors).length > 0) {
-            setPaymentErrors(errors);
-            return;
-        }
-        setPaymentErrors({});
+    // Оплата через ЮKassa: создаём платёж на сервере и перенаправляем на
+    // защищённую страницу оплаты. Активация подписки произойдёт после
+    // возврата (App.jsx опросит статус) или по вебхуку — здесь мы НЕ трогаем
+    // userPlan (никаких фейковых активаций).
+    const startPayment = async () => {
+        if (!state.user) { updateState({ showAuthModal: true, authTab: 'register' }); return; }
+        setPayBusy(true);
+        setPayError(null);
         try {
-            await subscribeBackend(state.checkoutPlan.id, state.billingCycle === 'year' ? 'YEAR' : 'MONTH');
+            const { confirmationUrl, paymentId } = await createBackendPayment(
+                state.checkoutPlan.id,
+                state.billingCycle === 'year' ? 'YEAR' : 'MONTH',
+            );
+            if (confirmationUrl) {
+                // Запоминаем платёж, чтобы после возврата с ЮKassa опросить
+                // его статус и активировать подписку (см. App.jsx).
+                try { localStorage.setItem('void_pending_payment', paymentId || ''); } catch { /* noop */ }
+                window.location.href = confirmationUrl;
+                return;
+            }
+            setPayError('Не удалось получить ссылку на оплату. Попробуйте ещё раз.');
         } catch (e) {
-            alert(e?.message || 'Не удалось оформить подписку. Попробуйте ещё раз.');
-            return;
+            setPayError(e?.message || 'Не удалось создать платёж. Попробуйте ещё раз.');
+        } finally {
+            setPayBusy(false);
         }
-        const acctKey2 = (state.user?.email || '').trim().toLowerCase();
-        updateState({
-            userPlan: state.checkoutPlan.id, checkoutPlan: null, currentView: 'settings', usedDailyLimits: 0,
-            accountPlans: acctKey2 ? { ...(state.accountPlans || {}), [acctKey2]: state.checkoutPlan.id } : state.accountPlans
-        });
-        alert('Подписка успешно оформлена!');
     };
 
     // Множитель лимитов относительно базового (free): чем выше тариф,
@@ -197,179 +169,43 @@ export function PricingView({ state, updateState }) {
     if (state.checkoutPlan) {
         const price = state.billingCycle === 'month' ? state.checkoutPlan.priceMonth : state.checkoutPlan.priceYear;
         const period = state.billingCycle === 'month' ? 'в месяц' : 'в год';
-
-        if (state.paymentStep === 'form') {
-            return (
-                <div className="flex-1 overflow-y-auto pb-8 h-full bg-[#f8f9fc] dark:bg-darkBg fade-in w-full">
-                    <div className="px-4 py-8 max-w-2xl mx-auto">
-                        <div className="flex items-center mb-8 gap-4">
-                            <button onClick={() => updateState({paymentStep: 'select'})} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft /></button>
-                            <h2 className="text-2xl font-bold dark:text-white">Данные для оплаты</h2>
-                        </div>
-                        <div className="bg-white dark:bg-darkCard p-8 rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-xl mb-6">
-                            <div className="flex justify-between items-center mb-8 border-b border-gray-100 dark:border-gray-800 pb-4">
-                                <div>
-                                    <p className="text-sm font-bold text-gray-500">Сумма к оплате</p>
-                                    <p className="text-3xl font-extrabold text-[#5b32d4] dark:text-purple-400 mt-1">{money(price)} <span className="text-sm text-gray-500 font-medium">/ {period.replace('в ', '')}</span></p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={openCardScanner}
-                                    disabled={state.selectedMethod !== 'card'}
-                                    title={state.selectedMethod === 'card' ? 'Отсканировать карту камерой' : ''}
-                                    className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${state.selectedMethod === 'card' ? 'bg-purple-50 dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40 cursor-pointer' : 'bg-purple-50 dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-400 cursor-default'}`}
-                                >
-                                    {state.selectedMethod === 'card' && <Icons.Card />}
-                                    {state.selectedMethod === 'sbp' && <Icons.SBP />}
-                                    {state.selectedMethod === 'wallet' && <Icons.Wallet />}
-                                </button>
-                            </div>
-
-                            {state.selectedMethod === 'card' && (
-                                <div className="space-y-4 fade-in">
-                                    <div>
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <label className="text-xs font-bold text-gray-500 ml-1 block">Номер карты</label>
-                                            <button type="button" onClick={openCardScanner} className="flex items-center gap-1 text-xs font-bold text-[#5b32d4] dark:text-purple-400 hover:underline mr-1">
-                                                <Icons.Camera className="w-3.5 h-3.5" /> Сканировать камерой
-                                            </button>
-                                        </div>
-                                        <input type="text" value={cardNumber} onChange={e => { setCardNumber(e.target.value); setPaymentErrors(prev => ({...prev, cardNumber: null})); }} placeholder="0000 0000 0000 0000" className={`w-full p-4 bg-gray-50 dark:bg-[#23232f] border rounded-xl dark:text-white font-mono focus:outline-none ${paymentErrors.cardNumber ? 'border-2 border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-100 dark:border-gray-800 focus:border-[#5b32d4]'}`} />
-                                        {paymentErrors.cardNumber && <p className="text-xs text-red-500 font-semibold mt-1.5 ml-1">{paymentErrors.cardNumber}</p>}
-                                    </div>
-                                    <div className="flex gap-4">
-                                        <div className="flex-1">
-                                            <label className="text-xs font-bold text-gray-500 ml-1 mb-1.5 block">Срок действия</label>
-                                            <input type="text" value={cardExpiry} onChange={e => { setCardExpiry(e.target.value); setPaymentErrors(prev => ({...prev, cardExpiry: null})); }} placeholder="ММ/ГГ" className={`w-full p-4 bg-gray-50 dark:bg-[#23232f] border rounded-xl dark:text-white font-mono focus:outline-none ${paymentErrors.cardExpiry ? 'border-2 border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-100 dark:border-gray-800 focus:border-[#5b32d4]'}`} />
-                                            {paymentErrors.cardExpiry && <p className="text-xs text-red-500 font-semibold mt-1.5 ml-1">{paymentErrors.cardExpiry}</p>}
-                                        </div>
-                                        <div className="flex-1">
-                                            <label className="text-xs font-bold text-gray-500 ml-1 mb-1.5 block">CVC</label>
-                                            <input type="password" value={cardCvc} onChange={e => { setCardCvc(e.target.value); setPaymentErrors(prev => ({...prev, cardCvc: null})); }} placeholder="•••" className={`w-full p-4 bg-gray-50 dark:bg-[#23232f] border rounded-xl dark:text-white font-mono focus:outline-none ${paymentErrors.cardCvc ? 'border-2 border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-gray-100 dark:border-gray-800 focus:border-[#5b32d4]'}`} />
-                                            {paymentErrors.cardCvc && <p className="text-xs text-red-500 font-semibold mt-1.5 ml-1">{paymentErrors.cardCvc}</p>}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {state.selectedMethod === 'sbp' && (
-                                <div className="fade-in space-y-4">
-                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Выберите банк для оплаты</label>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                        {banks.map(b => (
-                                            <div key={b.id} onClick={() => updateState({selectedBank: b.id})} className={`p-3 border-2 rounded-xl cursor-pointer flex flex-col items-center justify-center gap-2 transition-all ${state.selectedBank === b.id ? 'border-[#5b32d4] bg-purple-50 dark:bg-purple-900/20' : 'border-gray-100 dark:border-gray-800 hover:border-gray-200'}`}>
-                                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{backgroundColor: b.bg, color: b.text}}>{b.initial}</div>
-                                                <span className="text-xs font-bold dark:text-white text-center">{b.name}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {state.selectedMethod === 'wallet' && (
-                                <div className="fade-in space-y-4">
-                                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl">
-                                        <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">Баланс кошелька</span>
-                                        <span className={`font-extrabold ${(state.walletBalance || 0) >= price ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{money(state.walletBalance || 0)}</span>
-                                    </div>
-                                    {(state.walletBalance || 0) < price ? (
-                                        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-900/40 flex gap-3 items-start">
-                                            <Icons.Alert className="w-5 h-5 shrink-0 text-amber-500 mt-0.5" style={{width:'20px',height:'20px',minWidth:'20px'}} />
-                                            <p className="text-sm text-amber-700 dark:text-amber-400 font-semibold leading-relaxed flex-1 min-w-0">Не хватает {money(price - (state.walletBalance || 0))}. Пополните баланс в разделе «Кошелёк» и вернитесь для оплаты.</p>
-                                        </div>
-                                    ) : (
-                                        <p className="text-sm text-gray-400">С баланса спишется {money(price)}, подписка активируется сразу.</p>
-                                    )}
-                                </div>
-                            )}
-
-                            <button onClick={handleConfirmPayment} className="w-full mt-8 py-4 bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold rounded-2xl shadow-lg transition-colors text-lg">
-                                {state.selectedMethod === 'sbp' ? 'Оплатить через приложение банка' : state.selectedMethod === 'wallet' ? `Оплатить с баланса ${money(price)}` : `Оплатить ${money(price)}`}
-                            </button>
-                        </div>
-                    </div>
-
-                    {showScanner && (
-                        <div className="fixed inset-0 bg-black z-[70] flex flex-col items-center justify-center fade-in">
-                            <button onClick={closeScanner} className="void-tap-target absolute top-5 right-5 z-10 p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors flex items-center justify-center"><Icons.X /></button>
-
-                            {scanStatus === 'requesting' && (
-                                <div className="text-center px-6">
-                                    <Icons.Camera className="w-12 h-12 text-white/70 mx-auto mb-4" />
-                                    <p className="text-white font-bold">Запрашиваем доступ к камере...</p>
-                                    <p className="text-white/50 text-sm mt-1">Разрешите доступ во всплывающем окне браузера</p>
-                                </div>
-                            )}
-
-                            {(scanStatus === 'scanning' || scanStatus === 'done') && (
-                                <div className="relative w-full h-full flex items-center justify-center">
-                                    <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
-                                    <div className="absolute inset-0 bg-black/40"></div>
-                                    <div className="relative w-[88%] max-w-sm aspect-[1.586/1] rounded-2xl">
-                                        <div className={`absolute inset-0 rounded-2xl border-4 transition-colors duration-300 ${scanStatus === 'done' ? 'border-green-400' : 'border-white/80'}`}></div>
-                                        <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-[#5b32d4] rounded-tl-2xl"></div>
-                                        <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-[#5b32d4] rounded-tr-2xl"></div>
-                                        <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-[#5b32d4] rounded-bl-2xl"></div>
-                                        <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-[#5b32d4] rounded-br-2xl"></div>
-                                        {scanStatus === 'scanning' && <div className="void-img-shimmer absolute left-0 right-0 h-1 rounded-full" style={{ top: '50%' }}></div>}
-                                        {scanStatus === 'done' && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-green-500/20 rounded-2xl">
-                                                <div className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center fade-in"><Icons.Check className="w-7 h-7 text-white" /></div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <p className="absolute bottom-16 left-0 right-0 text-center text-white font-bold px-6">
-                                        {scanStatus === 'scanning' ? 'Наведите камеру на карту...' : 'Карта распознана!'}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
+        const feats = (state.checkoutPlan.features || []).slice(0, 6);
         return (
             <div className="flex-1 overflow-y-auto pb-8 h-full bg-[#f8f9fc] dark:bg-darkBg fade-in w-full">
-                <div className="px-4 py-8 max-w-2xl mx-auto">
-                    <div className="flex items-center mb-8 gap-4">
-                        <button onClick={() => updateState({checkoutPlan: null})} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft /></button>
-                        <h2 className="text-2xl font-bold dark:text-white">Оформление подписки</h2>
+                <div className="px-4 py-8 max-w-lg mx-auto">
+                    <div className="flex items-center mb-8 gap-3">
+                        <button onClick={() => updateState({ checkoutPlan: null })} className="w-10 h-10 flex items-center justify-center -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"><Icons.ChevronLeft /></button>
+                        <h2 className="text-2xl font-extrabold dark:text-white">Оформление подписки</h2>
                     </div>
-                    
-                    <div className="bg-white dark:bg-darkCard p-6 rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm mb-6 flex justify-between items-center">
-                        <div className="flex gap-4 items-center">
-                            <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-400 rounded-2xl flex items-center justify-center"><Icons.VoidLogo className="w-6 h-6" /></div>
-                            <div>
-                                <h3 className="text-xl font-bold dark:text-white">{state.checkoutPlan.title}</h3>
-                                <span className="bg-[#efecf9] text-[#5b32d4] text-[10px] font-bold px-2 py-1 rounded-md uppercase">Популярный</span>
+                    <div className="bg-white dark:bg-darkCard rounded-[2rem] border border-gray-100 dark:border-darkBorder shadow-sm p-6 mb-5">
+                        <div className="flex items-center justify-between gap-4 pb-5 border-b border-gray-100 dark:border-gray-800">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-11 h-11 rounded-2xl bg-[#5b32d4]/10 text-[#5b32d4] flex items-center justify-center shrink-0"><Icons.Sparkles className="w-5 h-5" /></div>
+                                <div className="min-w-0">
+                                    <h3 className="text-lg font-extrabold dark:text-white truncate">{state.checkoutPlan.title}</h3>
+                                    <p className="text-xs text-gray-400">{period === 'в месяц' ? 'Ежемесячно' : 'Годовая подписка'}</p>
+                                </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                                <p className="text-2xl font-extrabold text-[#5b32d4] dark:text-purple-400">{money(price)}</p>
+                                <p className="text-xs text-gray-500">/ {period.replace('в ', '')}</p>
                             </div>
                         </div>
-                        <div className="text-right">
-                            <p className="text-2xl font-extrabold dark:text-white">{money(price)}</p>
-                            <p className="text-xs text-gray-500">{period}</p>
+                        <div className="pt-5 space-y-2.5">
+                            {feats.map((f, i) => (
+                                <div key={i} className="flex items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300">
+                                    <Icons.Check className="w-4 h-4 mt-0.5 shrink-0 text-[#5b32d4] dark:text-purple-400" /> <span>{f}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
-
-                    <h3 className="text-xl font-bold mb-4 dark:text-white">Способ оплаты</h3>
-                    <div className="space-y-3 mb-8">
-                        <div onClick={() => updateState({selectedMethod: 'card'})} className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${state.selectedMethod === 'card' ? 'border-[#5b32d4] bg-[#efecf9]/50 dark:bg-purple-900/10' : 'border-gray-100 dark:border-darkBorder hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-darkCard text-[#5b32d4] dark:text-purple-400"><Icons.Card /></div>
-                            <div className="flex-1"><div className="font-bold text-[15px] dark:text-white">Банковская карта</div><div className="text-xs text-gray-500">Visa, Mastercard, МИР</div></div>
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${state.selectedMethod === 'card' ? 'border-[#5b32d4] bg-[#5b32d4]' : 'border-gray-300 dark:border-gray-600'}`}>{state.selectedMethod === 'card' && <Icons.Check className="w-3 h-3 text-white" />}</div>
-                        </div>
-                        <div onClick={() => updateState({selectedMethod: 'sbp'})} className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${state.selectedMethod === 'sbp' ? 'border-[#5b32d4] bg-[#efecf9]/50 dark:bg-purple-900/10' : 'border-gray-100 dark:border-darkBorder hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-darkCard text-[#5b32d4] dark:text-purple-400"><Icons.SBP /></div>
-                            <div className="flex-1"><div className="font-bold text-[15px] dark:text-white">СБП</div><div className="text-xs text-gray-500">Оплата через Систему быстрых платежей</div></div>
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${state.selectedMethod === 'sbp' ? 'border-[#5b32d4] bg-[#5b32d4]' : 'border-gray-300 dark:border-gray-600'}`}>{state.selectedMethod === 'sbp' && <Icons.Check className="w-3 h-3 text-white" />}</div>
-                        </div>
-                        <div onClick={() => updateState({selectedMethod: 'wallet'})} className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${state.selectedMethod === 'wallet' ? 'border-[#5b32d4] bg-[#efecf9]/50 dark:bg-purple-900/10' : 'border-gray-100 dark:border-darkBorder hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-                            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-darkCard text-[#5b32d4] dark:text-purple-400"><Icons.Wallet /></div>
-                            <div className="flex-1"><div className="font-bold text-[15px] dark:text-white">Баланс кошелька</div><div className={`text-xs ${(state.walletBalance || 0) >= price ? 'text-gray-500' : 'text-red-500 font-semibold'}`}>Доступно: {money(state.walletBalance || 0)}{(state.walletBalance || 0) < price ? ' - не хватает средств' : ''}</div></div>
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${state.selectedMethod === 'wallet' ? 'border-[#5b32d4] bg-[#5b32d4]' : 'border-gray-300 dark:border-gray-600'}`}>{state.selectedMethod === 'wallet' && <Icons.Check className="w-3 h-3 text-white" />}</div>
-                        </div>
-                    </div>
-                    <button onClick={() => updateState({paymentStep: 'form'})} className="w-full py-4 bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold rounded-2xl shadow-lg transition-colors text-lg">Продолжить</button>
+                    <button onClick={startPayment} disabled={payBusy} className="w-full py-4 bg-[#5b32d4] hover:bg-[#4a26b0] disabled:opacity-60 text-white font-bold rounded-2xl shadow-lg transition-colors text-lg flex items-center justify-center gap-2">
+                        {payBusy ? <><Icons.Spinner className="w-5 h-5 animate-spin" /> Создаём платёж…</> : `Оплатить ${money(price)}`}
+                    </button>
+                    {payError && <p className="text-sm text-red-500 font-semibold mt-3 text-center">{payError}</p>}
+                    <p className="text-xs text-gray-400 text-center mt-4 leading-relaxed">
+                        Оплата на защищённой странице ЮKassa (карта, СБП и другие способы). Данные карты вводятся на стороне ЮKassa - мы их не видим и не храним.
+                    </p>
                 </div>
             </div>
         );

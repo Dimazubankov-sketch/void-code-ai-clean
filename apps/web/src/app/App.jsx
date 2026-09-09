@@ -28,6 +28,7 @@ import { SkillsView, buildSkillsInstruction } from '@/features/skills/SkillsView
 import { PluginsView } from '@/features/plugins/PluginsView';
 import { WalletView } from '@/features/wallet/WalletView';
 import { createBackendChat, sendBackendMessage, generateBackendImage, fetchWebPage } from '@/shared/api/chat';
+import { fetchPaymentStatus } from '@/shared/api/billing';
 import { ApiError, onSessionExpired } from '@/shared/api/client';
 import { AI_MODELS, getPlanLimits, defaultReasoningFor, estimateRequestWeight } from '@/shared/config/models';
 import { buildReasoningScript, levelDelayMs } from '@/shared/config/reasoningScript';
@@ -276,6 +277,52 @@ export function App() {
             updateState({ showAuthModal: true, sessionExpiredNotice: true, user: null });
         });
     }, []);
+
+    // Возврат с оплаты ЮKassa: если есть отложенный платёж (сохранён перед
+    // редиректом в PricingView) — опрашиваем его статус и при успехе
+    // активируем подписку. Вебхук мог уже активировать её на сервере;
+    // опрос это подтвердит. Пробуем несколько раз (оплата подтверждается
+    // не мгновенно).
+    useEffect(() => {
+        let cancelled = false;
+        const params = new URLSearchParams(window.location.search);
+        const isReturn = params.get('payment') === 'return';
+        let pid = null;
+        try { pid = localStorage.getItem('void_pending_payment'); } catch { /* noop */ }
+        if (isReturn) { try { window.history.replaceState({}, '', window.location.pathname); } catch { /* noop */ } }
+        if (!pid) return undefined;
+        const clearPending = () => { try { localStorage.removeItem('void_pending_payment'); } catch { /* noop */ } };
+        if (!stateRef.current.user) { return undefined; } // подхватим после входа
+        const PLAN_UI = { FREE: 'free', PLUS: 'plus', PRO: 'pro', ULTRA: 'pro_plus' };
+        let tries = 0;
+        const check = async () => {
+            if (cancelled) return;
+            try {
+                const res = await fetchPaymentStatus(pid);
+                if (res.status === 'succeeded') {
+                    clearPending();
+                    const uiPlan = PLAN_UI[res.plan] || 'pro';
+                    const acctKey = (stateRef.current.user?.email || '').trim().toLowerCase();
+                    updateStateRef.current({
+                        userPlan: uiPlan,
+                        usedDailyLimits: 0,
+                        dailyLimitExceededAt: null,
+                        currentView: 'settings',
+                        accountPlans: acctKey ? { ...(stateRef.current.accountPlans || {}), [acctKey]: uiPlan } : stateRef.current.accountPlans,
+                    });
+                    setTimeout(() => alert('Оплата прошла — подписка активирована!'), 100);
+                    return;
+                }
+                if (res.status === 'canceled' || res.status === 'cancelled') { clearPending(); return; }
+            } catch { /* сеть/ещё не готово — повторим */ }
+            tries += 1;
+            if (tries < 12 && !cancelled) setTimeout(check, 2500);
+            else clearPending();
+        };
+        check();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.user]);
 
     // Автоматическое восстановление дневного лимита через 6 часов после
     // исчерпания. Проверяем регулярно — так это сработает, даже если

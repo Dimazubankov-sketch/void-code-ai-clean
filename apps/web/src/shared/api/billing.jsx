@@ -1,18 +1,30 @@
 import { apiFetch } from '@/shared/api/client';
 
 // ==========================================
-// Подписки
+// Подписки / оплата через ЮKassa
 // ==========================================
-// Раньше оформление тарифа меняло ТОЛЬКО локальное состояние, а на
-// сервере план пользователя оставался FREE. Из-за этого платные зоны
-// (например, создание собственного голоса) не открывались: их проверяет
-// бэкенд по user.plan, а не по тому, что нарисовано в интерфейсе.
-// Теперь покупка обязательно фиксируется на сервере.
+// Оплата идёт на стороне ЮKassa: сервер создаёт платёж и возвращает
+// confirmationUrl (страница оплаты), фронт туда перенаправляет. После
+// оплаты ЮKassa возвращает пользователя на APP_URL/?payment=return, где
+// App.jsx опрашивает статус и активирует подписку. Карту наш фронт не
+// собирает и не отправляет.
 
-// plan: 'PLUS' | 'PRO' | 'ULTRA', cycle: 'MONTH' | 'YEAR'
-export async function subscribeBackend(plan, cycle) {
+// id тарифа во фронте → enum Plan на бэкенде.
+const PLAN_MAP = { free: 'FREE', plus: 'PLUS', pro: 'PRO', pro_plus: 'ULTRA', ultra: 'ULTRA' };
+
+// Создать платёж. Возвращает { paymentId, confirmationUrl, status }.
+export async function createBackendPayment(planId, cycle) {
+    const plan = PLAN_MAP[String(planId).toLowerCase()] || String(planId).toUpperCase();
     return apiFetch('/billing/subscribe', {
         method: 'POST',
-        body: { plan: String(plan).toUpperCase(), cycle: String(cycle).toUpperCase() },
+        body: { plan, cycle: String(cycle).toUpperCase() },
     });
+}
+
+// Обратная совместимость (старое имя).
+export const subscribeBackend = createBackendPayment;
+
+// Статус платежа: { status, plan? }. status==='succeeded' → подписка активирована.
+export async function fetchPaymentStatus(paymentId) {
+    return apiFetch(`/billing/payment/${encodeURIComponent(paymentId)}`, { method: 'GET' });
 }

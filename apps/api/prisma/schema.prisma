@@ -152,7 +152,7 @@ model Subscription {
   status            SubscriptionStatus @default(ACTIVE)
   startsAt          DateTime           @default(now())
   endsAt            DateTime
-  externalPaymentId String?            // id платежа у провайдера (ЮKassa и т.п.)
+  externalPaymentId String?  @unique   // id платежа у провайдера (ЮKassa) - уникален для идемпотентной активации
 
   @@index([userId, status])
 }
