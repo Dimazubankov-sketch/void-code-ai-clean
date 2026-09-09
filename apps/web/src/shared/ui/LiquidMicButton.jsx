@@ -79,7 +79,7 @@ export function LiquidMicButton({ voice, size = 'md', bordered = false, onStart,
     //  • idle — без фона, серая иконка, лёгкий hover-фон;
     //  • recording/transcribing — светло-серый фон, тёмная иконка.
     const idle = !voice.recording && !voice.transcribing;
-    const bgCls = idle ? 'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800' : 'bg-gray-100 dark:bg-gray-700';
+    const bgCls = idle ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700' : 'bg-gray-100 dark:bg-gray-700';
     const textCls = idle ? 'text-gray-600 dark:text-gray-300' : 'text-gray-900 dark:text-white';
     const borderCls = bordered
         ? `border ${idle ? 'border-transparent active:border-gray-300 dark:active:border-gray-600' : 'border-transparent'}`

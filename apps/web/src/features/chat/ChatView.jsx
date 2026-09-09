@@ -475,33 +475,6 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 style={{ paddingBottom: bottomPad }}
             >
                 <div className="max-w-3xl mx-auto space-y-6">
-                    {messages.length === 0 && (
-                        <div className="flex flex-col items-center text-center mt-16 md:mt-24 fade-in">
-                            <Icons.VoidLogo className="w-16 h-16 mx-auto mb-5" />
-                            <h2 className="text-[26px] md:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white mb-1.5">
-                                {lang === 'en' ? 'What can I help with?' : lang === 'zh' ? '有什么可以帮您？' : 'Чем могу помочь?'}
-                            </h2>
-                            <p className="text-gray-400 dark:text-gray-500 text-sm mb-7">{t(lang, 'chat.sendMessage')}</p>
-                            <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg">
-                                {(lang === 'en'
-                                    ? ['Explain what Void can do', 'Write a React component', 'Give me 5 app name ideas', 'Build a comparison table']
-                                    : ['Что умеет Void Code AI', 'Напиши компонент на React', 'Придумай 5 названий для приложения', 'Составь таблицу сравнения']
-                                ).map((s) => (
-                                    <button
-                                        key={s}
-                                        onClick={() => {
-                                            updateState({ inputValue: s });
-                                            requestAnimationFrame(() => editableTextareaRef.current?.focus());
-                                        }}
-                                        className="void-tap-target px-3.5 py-2 rounded-full text-[13px] font-semibold text-gray-600 dark:text-gray-300 bg-white dark:bg-darkCard border border-gray-200 dark:border-darkBorder shadow-sm hover:border-[#5b32d4]/40 hover:text-[#5b32d4] dark:hover:text-purple-300 hover:-translate-y-0.5 active:translate-y-0 transition-all"
-                                    >
-                                        {s}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    
                     {messages.map((msg, idx) => (
                         <div key={idx} id={`msg-${idx}`} className={`flex gap-3 max-w-3xl transition-colors rounded-2xl min-w-0 ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''} ${highlightMsgIdx === idx ? 'void-search-highlight' : ''}`}>
                             {msg.role === 'user' ? (
@@ -616,8 +589,19 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                 title={t(lang, 'chat.scrollToBottom')}
             />
 
-            <div ref={inputWrapRef} className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white dark:from-darkBg via-white dark:via-darkBg to-transparent pt-14 px-3 sm:px-4 md:px-8 z-20 pointer-events-none pb-safe">
+            <div ref={inputWrapRef} className={`absolute left-0 right-0 px-3 sm:px-4 md:px-8 z-20 pointer-events-none ${messages.length === 0 ? 'top-1/2 -translate-y-1/2' : 'bottom-0 pt-14 pb-safe bg-gradient-to-t from-white dark:from-darkBg via-white dark:via-darkBg to-transparent'}`}>
                 <div className="relative max-w-3xl mx-auto pointer-events-auto">
+                    {/* #5: в пустом чате логотип + приветствие стоят прямо над
+                        полем ввода, и весь блок отцентрован по вертикали.
+                        После первого сообщения поле уезжает вниз (bottom-0). */}
+                    {messages.length === 0 && (
+                        <div className="flex flex-col items-center text-center mb-6 fade-in">
+                            <Icons.VoidLogo className="w-16 h-16 mb-4" />
+                            <h2 className="text-[26px] md:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+                                {lang === 'en' ? 'What can I help with?' : lang === 'zh' ? '有什么可以帮您？' : 'Чем могу помочь?'}
+                            </h2>
+                        </div>
+                    )}
                     {/* Warning-баннер: показывается когда дневной лимит чата
                         превышает 90%. Пользователь может закрыть крестиком -
                         тогда баннер не появится до следующего дня (сброс по
@@ -756,11 +740,6 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             {/* Задача 2: «Преобразование в текст…» - по ЦЕНТРУ поля
                                 (между выбором модели и микрофоном), нейтральным
                                 серым, без фиолетового. */}
-                            {voice.transcribing && !state.inputValue && (
-                                <div className="void-transcribe-hint absolute inset-x-0 top-0 py-5 pointer-events-none text-gray-500 dark:text-gray-400 text-[16px] font-semibold text-center z-10">
-                                    {t(lang, 'chat.transcribing')}…
-                                </div>
-                            )}
                             <textarea 
                                 ref={editableTextareaRef}
                                 className={`w-full px-5 pt-3.5 pb-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none resize-none overflow-y-auto max-h-[220px] min-h-[40px] text-[16px] void-input-scroll ${voice.recording ? 'void-text-hide' : ''} ${voice.transcribing && state.inputValue ? 'opacity-40' : ''}`}
@@ -846,7 +825,7 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                                 onClick={() => voice.recording ? voice.cancel() : setShowPlusMenu(true)}
                                 {...pressProps(gsap)}
                                 title={voice.recording ? t(lang, 'chat.cancelRecording') : undefined}
-                                className="void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                className="void-tap-target w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                             >
                                 <Icons.Plus className={`w-[18px] h-[18px] void-plus-rotate ${voice.recording ? 'void-plus-to-x' : ''}`} />
                             </button>
@@ -854,8 +833,13 @@ export function ChatView({ state, updateState, handleSendMessage, handleGenerate
                             {/* Выбор модели - прямо в поле ввода. При записи скрываем
                                 (менять модель во время диктовки некуда) и отдаём место
                                 пилюле записи. */}
-                            {!voice.recording && <ModelSelector state={state} updateState={updateState} compact />}
-                            {!voice.recording && <div className="flex-1" />}
+                            {!voice.recording && !voice.transcribing && <ModelSelector state={state} updateState={updateState} compact />}
+                            {/* #6: «Преобразование в текст…» — в нижнем ряду, на уровне
+                                кнопок «+» и микрофона, а не над ними. */}
+                            {voice.transcribing && (
+                                <span className="void-transcribe-hint flex-1 min-w-0 text-center text-sm font-semibold text-gray-500 dark:text-gray-400 truncate">{t(lang, 'chat.transcribing')}…</span>
+                            )}
+                            {!voice.recording && !voice.transcribing && <div className="flex-1" />}
 
                             {/* Пилюля записи - в одном ряду с кнопкой «стоп», вплотную. */}
                             {voice.recording && <RecordingPill voice={voice} className="flex-1 min-w-0 mr-1.5" />}

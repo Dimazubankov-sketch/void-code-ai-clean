@@ -34,11 +34,14 @@ export function ModelSelector({ state, updateState, compact = false }) {
             <PressButton
                 onClick={() => setShowDropdown(!showDropdown)}
                 className={compact
-                    ? "void-tap-target flex items-center gap-1.5 h-9 pl-3 pr-2.5 rounded-full border border-gray-200 dark:border-darkBorder bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left min-w-0"
+                    ? "void-tap-target flex items-center h-9 px-3.5 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-left min-w-0"
                     : "void-tap-target flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/70 dark:bg-white/10 backdrop-blur-xl border border-black/[0.06] dark:border-white/10 shadow-sm hover:bg-white/90 dark:hover:bg-white/[0.16] transition-colors text-left min-w-0 max-w-[42vw] sm:max-w-none"}
             >
-                <div className={`flex items-center gap-1 font-extrabold dark:text-white leading-tight min-w-0 ${compact ? 'text-[13px]' : 'text-[13px] sm:text-[15px] md:text-lg'}`}>
-                    <span className="truncate">{activeModel.name}</span> <Icons.ChevronDown className="w-4 h-4 flex-shrink-0" />
+                <div className={`flex items-center gap-1 font-bold dark:text-white leading-tight min-w-0 ${compact ? 'text-[13px]' : 'text-[13px] sm:text-[15px] md:text-lg'}`}>
+                    {/* #6: в компактном виде — короткое имя (Mini/Plus/Pro/Ultra)
+                        без стрелки; полное имя и стрелка только в некомпактном. */}
+                    <span className="truncate">{compact ? (activeModel.name.split(' ').pop()) : activeModel.name}</span>
+                    {!compact && <Icons.ChevronDown className="w-4 h-4 flex-shrink-0" />}
                 </div>
             </PressButton>
             {showDropdown && (

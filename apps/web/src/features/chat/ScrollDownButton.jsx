@@ -89,7 +89,11 @@ export function ScrollDownButton({ visible, bottomPad, onClick, title }) {
             onPointerCancel={pressOut}
             title={title}
             style={{
-                bottom: `${bottomPad + 8}px`,
+                // #4: ближе к полю ввода. bottomPad включает верхний градиент
+                // дока (~56px) + запас (32px); вычитаем их, чтобы кнопка стояла
+                // прямо над самим полем ввода, а не высоко над ним и не мешала
+                // тексту переписки.
+                bottom: `${Math.max(20, bottomPad - 78)}px`,
                 transition: 'bottom 180ms ease-out',
                 // autoAlpha ставит visibility:hidden при opacity=0 — щелчков «мимо» не будет
             }}

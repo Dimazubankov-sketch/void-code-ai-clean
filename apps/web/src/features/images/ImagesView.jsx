@@ -337,47 +337,14 @@ export function ImagesView({ state, updateState }) {
                 </div>
             </div>
 
-            {/* Прокручиваемая область результатов - задача #1: медиа
-                (изображения И видео) показываются ЗДЕСЬ, НАД полем ввода,
-                а не под ним. Само поле ввода закреплено в самом низу экрана
-                отдельным доком (см. ниже). */}
-            <div className="flex-1 overflow-y-auto min-h-0">
-                <div className="max-w-3xl mx-auto px-4 md:px-8 py-6">
-                    {items.length === 0 && (
-                        <div className="text-center pt-10 md:pt-16 pb-4">
-                            <h1 className="text-2xl md:text-3xl font-extrabold dark:text-white mb-2">
-                                Что мы будем создавать?
-                            </h1>
-                            <p className="text-sm text-gray-400 dark:text-gray-500">
-                                Опиши идею в поле внизу - сгенерируем изображение или видео.
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Сетка результатов - только изображения (см. items выше:
-                        видео сюда сознательно не попадают, задача 4). */}
-                    {items.length > 0 && (
-                        <div ref={gridRef} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {items.map((it) => (
-                                <div key={it.id} className="void-img-card relative rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 aspect-square group">
-                                    <img src={it.url} alt={it.prompt} className="w-full h-full object-cover" />
-                                    <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <p className="text-[11px] text-white font-semibold truncate">{it.prompt}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+            {/* #5/#7: Image Studio — композер по ЦЕНТРУ экрана. Сетка
+                результатов убрана (готовые медиа живут в Библиотеке и в
+                полноэкранном окне генерации), разделителя над полем нет. */}
+            <div className="flex-1 overflow-y-auto min-h-0 flex flex-col justify-center px-4 md:px-8 py-6">
+              <div className="max-w-3xl w-full mx-auto">
+                <div className="text-center mb-6">
+                    <h1 className="text-2xl md:text-3xl font-extrabold dark:text-white">Что мы будем создавать?</h1>
                 </div>
-            </div>
-
-            {/* Док композера - задача #1: поле ввода со всеми настройками
-                закреплено в НИЖНЕЙ части экрана (как в чате). */}
-            <div className="shrink-0 border-t border-black/[0.06] dark:border-white/10 bg-white/85 dark:bg-darkBg/85 backdrop-blur-xl px-4 md:px-8 pt-3 pb-3 pb-safe">
-              <div className="max-w-3xl mx-auto">
-                {/* Пункт 5: настройки живут ОТДЕЛЬНО, над полем ввода -
-                    само поле ввода теперь содержит только вложение,
-                    переключатель Изображение/Видео и отправку. */}
                 <div className="flex items-center justify-center flex-wrap gap-2 mb-3">
                     <div ref={aspectAnchorRef} className="shrink-0">
                         <PressButton onClick={() => setShowAspect(v => !v)} className="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
