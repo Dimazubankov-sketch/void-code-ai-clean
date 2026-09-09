@@ -617,15 +617,10 @@ export function ImagesView({ state, updateState }) {
                     </div>
                 </div>
 
+                {/* Ошибка генерации — единственный текст под полем ввода
+                    (техническая обратная связь, показывается только при сбое). */}
                 {error && (
                     <p className="text-sm text-red-500 font-semibold mt-3 text-center">{error}</p>
-                )}
-                {/* Задача 6: на Free видео доступно, но с ограничениями -
-                    одно в сутки, 720p, до 6 секунд. Сообщаем это прямо в UI. */}
-                {mode === 'video' && isFree && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-3 text-center">
-                        На тарифе Free - 1 видео в сутки, до 720p и не длиннее 6 секунд. Больше и длиннее - на Plus и выше.
-                    </p>
                 )}
 
               </div>

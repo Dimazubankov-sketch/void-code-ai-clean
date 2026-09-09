@@ -23,6 +23,12 @@ export default {
                 darkBorder: '#35353c',
                 brand: '#5b32d4',
             },
+            // Шрифт как в ChatGPT: Inter — ближайший бесплатный аналог их
+            // Söhne/OpenAI Sans (тот же геометрично-гротескный характер).
+            // Подключается в index.html; здесь — приоритет в стеке font-sans.
+            fontFamily: {
+                sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+            },
             // Утончённая шкала насыщенности шрифта: весь app использует классы
             // font-medium/semibold/bold/extrabold, но по умолчанию Tailwind
             // делает их слишком жирными для аккуратного, лёгкого интерфейса.

@@ -1,27 +1,23 @@
 import { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
-import { useGSAP } from '@gsap/react';
 import { VOICE_MODE_PHASE } from '@/shared/lib/useVoiceMode';
 
 // ==========================================
 // VoiceModeOrb — центральный элемент Voice Mode
 // ==========================================
-// ВАЖНО (урок из VoiceOrb.jsx во вкладке настроек «Голос»): фаза SPEAKING
-// НИКОГДА не подключается к реальному аудиопотоку через AnalyserNode на
-// <audio>-элементе (createMediaElementSource) — на части устройств это
-// искажает сам звук и роняет события ended/timeupdate. Речь Сары
-// анимируется безопасной имитацией — НО не случайными рывками (см. ниже),
-// а плавной многослойной синусоидой, чтобы не «дёргалось».
+// ПЕРЕПИСАНО (баг «орб не пульсирует во время речи», финальный заход):
+// раньше каждая фаза управляла масштабом СВОИМ GSAP-твином, а фоновое
+// «дыхание» ставилось на паузу и возобновлялось из cleanup'ов — эта
+// хрупкая связка твинов ломалась (дыхание возобновлялось поверх речи,
+// либо твины конфликтовали за свойство scale), и во время речи орб стоял.
 //
-// ВАЖНО #2 (правка после жалобы на краш при закрытии): раньше SPEAKING
-// пересоздавал НОВЫЙ gsap.timeline() каждые ~0.15–0.25с рекурсивным
-// вызовом step() — это самый вероятный источник краша (лавинообразное
-// накопление таймлайнов при частой смене фаз). Теперь ВСЕ фазы используют
-// ограниченное число tween'ов с repeat:-1 — они создаются ОДИН раз и
-// просто крутятся, ничего не пересоздают на каждый кадр/итерацию.
-// Плюс — все точки обращения к DOM-рефам защищены проверкой на null:
-// компонент может быть уже размонтирован (Voice Mode закрыли) в момент,
-// когда сработает cleanup-функция предыдущего эффекта.
+// Теперь всё проще и надёжнее: ОДИН requestAnimationFrame-цикл на весь
+// срок жизни компонента. Каждый кадр он смотрит на ТЕКУЩУЮ фазу (через
+// ref) и пишет transform/opacity НАПРЯМУЮ в style элементов. Никаких
+// конкурирующих твинов на scale, никаких пауз/возобновлений — пока
+// страница видима и rAF идёт, орб гарантированно живёт по фазе. Речь
+// пульсирует по реальной огибающей голоса (см. useVoiceModeSpeech), а
+// без неё — по синусоиде. Цвет меняется CSS-переходом фона (см. render).
 
 const PHASE_COLORS = {
     idle:      { from: '#c4b5fd', to: '#5b32d4' },
@@ -29,248 +25,124 @@ const PHASE_COLORS = {
     thinking:  { from: '#93c5fd', to: '#5b32d4' },
     speaking:  { from: '#22d3ee', to: '#5b32d4' },
     error:     { from: '#fca5a5', to: '#dc2626' },
-    // Лимит озвучки исчерпан — насыщенный статичный красный, БЕЗ анимации
-    // вообще (см. эффект LIMIT ниже) — намеренно выглядит иначе, чем
-    // мимолётная встряска ERROR, это стоп-сигнал, а не разовый сбой.
     limit:     { from: '#f87171', to: '#b91c1c' },
 };
 
-// Возвращает к масштабу 1 и (если передан) возобновляет фоновое «дыхание».
-// Общая функция для всех cleanup — с защитой на случай, что рефы уже null
-// (компонент размонтирован).
-// Возвращает масштаб к 1. ВАЖНО (баг «орб мёртв во время речи»): раньше
-// эта функция по завершении ещё и ВОЗОБНОВЛЯЛА фоновое дыхание покоя. Но
-// вызывается она в cleanup завершающейся фазы, который в React срабатывает
-// ПОСЛЕ старта следующей фазы — из-за чего дыхание возобновлялось прямо
-// во время SPEAKING (через ~0.3с) и перебивало анимацию речи: орб «дышал»,
-// а не пульсировал в тон голосу. Теперь возобновление дыхания вынесено в
-// единый контроллер по фазе (см. useEffect ниже), а тут — только сброс.
-function settleToIdle(coreRef, halo1Ref, halo2Ref) {
-    const targets = [coreRef.current, halo1Ref.current, halo2Ref.current].filter(Boolean);
-    if (!targets.length) return;
-    gsap.to(targets, { scale: 1, x: 0, duration: 0.3, ease: 'power2.out', overwrite: 'auto' });
-}
-
 export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelopeRef, onClick, size = 200, interruptSignal = 0 }) {
-    const scope = useRef(null);
     const coreRef = useRef(null);
     const halo1Ref = useRef(null);
     const halo2Ref = useRef(null);
     const rippleRef = useRef(null);
-    const idleTweensRef = useRef([]);
-    const rafRef = useRef(null);
     const firstInterruptRef = useRef(true);
 
-    // ---- «Дыхание» покоя — база, ставится на паузу другими фазами и
-    // возобновляется, когда они заканчиваются ----
-    useGSAP(() => {
+    // Актуальная фаза для цикла (без пересоздания цикла на каждую смену фазы).
+    const phaseRef = useRef(phase);
+    phaseRef.current = phase;
+    // Плавно сглаженный уровень (для listening/speaking) и данные анализатора.
+    const smoothRef = useRef(0);
+    const analyserDataRef = useRef(null);
+    // Короткий «отскок» при перебивании: время до которого действует.
+    const recoilRef = useRef(0);
+
+    // ---- Единый анимационный цикл ----
+    useEffect(() => {
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (reduce) return undefined;
-        const coreTween = gsap.to('.vm-orb-core', { scale: 1.05, duration: 2.4, ease: 'sine.inOut', yoyo: true, repeat: -1 });
-        gsap.set('.vm-orb-halo-1', { autoAlpha: 0.28 });
-        gsap.set('.vm-orb-halo-2', { autoAlpha: 0.2 });
-        const halo1 = gsap.to('.vm-orb-halo-1', { scale: 1.18, duration: 2.8, ease: 'sine.inOut', yoyo: true, repeat: -1 });
-        const halo2 = gsap.to('.vm-orb-halo-2', { scale: 1.3, duration: 3.2, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 0.5 });
-        idleTweensRef.current = [coreTween, halo1, halo2];
-        return () => { coreTween.kill(); halo1.kill(); halo2.kill(); idleTweensRef.current = []; };
-    }, { scope });
-
-    // ---- Единый контроллер фонового дыхания ----
-    // Дыхание покоя работает ТОЛЬКО в IDLE. Во всех активных фазах
-    // (listening/thinking/speaking/error/limit) оно на паузе, а масштабом
-    // управляет соответствующая фаза. Это и чинит баг «орб не пульсирует
-    // во время речи»: раньше дыхание возобновлялось из cleanup предыдущей
-    // фазы и перебивало анимацию речи.
-    useEffect(() => {
-        const tweens = idleTweensRef.current;
-        if (phase === VOICE_MODE_PHASE.IDLE) tweens.forEach((tw) => tw?.resume());
-        else tweens.forEach((tw) => tw?.pause());
-    }, [phase]);
-
-    // ---- Плавная смена цвета по фазе ----
-    useGSAP(() => {
-        const c = PHASE_COLORS[phase] || PHASE_COLORS.idle;
-        if (!coreRef.current) return;
-        gsap.to(coreRef.current, {
-            background: `radial-gradient(circle at 32% 28%, ${c.from}, ${c.to} 70%, ${c.to})`,
-            duration: 0.5,
-            ease: 'power2.out',
-        });
-    }, { scope, dependencies: [phase] });
-
-    // ---- LISTENING: масштаб честно реагирует на реальный уровень
-    // сигнала с микрофона (rAF-цикл + gsap.quickTo) ----
-    useEffect(() => {
-        if (phase !== VOICE_MODE_PHASE.LISTENING) return undefined;
-        if (!coreRef.current) return undefined;
-        idleTweensRef.current.forEach((tw) => tw?.pause());
-        const scaleTo = gsap.quickTo(coreRef.current, 'scale', { duration: 0.15, ease: 'power2.out' });
-        const halo1To = halo1Ref.current ? gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.2, ease: 'power2.out' }) : null;
-        const halo2To = halo2Ref.current ? gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.25, ease: 'power2.out' }) : null;
-        const analyser = analyserRef?.current;
-        const data = analyser ? new Uint8Array(analyser.frequencyBinCount) : null;
-        const tick = () => {
-            if (analyser && data) {
-                analyser.getByteFrequencyData(data);
-                let sum = 0;
-                for (let i = 0; i < data.length; i++) sum += data[i];
-                const avg = sum / data.length / 255;
-                const scale = 1 + Math.min(avg * 0.9, 0.4);
-                scaleTo(scale);
-                halo1To?.(scale + 0.06);
-                halo2To?.(scale + 0.12);
-            }
-            rafRef.current = requestAnimationFrame(tick);
-        };
-        tick();
-        return () => {
-            if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            rafRef.current = null;
-            settleToIdle(coreRef, halo1Ref, halo2Ref);
-        };
-    }, [phase, analyserRef]);
-
-    // ---- THINKING: равномерный, чуть более быстрый пульс ----
-    useGSAP(() => {
-        if (phase !== VOICE_MODE_PHASE.THINKING) return undefined;
-        if (!coreRef.current) return undefined;
-        idleTweensRef.current.forEach((tw) => tw?.pause());
-        const tween = gsap.to(coreRef.current, { scale: 1.08, duration: 0.7, ease: 'sine.inOut', yoyo: true, repeat: -1 });
-        return () => {
-            tween.kill();
-            settleToIdle(coreRef, halo1Ref, halo2Ref);
-        };
-    }, { scope, dependencies: [phase] });
-
-    // ---- SPEAKING: анимация В ТОН реальной озвучке ----
-    // Орб пульсирует по НАСТОЯЩЕЙ громкости голоса. Данные берутся не с
-    // аудиоэлемента напрямую (createMediaElementSource в этом проекте
-    // искажает звук и роняет события — см. шапку файла), а из огибающей,
-    // посчитанной заранее из тех же MP3-байтов в useVoiceModeSpeech.
-    //
-    // Ключ к ощущению «в унисон» — АСИММЕТРИЧНОЕ сглаживание. Раньше здесь
-    // был симметричный коэффициент 0.35 на подъём и на спад: орб одинаково
-    // лениво реагировал и на начало слога, и на паузу, из-за чего движение
-    // расходилось со звуком и выглядело как отдельная фоновая пульсация.
-    // Живые аудиовизуализаторы работают иначе: быстрая АТАКА (мгновенно
-    // ловим начало звука) и медленный СПАД (мягко опадаем в паузе) — ровно
-    // так ведут себя компрессоры и стрелочные индикаторы уровня. Разница
-    // между 0.55 и 0.12 — это и есть разница между «дышит рядом со звуком»
-    // и «дышит вместе со звуком».
-    useEffect(() => {
-        if (phase !== VOICE_MODE_PHASE.SPEAKING) return undefined;
-        if (!coreRef.current) return undefined;
-        idleTweensRef.current.forEach((tw) => tw?.pause());
-
-        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        // При reduced-motion орб не пульсирует масштабом вовсе — остаётся
-        // только смена цвета (отдельный эффект выше), которой достаточно,
-        // чтобы понять «сейчас говорит». Движение убираем, состояние — нет.
-        if (reduce) {
-            const targets = [coreRef.current, halo1Ref.current, halo2Ref.current].filter(Boolean);
-            if (targets.length) gsap.set(targets, { scale: 1 });
-            return () => settleToIdle(coreRef, halo1Ref, halo2Ref);
-        }
-
-        // duration чуть короче шага кадра сглаживания: quickTo здесь нужен
-        // как «последняя миля» интерполяции, основную плавность даёт
-        // огибающая ниже. Слишком длинный duration тут = запаздывание.
-        const scaleTo = gsap.quickTo(coreRef.current, 'scale', { duration: 0.09, ease: 'power2.out' });
-        const h1To = halo1Ref.current ? gsap.quickTo(halo1Ref.current, 'scale', { duration: 0.16, ease: 'power2.out' }) : null;
-        const h2To = halo2Ref.current ? gsap.quickTo(halo2Ref.current, 'scale', { duration: 0.22, ease: 'power2.out' }) : null;
-        // Гало реагируют не только масштабом, но и прозрачностью: на
-        // громких слогах орб «раскрывается» свечением. Это тот слой,
-        // который читается как энергия голоса, а не как просто размер.
-        const h1Alpha = halo1Ref.current ? gsap.quickTo(halo1Ref.current, 'autoAlpha', { duration: 0.18, ease: 'power2.out' }) : null;
-        const h2Alpha = halo2Ref.current ? gsap.quickTo(halo2Ref.current, 'autoAlpha', { duration: 0.24, ease: 'power2.out' }) : null;
-
-        const ATTACK = 0.55;   // быстро вверх - ловим начало слога
-        const RELEASE = 0.12;  // медленно вниз - мягкий хвост в паузе
-
         let raf = null;
-        let smooth = 0;
-        const tick = () => {
-            const env = speechEnvelopeRef?.current;
-            const el = speechAudioRef?.current;
-            let target = 0;
-            if (env && el && env.duration > 0) {
-                const t = el.currentTime || 0;
-                const idx = Math.min(env.peaks.length - 1, Math.max(0, Math.floor((t / env.duration) * env.peaks.length)));
-                target = env.peaks[idx] || 0;
-            } else {
-                // Пока огибающая считается (первые доли секунды) — мягкая
-                // синусоида, чтобы орб не стоял мёртвым.
-                target = 0.45 + 0.25 * Math.sin(Date.now() / 220);
+        const t0 = performance.now();
+
+        const apply = (scale, h1extra, h2extra, h1a, h2a) => {
+            // Отскок при перебивании (см. interruptSignal ниже).
+            const now = performance.now();
+            if (recoilRef.current > now) {
+                const k = (recoilRef.current - now) / 320; // 1 → 0
+                scale *= 1 - 0.12 * Math.max(0, Math.min(1, k));
             }
-            const k = target > smooth ? ATTACK : RELEASE;
-            smooth += (target - smooth) * k;
-
-            // «Живой пол»: даже в тихих местах речи орб продолжает мягко
-            // дышать (лёгкая синусоида) — так он НИКОГДА не выглядит
-            // застывшим, пока Сара говорит, но на громких слогах реальная
-            // огибающая всё равно перебивает пол и орб пульсирует в тон.
-            const floor = 0.16 + 0.06 * Math.sin(Date.now() / 260);
-            const level = Math.min(Math.max(smooth, floor), 1);
-            const scale = 1 + level * 0.34;
-            scaleTo(scale);
-            h1To?.(scale + 0.08);
-            h2To?.(scale + 0.15);
-            h1Alpha?.(0.3 + level * 0.4);
-            h2Alpha?.(0.22 + level * 0.32);
-            raf = requestAnimationFrame(tick);
+            const core = coreRef.current;
+            if (core) core.style.transform = `scale(${scale})`;
+            const h1 = halo1Ref.current;
+            if (h1) { h1.style.transform = `scale(${scale + h1extra})`; h1.style.opacity = String(h1a); }
+            const h2 = halo2Ref.current;
+            if (h2) { h2.style.transform = `scale(${scale + h2extra})`; h2.style.opacity = String(h2a); }
         };
-        raf = requestAnimationFrame(tick);
-        return () => {
-            if (raf) cancelAnimationFrame(raf);
-            // Гало возвращаем к базовой прозрачности покоя, иначе орб
-            // остался бы неестественно ярким после конца реплики.
-            const halos = [halo1Ref.current, halo2Ref.current].filter(Boolean);
-            if (halos.length) gsap.to(halos, { autoAlpha: (i) => (i === 0 ? 0.28 : 0.2), duration: 0.3, ease: 'power2.out' });
-            settleToIdle(coreRef, halo1Ref, halo2Ref);
+
+        const loop = () => {
+            const now = performance.now();
+            const t = (now - t0) / 1000;
+            const ph = phaseRef.current;
+
+            if (reduce) {
+                apply(1, 0.14, 0.28, 0.28, 0.2);
+                raf = requestAnimationFrame(loop);
+                return;
+            }
+
+            if (ph === VOICE_MODE_PHASE.LISTENING) {
+                const an = analyserRef?.current;
+                let lvl = 0;
+                if (an) {
+                    if (!analyserDataRef.current || analyserDataRef.current.length !== an.frequencyBinCount) {
+                        analyserDataRef.current = new Uint8Array(an.frequencyBinCount);
+                    }
+                    an.getByteFrequencyData(analyserDataRef.current);
+                    let s = 0;
+                    for (let i = 0; i < analyserDataRef.current.length; i++) s += analyserDataRef.current[i];
+                    lvl = s / analyserDataRef.current.length / 255;
+                }
+                const target = Math.min(lvl * 0.9, 0.4);
+                smoothRef.current += (target - smoothRef.current) * 0.2;
+                apply(1 + smoothRef.current, 0.06, 0.12, 0.32 + smoothRef.current, 0.24 + smoothRef.current);
+            } else if (ph === VOICE_MODE_PHASE.THINKING) {
+                const p = 0.5 + 0.5 * Math.sin(t * 4.6);
+                apply(1 + 0.09 * p, 0.05, 0.1, 0.3 + 0.1 * p, 0.22 + 0.08 * p);
+            } else if (ph === VOICE_MODE_PHASE.SPEAKING) {
+                const env = speechEnvelopeRef?.current;
+                const el = speechAudioRef?.current;
+                let target = 0;
+                if (env && el && env.duration > 0) {
+                    const ct = el.currentTime || 0;
+                    const idx = Math.min(env.peaks.length - 1, Math.max(0, Math.floor((ct / env.duration) * env.peaks.length)));
+                    target = env.peaks[idx] || 0;
+                } else {
+                    target = 0.5 + 0.3 * Math.sin(now / 180);
+                }
+                // «Живой пол»: даже в паузах речи орб дышит, но громкие слоги
+                // перебивают пол — движение остаётся в тон голосу.
+                const floor = 0.18 + 0.08 * Math.sin(now / 240);
+                target = Math.max(target, floor);
+                // Быстрая атака, медленный спад — как у аудио-визуализаторов.
+                const k = target > smoothRef.current ? 0.5 : 0.14;
+                smoothRef.current += (target - smoothRef.current) * k;
+                const lvl = Math.min(smoothRef.current, 1);
+                apply(1 + lvl * 0.34, 0.08, 0.15, 0.3 + lvl * 0.4, 0.22 + lvl * 0.32);
+            } else if (ph === VOICE_MODE_PHASE.ERROR || ph === VOICE_MODE_PHASE.LIMIT) {
+                smoothRef.current = 0;
+                apply(1, 0.1, 0.2, 0.28, 0.2);
+            } else {
+                // IDLE — спокойное дыхание.
+                smoothRef.current = 0;
+                const b = 0.5 + 0.5 * Math.sin(t * 1.35);
+                apply(1 + 0.05 * b, 0.14 + 0.04 * b, 0.28 + 0.05 * b, 0.24 + 0.06 * b, 0.16 + 0.05 * b);
+            }
+            raf = requestAnimationFrame(loop);
         };
-    }, [phase, speechAudioRef, speechEnvelopeRef]);
+        raf = requestAnimationFrame(loop);
+        return () => { if (raf) cancelAnimationFrame(raf); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    // ---- ERROR: короткая встряска, затем покой ----
-    useGSAP(() => {
-        if (phase !== VOICE_MODE_PHASE.ERROR) return undefined;
-        if (!coreRef.current) return undefined;
-        const tween = gsap.timeline()
-            .to(coreRef.current, { x: -6, duration: 0.06 })
-            .to(coreRef.current, { x: 6, duration: 0.06 })
-            .to(coreRef.current, { x: -4, duration: 0.06 })
-            .to(coreRef.current, { x: 0, duration: 0.06 });
-        return () => { tween.kill(); };
-    }, { scope, dependencies: [phase] });
-
-    // ---- LIMIT: лимит озвучки исчерпан — полностью статично, никакого
-    // движения (задача явно требует «орб больше не анимирует»). Просто
-    // останавливаем фоновое «дыхание» и фиксируем масштаб на 1; цвет уже
-    // меняется отдельным эффектом выше (PHASE_COLORS.limit). ----
-    useGSAP(() => {
-        if (phase !== VOICE_MODE_PHASE.LIMIT) return undefined;
-        idleTweensRef.current.forEach((tw) => tw?.pause());
-        const targets = [coreRef.current, halo1Ref.current, halo2Ref.current].filter(Boolean);
-        if (targets.length) gsap.set(targets, { scale: 1, x: 0 });
-        return () => { idleTweensRef.current.forEach((tw) => tw?.resume()); };
-    }, { scope, dependencies: [phase] });
-
-    // ---- Перебивание: одноразовая анимация «рипл» ----
-    // Каждый раз, когда пользователь перебивает Сару (barge-in голосом или
-    // тап по орбу — см. useVoiceMode), interruptSignal увеличивается. Здесь
-    // мы проигрываем расходящееся бирюзовое кольцо (цвет фазы «слушаю») +
-    // короткий отскок ядра — чёткий отклик «я тебя услышал, говори».
+    // ---- Перебивание: расходящееся кольцо + отскок ядра ----
     useEffect(() => {
         if (firstInterruptRef.current) { firstInterruptRef.current = false; return undefined; }
         const ring = rippleRef.current;
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        // Отскок ядра делаем через цикл (recoilRef), а не GSAP — иначе цикл
+        // тут же перезапишет transform.
+        recoilRef.current = performance.now() + 320;
         if (reduce || !ring) return undefined;
         gsap.killTweensOf(ring);
         gsap.fromTo(ring,
             { scale: 0.82, autoAlpha: 0.7 },
             { scale: 2, autoAlpha: 0, duration: 0.6, ease: 'power2.out' });
-        if (coreRef.current) {
-            gsap.fromTo(coreRef.current, { scale: 0.9 }, { scale: 1, duration: 0.5, ease: 'elastic.out(1, 0.55)', overwrite: 'auto' });
-        }
         return undefined;
     }, [interruptSignal]);
 
@@ -278,20 +150,19 @@ export function VoiceModeOrb({ phase, analyserRef, speechAudioRef, speechEnvelop
     const px = `${size}px`;
     return (
         <button
-            ref={scope}
             onClick={onClick}
             type="button"
             className="relative flex items-center justify-center shrink-0 focus:outline-none"
             style={{ width: px, height: px }}
             aria-label="Voice Mode"
         >
-            <div ref={halo1Ref} className="vm-orb-halo-1 absolute inset-0 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c.from}, transparent 70%)` }} />
-            <div ref={halo2Ref} className="vm-orb-halo-2 absolute inset-0 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c.to}, transparent 70%)` }} />
+            <div ref={halo1Ref} className="absolute inset-0 rounded-full pointer-events-none will-change-transform" style={{ background: `radial-gradient(circle, ${c.from}, transparent 70%)`, transition: 'background 0.5s ease' }} />
+            <div ref={halo2Ref} className="absolute inset-0 rounded-full pointer-events-none will-change-transform" style={{ background: `radial-gradient(circle, ${c.to}, transparent 70%)`, transition: 'background 0.5s ease' }} />
             <div ref={rippleRef} className="absolute inset-0 rounded-full pointer-events-none border-2" style={{ borderColor: '#5eead4', opacity: 0 }} />
             <div
                 ref={coreRef}
-                className="vm-orb-core rounded-full shadow-xl will-change-transform"
-                style={{ width: px, height: px, background: `radial-gradient(circle at 32% 28%, ${c.from}, ${c.to} 70%, ${c.to})` }}
+                className="rounded-full shadow-xl will-change-transform"
+                style={{ width: px, height: px, background: `radial-gradient(circle at 32% 28%, ${c.from}, ${c.to} 70%, ${c.to})`, transition: 'background 0.5s ease' }}
             />
         </button>
     );

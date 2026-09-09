@@ -232,7 +232,7 @@ function renderChunk(chunk, key) {
 export function MessageRenderer({ content }) {
     const blocks = content.split(/(```[\s\S]*?```)/g);
     return (
-        <div className="text-[17px] sm:text-[18px] leading-relaxed break-words min-w-0 max-w-full">
+        <div className="text-[16px] leading-[1.7] break-words min-w-0 max-w-full">
             {blocks.map((block, index) => {
                 if (block.startsWith('```') && block.endsWith('```') && block.length >= 6) {
                     const lines = block.slice(3, -3).split('\n');
