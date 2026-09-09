@@ -3,6 +3,11 @@ import { goBack } from '@/shared/lib/navigation';
 import { useStaggerIn } from '@/shared/lib/useEnterAnimation';
 import { t } from '@/shared/lib/i18n';
 import { Icons } from '@/shared/ui/Icons';
+import { connectTelegram, connectCalls, disconnectConnector, startGithubOAuth, startNotionOAuth } from '@/shared/api/connectors';
+
+// Провайдеры с РЕАЛЬНЫМ подключением на бэкенде (#3). Остальные из списка —
+// пока локальные плейсхолферы (интеграция добавится позже).
+const REAL_PROVIDERS = ['telegram', 'github', 'notion', 'phone_calls'];
 
 // ==========================================
 // ПЛАГИНЫ — внешние инструменты для агентов
@@ -77,6 +82,10 @@ export function PluginsView({ state, updateState }) {
     const [modalTool, setModalTool] = useState(null);
     const [category, setCategory] = useState('all');
     const [query, setQuery] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState('');
+    const [botToken, setBotToken] = useState('');
+    const [phone, setPhone] = useState('');
     const connected = state.connectedPlugins || [];
     // Лёгкое каскадное появление карточек при входе/смене фильтра (GSAP).
     const listScope = useStaggerIn('.connector-item', [category, query]);
@@ -92,14 +101,56 @@ export function PluginsView({ state, updateState }) {
         tools: visible.filter(t => t.category === c.id),
     })).filter(g => g.tools.length > 0);
 
-    const connect = (tool) => {
-        if (!connected.includes(tool.id)) {
-            updateState({ connectedPlugins: [...connected, tool.id] });
-        }
-        setModalTool(null);
+    const openModal = (tool) => {
+        setErr(''); setBotToken(''); setPhone(''); setModalTool(tool);
     };
 
-    const disconnect = (tool) => {
+    const markConnected = (id) => {
+        if (!connected.includes(id)) updateState({ connectedPlugins: [...connected, id] });
+    };
+
+    // Реальное подключение (#3). Для Telegram/Звонков — прямой запрос с
+    // данными; для GitHub/Notion — переход в окно OAuth (возврат обработает
+    // App.jsx). Прочие провайдеры пока переключаются локально.
+    const connect = async (tool) => {
+        setErr('');
+        if (!REAL_PROVIDERS.includes(tool.id)) {
+            markConnected(tool.id);
+            setModalTool(null);
+            return;
+        }
+        setBusy(true);
+        try {
+            if (tool.id === 'telegram') {
+                const res = await connectTelegram(botToken);
+                markConnected('telegram');
+                setModalTool(null);
+                setTimeout(() => alert(`Telegram-бот подключён: ${res.accountLabel || ''}`), 50);
+            } else if (tool.id === 'phone_calls') {
+                const res = await connectCalls(phone);
+                markConnected('phone_calls');
+                setModalTool(null);
+                setTimeout(() => alert(`Номер привязан: ${res.accountLabel || ''}`), 50);
+            } else if (tool.id === 'github') {
+                const { url } = await startGithubOAuth();
+                window.location.href = url; // редирект на согласие GitHub
+            } else if (tool.id === 'notion') {
+                const { url } = await startNotionOAuth();
+                window.location.href = url;
+            }
+        } catch (e) {
+            setErr(e?.message || 'Не удалось подключить. Попробуйте позже.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const disconnect = async (tool) => {
+        if (REAL_PROVIDERS.includes(tool.id)) {
+            setBusy(true);
+            try { await disconnectConnector(tool.id); } catch { /* всё равно снимем локально */ }
+            setBusy(false);
+        }
         updateState({ connectedPlugins: connected.filter(id => id !== tool.id) });
         setModalTool(null);
     };
@@ -118,11 +169,11 @@ export function PluginsView({ state, updateState }) {
                     <p className="text-xs text-gray-400 truncate">{tool.desc}</p>
                 </div>
                 {isOn ? (
-                    <button onClick={() => setModalTool(tool)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-xs font-bold shrink-0">
+                    <button onClick={() => openModal(tool)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-xs font-bold shrink-0">
                         <Icons.Check className="w-3.5 h-3.5" /> {t(lang, 'plugins.connected')}
                     </button>
                 ) : (
-                    <button onClick={() => setModalTool(tool)} title={t(lang, 'plugins.connect')} className="void-tap-target w-10 h-10 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-400 hover:bg-[#e0dbf4] flex items-center justify-center transition-colors shrink-0">
+                    <button onClick={() => openModal(tool)} title={t(lang, 'plugins.connect')} className="void-tap-target w-10 h-10 rounded-xl bg-[#efecf9] dark:bg-purple-900/20 text-[#5b32d4] dark:text-purple-400 hover:bg-[#e0dbf4] flex items-center justify-center transition-colors shrink-0">
                         <Icons.Plus className="w-5 h-5" />
                     </button>
                 )}
@@ -200,13 +251,32 @@ export function PluginsView({ state, updateState }) {
                             <p className="text-[13px] text-gray-500 dark:text-gray-400 leading-relaxed">{t(lang, 'plugins.policyText')}</p>
                         </div>
 
+                        {/* Провайдер-специфичные поля для реального подключения (#3) */}
+                        {!(state.connectedPlugins || []).includes(modalTool.id) && modalTool.id === 'telegram' && (
+                            <div className="mb-4">
+                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 ml-1">Бот-токен из @BotFather</label>
+                                <input value={botToken} onChange={e => setBotToken(e.target.value)} placeholder="123456:AA..." autoComplete="off"
+                                    className="w-full px-4 py-3 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-darkBorder text-sm dark:text-white outline-none focus:border-[#5b32d4] focus:ring-4 focus:ring-[#5b32d4]/10 transition-all font-mono" />
+                                <p className="text-[11px] text-gray-400 mt-1.5 ml-1">Создайте бота у @BotFather и вставьте выданный токен — так агент сможет писать и отвечать от имени этого бота.</p>
+                            </div>
+                        )}
+                        {!(state.connectedPlugins || []).includes(modalTool.id) && modalTool.id === 'phone_calls' && (
+                            <div className="mb-4">
+                                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 ml-1">Номер телефона</label>
+                                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+79991234567" inputMode="tel"
+                                    className="w-full px-4 py-3 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-darkBorder text-sm dark:text-white outline-none focus:border-[#5b32d4] focus:ring-4 focus:ring-[#5b32d4]/10 transition-all" />
+                                <p className="text-[11px] text-gray-400 mt-1.5 ml-1">Номер, к которому привяжется агент звонков (телефония Voximplant).</p>
+                            </div>
+                        )}
+                        {err && <p className="text-xs text-red-500 font-semibold mb-3 ml-1">{err}</p>}
+
                         {(state.connectedPlugins || []).includes(modalTool.id) ? (
-                            <button onClick={() => disconnect(modalTool)} className="w-full py-3.5 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500 font-bold transition-colors hover:bg-red-100 dark:hover:bg-red-900/30">
+                            <button disabled={busy} onClick={() => disconnect(modalTool)} className="w-full py-3.5 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500 font-bold transition-colors hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50">
                                 {t(lang, 'plugins.disconnect')}
                             </button>
                         ) : (
-                            <button onClick={() => connect(modalTool)} className="w-full py-3.5 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold transition-colors flex items-center justify-center gap-2">
-                                {t(lang, 'plugins.goTo', { name: modalTool.name })} <Icons.ChevronRight className="w-4 h-4" />
+                            <button disabled={busy} onClick={() => connect(modalTool)} className="w-full py-3.5 rounded-2xl bg-[#5b32d4] hover:bg-[#4a26b0] text-white font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                                {busy ? 'Подключаем…' : (<>{t(lang, 'plugins.goTo', { name: modalTool.name })} <Icons.ChevronRight className="w-4 h-4" /></>)}
                             </button>
                         )}
                     </div>

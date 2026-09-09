@@ -93,6 +93,7 @@ model User {
   emails        Email[]
   userVoices    UserVoice[]
   usageLogs     UsageLog[]
+  connectors    Connector[]
   voiceConsents   VoiceConsent[]
   voiceViolations VoiceViolation[]
   // Compliance: счётчик вынесенных предупреждений и блокировка аккаунта.
@@ -336,6 +337,30 @@ model ProviderKey {
   provider     String   // 'gemini' | 'openrouter' | 'anthropic' | ...
   encryptedKey String
   createdAt    DateTime @default(now())
+
+  @@unique([userId, provider])
+}
+
+// ==========================================
+// Коннекторы (#3): реальные подключения внешних сервисов
+// ==========================================
+// Реальное (не заглушка) подключение внешних сервисов к аккаунту:
+// Telegram (бот-токен), GitHub / Notion (OAuth2), Звонки (номер +
+// Voximplant). Секрет (токен доступа / бот-токен) хранится ТОЛЬКО в
+// зашифрованном виде (AES-256-GCM, common/crypto) — клиенту он никогда
+// не возвращается, наружу отдаются лишь provider/status/accountLabel/meta.
+model Connector {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String   // 'telegram' | 'github' | 'notion' | 'phone_calls'
+  status         String   @default("connected") // connected | pending
+  accountLabel   String?  // человекочитаемая привязка: @бот, github-логин, workspace, номер
+  accessTokenEnc String?  // зашифрованный токен доступа / бот-токен
+  refreshTokenEnc String? // зашифрованный refresh-токен (если провайдер его выдаёт)
+  meta           Json?    // несекретные данные провайдера (scope, workspace_id, botUsername...)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([userId, provider])
 }

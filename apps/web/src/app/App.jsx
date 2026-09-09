@@ -29,6 +29,7 @@ import { PluginsView } from '@/features/plugins/PluginsView';
 import { WalletView } from '@/features/wallet/WalletView';
 import { createBackendChat, sendBackendMessage, generateBackendImage, fetchWebPage } from '@/shared/api/chat';
 import { fetchPaymentStatus } from '@/shared/api/billing';
+import { fetchConnectors } from '@/shared/api/connectors';
 import { ApiError, onSessionExpired } from '@/shared/api/client';
 import { AI_MODELS, getPlanLimits, defaultReasoningFor, estimateRequestWeight } from '@/shared/config/models';
 import { buildReasoningScript, levelDelayMs } from '@/shared/config/reasoningScript';
@@ -320,6 +321,40 @@ export function App() {
             else clearPending();
         };
         check();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.user]);
+
+    // ==========================================
+    // Синхронизация РЕАЛЬНЫХ коннекторов (#3) + возврат из OAuth
+    // ==========================================
+    // Коннекторы (Telegram/GitHub/Notion/Звонки) теперь живут на сервере.
+    // При входе тянем их список и приводим connectedPlugins к серверной
+    // правде. Если это возврат из OAuth (?connector=github&status=ok) —
+    // чистим URL и показываем результат.
+    useEffect(() => {
+        let cancelled = false;
+        const params = new URLSearchParams(window.location.search);
+        const returnedProvider = params.get('connector');
+        const returnedStatus = params.get('status');
+        if (returnedProvider) {
+            try { window.history.replaceState({}, '', window.location.pathname); } catch { /* noop */ }
+        }
+        if (!stateRef.current.user) return undefined;
+        (async () => {
+            try {
+                const rows = await fetchConnectors();
+                if (cancelled) return;
+                const ids = (rows || []).map(r => r.provider);
+                updateStateRef.current({ connectedPlugins: ids });
+            } catch { /* сеть/не готово — оставляем локальное состояние */ }
+            if (returnedProvider) {
+                setTimeout(() => {
+                    if (returnedStatus === 'ok') alert('Коннектор подключён!');
+                    else alert('Не удалось подключить коннектор. Попробуйте ещё раз.');
+                }, 100);
+            }
+        })();
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state.user]);

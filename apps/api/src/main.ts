@@ -26,6 +26,15 @@ function logEnvChecklist() {
     { name: 'DEEPINFRA_API_KEY', required: false, note: 'доп. провайдер картинок' },
     { name: 'RESEND_API_KEY', required: false, note: 'почта @voidops.ru — без него отправка писем недоступна' },
     { name: 'RESEND_WEBHOOK_SECRET', required: false, note: 'приём ВХОДЯЩИХ писем @voidops.ru — без него вебхук отклоняет запросы (см. mail-webhook.controller.ts)' },
+    { name: 'YOOKASSA_SHOP_ID', required: false, note: 'приём платежей ЮKassa — без него подписка/пополнение недоступны' },
+    { name: 'YOOKASSA_SECRET_KEY', required: false, note: 'секретный ключ ЮKassa (пара к SHOP_ID)' },
+    { name: 'ENCRYPTION_KEY', required: false, note: 'шифрование секретов (пароль ящика, токены коннекторов) — без него Telegram/GitHub/Notion/Звонки не подключить' },
+    { name: 'GITHUB_OAUTH_CLIENT_ID', required: false, note: 'коннектор GitHub (OAuth) — без него подключение GitHub недоступно' },
+    { name: 'GITHUB_OAUTH_CLIENT_SECRET', required: false, note: 'секрет OAuth-приложения GitHub (пара к CLIENT_ID)' },
+    { name: 'NOTION_CLIENT_ID', required: false, note: 'коннектор Notion (OAuth) — без него подключение Notion недоступно' },
+    { name: 'NOTION_CLIENT_SECRET', required: false, note: 'секрет интеграции Notion (пара к CLIENT_ID)' },
+    { name: 'VOXIMPLANT_ACCOUNT_ID', required: false, note: 'коннектор «Звонки» — без него привязка номера/звонки недоступны' },
+    { name: 'VOXIMPLANT_API_KEY', required: false, note: 'API-ключ Voximplant (пара к ACCOUNT_ID)' },
   ];
   // eslint-disable-next-line no-console
   console.log('\n[ENV CHECK] ================================================');
