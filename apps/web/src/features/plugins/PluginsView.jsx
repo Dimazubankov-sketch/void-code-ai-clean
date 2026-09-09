@@ -21,7 +21,7 @@ export const PLUGIN_CATEGORIES = [
     { id: 'files', label: 'Файлы и диски' },
     { id: 'docs', label: 'Заметки и документы' },
     { id: 'calendar', label: 'Календари и задачи' },
-    { id: 'calls', label: 'Видеозвонки' },
+    { id: 'calls', label: 'Звонки' },
     { id: 'dev', label: 'Разработка' },
     { id: 'automation', label: 'Автоматизация' },
     { id: 'crm', label: 'CRM и продажи' },
@@ -31,10 +31,10 @@ export const PLUGIN_CATEGORIES = [
 export const PLUGIN_TOOLS = [
     // Мессенджеры
     { id: 'telegram', category: 'messengers', name: 'Telegram', icon: 'MsgTelegram', desc: 'Сообщения и боты' },
-    { id: 'whatsapp', category: 'messengers', name: 'WhatsApp', icon: 'MsgWhatsapp', desc: 'Общение с клиентами' },
-    { id: 'vk', category: 'messengers', name: 'ВКонтакте', icon: 'MsgVk', desc: 'Сообщения и сообщества' },
-    { id: 'discord', category: 'messengers', name: 'Discord', icon: 'MsgDiscord', desc: 'Серверы и каналы' },
     { id: 'slack', category: 'messengers', name: 'Slack', icon: 'MsgSlack', desc: 'Рабочие чаты команды' },
+    // #2: телефонные звонки — агент привязывается к вашему номеру, принимает
+    // входящие и звонит сам.
+    { id: 'phone_calls', category: 'calls', name: 'Звонки', icon: 'Phone', color: 'green', desc: 'Агент принимает и совершает звонки на ваш номер' },
     // Почта
     { id: 'gmail', category: 'mail', name: 'Gmail', icon: 'ProviderGmail', desc: 'Чтение и отправка писем' },
     { id: 'outlook', category: 'mail', name: 'Outlook', icon: 'ProviderOutlook', desc: 'Почта и календарь' },
