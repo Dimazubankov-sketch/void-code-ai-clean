@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
-import { IsEnum } from 'class-validator';
+import { IsEnum, IsInt, IsString, Min, Max, MinLength } from 'class-validator';
 import { Plan, BillingCycle } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { BillingService } from './billing.service';
@@ -10,6 +10,23 @@ class SubscribeDto {
 
   @IsEnum(BillingCycle)
   cycle!: BillingCycle;
+}
+
+class TopUpDto {
+  @IsInt()
+  @Min(100)
+  @Max(500000)
+  amount!: number; // в рублях
+}
+
+class WithdrawDto {
+  @IsInt()
+  @Min(100)
+  amount!: number; // в рублях
+
+  @IsString()
+  @MinLength(4)
+  destination!: string; // номер карты/счёта (сервер хранит только последние 4)
 }
 
 @Controller('billing')
@@ -33,6 +50,18 @@ export class BillingController {
   @Get('wallet')
   wallet(@Req() req: any) {
     return this.billing.getWallet(req.user.userId);
+  }
+
+  // #6: реальное пополнение кошелька через ЮKassa (возвращает confirmationUrl).
+  @Post('topup')
+  topup(@Req() req: any, @Body() dto: TopUpDto) {
+    return this.billing.createTopUp(req.user.userId, dto.amount);
+  }
+
+  // #6: заявка на вывод средств (списывает с баланса, ставит в обработку).
+  @Post('withdraw')
+  withdraw(@Req() req: any, @Body() dto: WithdrawDto) {
+    return this.billing.requestWithdrawal(req.user.userId, dto.amount, dto.destination);
   }
 }
 

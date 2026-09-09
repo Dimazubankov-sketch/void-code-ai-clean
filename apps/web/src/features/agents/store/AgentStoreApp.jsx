@@ -4,6 +4,7 @@ import { StoreCard } from '@/features/agents/store/StoreCard';
 import { StoreDrawer } from '@/features/agents/store/StoreDrawer';
 import { StoreSidebar } from '@/features/agents/store/StoreSidebar';
 import { WalletTopUpModal } from '@/features/wallet/WalletTopUpModal';
+import { WalletView } from '@/features/wallet/WalletView';
 import { AGENT_STORE, ORCHESTRATOR_PRODUCTS } from '@/shared/config/agents';
 import { createAgentConfig, generateOrchestratorEmail, getOrchestratorLimit, getAgentLimit, canUseOrchestrators, ORCHESTRATOR_BUILD_FEE } from '@/shared/config/orchestrator';
 import { generateUniqueAgentName } from '@/shared/lib/agent-naming';
@@ -196,20 +197,10 @@ export function AgentStoreApp({ state, updateState }) {
                         </div>
                     )}
 
+                    {/* #6: биллинг в разделе «Агенты» — тот же экран, что и в
+                        настройках (единый WalletView), чтобы это было «одно и то же». */}
                     {nav === 'billing' && (
-                        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5">
-                            <h2 className="text-xl font-extrabold dark:text-white mb-4">Биллинг</h2>
-                            <div className="bg-white dark:bg-darkCard rounded-2xl border border-gray-100 dark:border-darkBorder p-5 mb-4">
-                                <p className="text-sm text-gray-400">Баланс кошелька</p>
-                                <p className="text-3xl font-extrabold dark:text-white mt-1">{formatMoney(balance)} ₽</p>
-                                <button onClick={() => updateState({ currentView: 'wallet' })} className="mt-4 px-5 py-2.5 rounded-xl bg-[#5b32d4] text-white font-bold text-sm">Пополнить</button>
-                            </div>
-                            <div className="bg-white dark:bg-darkCard rounded-2xl border border-gray-100 dark:border-darkBorder p-5">
-                                <p className="text-sm text-gray-400">Тариф</p>
-                                <p className="text-lg font-extrabold dark:text-white mt-1 capitalize">{plan}</p>
-                                <button onClick={() => updateState({ currentView: 'pricing' })} className="mt-3 text-sm font-bold text-[#5b32d4]">Сменить тариф</button>
-                            </div>
-                        </div>
+                        <WalletView state={state} updateState={updateState} embedded />
                     )}
                 </div>
             </div>

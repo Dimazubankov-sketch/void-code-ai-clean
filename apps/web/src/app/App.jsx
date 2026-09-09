@@ -302,6 +302,13 @@ export function App() {
                 const res = await fetchPaymentStatus(pid);
                 if (res.status === 'succeeded') {
                     clearPending();
+                    // #6: пополнение кошелька — тариф не меняем, обновляем баланс.
+                    if (res.kind === 'wallet_topup') {
+                        const addRub = Math.round((res.amountKopecks || 0) / 100);
+                        updateStateRef.current({ walletBalance: (stateRef.current.walletBalance || 0) + addRub, currentView: 'wallet' });
+                        setTimeout(() => alert(`Баланс пополнен на ${addRub} ₽!`), 100);
+                        return;
+                    }
                     const uiPlan = PLAN_UI[res.plan] || 'pro';
                     const acctKey = (stateRef.current.user?.email || '').trim().toLowerCase();
                     updateStateRef.current({

@@ -85,6 +85,99 @@ export class BillingService {
     };
   }
 
+  // ==========================================
+  // Пополнение кошелька (#6) — реальный платёж ЮKassa
+  // ==========================================
+  // Тот же приём денег, что и подписка, но метаданные помечены как
+  // wallet_topup и на succeeded зачисляем сумму на баланс кошелька
+  // (walletKopecks), а не меняем тариф. Карту сервер не видит.
+  async createTopUp(userId: string, amountRub: number) {
+    const auth = this.yooAuth();
+    const amt = Math.round(Number(amountRub));
+    if (!Number.isFinite(amt) || amt < 100) throw new BadRequestException('Минимальная сумма пополнения — 100 ₽');
+    if (amt > 500000) throw new BadRequestException('Слишком большая сумма пополнения');
+    const value = amt.toFixed(2);
+    const base = (process.env.APP_URL || 'https://void-code.ru').replace(/\/$/, '');
+    const returnUrl = `${base}/?payment=return`;
+    let res: Response;
+    try {
+      res = await fetch(`${YOOKASSA_API}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Idempotence-Key': randomUUID(), Authorization: auth },
+        body: JSON.stringify({
+          amount: { value, currency: 'RUB' },
+          capture: true,
+          confirmation: { type: 'redirect', return_url: returnUrl },
+          description: `Пополнение кошелька на ${amt} ₽`,
+          metadata: { userId, kind: 'wallet_topup', amountKopecks: amt * 100 },
+        }),
+      });
+    } catch (e: any) {
+      throw new ServiceUnavailableException(`Не удалось связаться с ЮKassa: ${e?.message || e}`);
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      // eslint-disable-next-line no-console
+      console.error('[YooKassa/topup] HTTP', res.status, body.slice(0, 500));
+      if (res.status === 401) throw new ServiceUnavailableException('ЮKassa: неверный shopId или секретный ключ');
+      throw new ServiceUnavailableException(`ЮKassa отклонила создание платежа (HTTP ${res.status})`);
+    }
+    const data: any = await res.json();
+    return { paymentId: data.id as string, confirmationUrl: data.confirmation?.confirmation_url as string, status: data.status as string };
+  }
+
+  // Идемпотентное зачисление пополнения (по подтверждённому платежу).
+  private async activateTopUp(paymentId: string, userId?: string, amountKopecks?: number) {
+    if (!userId || !amountKopecks || amountKopecks <= 0) return null;
+    const already = await this.prisma.walletTransaction.findFirst({
+      where: { type: TransactionType.TOPUP, meta: { path: ['externalPaymentId'], equals: paymentId } },
+    });
+    if (already) return already;
+    return this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { walletKopecks: { increment: amountKopecks } } });
+      return tx.walletTransaction.create({
+        data: {
+          userId,
+          type: TransactionType.TOPUP,
+          amountKopecks,
+          description: `Пополнение кошелька на ${(amountKopecks / 100).toFixed(0)} ₽`,
+          meta: { externalPaymentId: paymentId },
+        },
+      });
+    });
+  }
+
+  // ==========================================
+  // Вывод средств (#6)
+  // ==========================================
+  // Списывает сумму с баланса и создаёт заявку на вывод (status processing).
+  // Полностью автоматический перевод на карту требует отдельного договора
+  // выплат ЮKassa и токенизации карты получателя, поэтому фактическая
+  // выплата обрабатывается оператором по заявке. Реквизиты храним только
+  // маскированными (последние 4 цифры) — полный номер карты сервер не хранит.
+  async requestWithdrawal(userId: string, amountRub: number, destination: string) {
+    const amt = Math.round(Number(amountRub));
+    if (!Number.isFinite(amt) || amt < 100) throw new BadRequestException('Минимальная сумма вывода — 100 ₽');
+    const kop = amt * 100;
+    const dest = (destination || '').replace(/\s+/g, '');
+    if (dest.length < 4) throw new BadRequestException('Укажите реквизиты для вывода (номер карты или счёта)');
+    const masked = `•••• ${dest.slice(-4)}`;
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { walletKopecks: true } });
+      if (user.walletKopecks < kop) throw new BadRequestException('Недостаточно средств на балансе');
+      await tx.user.update({ where: { id: userId }, data: { walletKopecks: { decrement: kop } } });
+      return tx.walletTransaction.create({
+        data: {
+          userId,
+          type: TransactionType.WITHDRAW,
+          amountKopecks: -kop,
+          description: `Вывод средств на ${masked}`,
+          meta: { status: 'processing', destinationLast4: dest.slice(-4) },
+        },
+      });
+    });
+  }
+
   // Опрос статуса платежа фронтом (после возврата с оплаты). Если оплачен -
   // активируем подписку и возвращаем новый план.
   async getPaymentStatus(paymentId: string, userId: string) {
@@ -106,6 +199,12 @@ export class BillingService {
       // метаданным платежа, если запрос пришёл из вебхука без userId).
       if (userId && meta.userId && meta.userId !== userId) {
         throw new BadRequestException('Платёж принадлежит другому аккаунту');
+      }
+      // #6: пополнение кошелька — зачисляем на баланс, тариф не трогаем.
+      if (meta.kind === 'wallet_topup') {
+        const amountKopecks = Number(meta.amountKopecks) || 0;
+        await this.activateTopUp(paymentId, meta.userId || userId, amountKopecks);
+        return { status: 'succeeded', kind: 'wallet_topup', amountKopecks };
       }
       await this.activate(paymentId, meta.userId || userId, meta.plan, meta.cycle);
       return { status: 'succeeded', plan: meta.plan as Plan };
